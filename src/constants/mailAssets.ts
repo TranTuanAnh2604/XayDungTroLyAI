@@ -1,0 +1,4 @@
+export const MAIL_ASSETS = {
+  userAvatar:
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuCzqMyVTgmEQadzcWkl99-vDQ-jJAmpl6jXTjP4icezOJI3eTGKLOSQtr_8Fj_O8YLP5SN-qC2DMdnT2NSzPcWgvffMgfz1i06_Bo05ugBiQazSGLoPCpndwdEdH0lfVkci4XnebTfWAUTFIOe87v2V51dDY3viK3G-0vgHP6fFAy6t6PwcJxh7PZT8O-NjFnN9Wx-9KApt7bz0Zv4FxjdhphwWa1V9y2chNu6MbsuphVj2Ci_Ls1H18mgmwWXuPfIh6ISbX8s7mFdL',
+} as const;

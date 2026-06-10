@@ -1,0 +1,4 @@
+export const CHAT_ASSETS = {
+  userAvatar:
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuChK2_1ydLHmdIR3Bm5VlbghJwvqRerurNHG9TStdAxTH6WsWN6za3FOa3LLZ_G_h3i3WeJmcQ39XXrK2673WpGjDbxoyYz6DC6I2Zdk8a3FLkwp1J0dYWU_LrySZ3LpyHG9y-qDl2CKV5FpNIHHx3r7U6vZHrzOfjt-YPXf668kvDS1eqO6AWdCffOhx8wb3r6f9Wm_eeeBAgfFQZ4EmHqwk44clTINiBMgq8vzdnEdEOHAm0cq7wkTrlOwTYsWkrvKEIaCMCunfq5',
+} as const;

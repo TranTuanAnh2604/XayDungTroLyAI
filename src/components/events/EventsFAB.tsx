@@ -1,0 +1,47 @@
+import React from 'react';
+import { Pressable, StyleSheet } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import { COLORS } from '../../constants/theme';
+
+type EventsFABProps = {
+  onPress?: () => void;
+  bottomOffset?: number;
+};
+
+export default function EventsFAB({ onPress, bottomOffset = 112 }: EventsFABProps) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.fab,
+        { bottom: bottomOffset },
+        pressed && styles.pressed,
+      ]}
+    >
+      <MaterialIcons name="add" size={28} color={COLORS.onPrimary} />
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  fab: {
+    position: 'absolute',
+    right: 32,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  pressed: {
+    transform: [{ scale: 0.9 }],
+    opacity: 0.9,
+  },
+});

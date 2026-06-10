@@ -1,0 +1,4 @@
+export const VOICE_ASSETS = {
+  profileAvatar:
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuCfkrisMdIuESetlIh-g6_R7n0VH_rP98tW2cfiAsmAWcbCNE4WWDpXYuqC_uqPY25xHZ9YOf4xxHMcvMNIoWc_-wlfx6RRcKlzl5WVJG2NgIWIAkpAypBb3Aw3Uu52rUo6MIt9_y_RFY2XgkTiNuqk1qg16kqJ4iReeu32wZYkuviy4FF_QLbDXAGRzAfNzmEb83FT_Liy751wGyy0SrWQOYc5Fp4saUVbTrkHRWLcLfXXETq0klrqCMnU1doQvShRfG4eCLzTn5lx',
+} as const;
