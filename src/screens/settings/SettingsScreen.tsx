@@ -17,16 +17,19 @@ import {
 import { COLORS } from '../../constants/theme';
 import { typography } from '../../constants/typography';
 import { SPACING } from '../../constants/spacing';
+import { useAuth } from '../../context/AuthContext';
 import type { RootStackParamList } from '../../navigation/types';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { signOut } = useAuth();
 
   const headerHeight = getTopAppBarHeight(insets);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOut();
     navigation.reset({
       index: 0,
       routes: [{ name: 'Auth' }],

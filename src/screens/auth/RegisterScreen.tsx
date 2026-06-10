@@ -51,6 +51,11 @@ export default function RegisterScreen({ navigation }: Props) {
 
     try {
       await signUp(fullName.trim(), email.trim(), password);
+      const rootNavigation = navigation.getParent();
+      rootNavigation?.reset({
+        index: 0,
+        routes: [{ name: 'Main' }],
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Đăng ký thất bại.';
       Alert.alert('Lỗi đăng ký', message);

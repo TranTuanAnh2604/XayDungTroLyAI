@@ -21,6 +21,7 @@ import MeshBackground from '../../components/ui/MeshBackground';
 import PrimaryButton from '../../components/ui/PrimaryButton';
 import SocialLoginButton from '../../components/ui/SocialLoginButton';
 import UnderlineTextInput from '../../components/ui/UnderlineTextInput';
+import { MaterialIcons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/theme';
 import { typography } from '../../constants/typography';
 import { SPACING } from '../../constants/spacing';
@@ -34,6 +35,7 @@ export default function LoginScreen({ navigation }: Props) {
   const topBarHeight = getTopAppBarHeight(insets);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { signIn } = useAuth();
 
@@ -47,6 +49,11 @@ export default function LoginScreen({ navigation }: Props) {
 
     try {
       await signIn(email.trim(), password);
+      const rootNavigation = navigation.getParent();
+      rootNavigation?.reset({
+        index: 0,
+        routes: [{ name: 'Main' }],
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Đăng nhập thất bại.';
       Alert.alert('Lỗi đăng nhập', message);
@@ -104,13 +111,27 @@ export default function LoginScreen({ navigation }: Props) {
                 value={password}
                 onChangeText={setPassword}
                 placeholder="••••••••"
-                secureTextEntry
+                secureTextEntry={!showPassword}
                 autoComplete="password"
                 textContentType="password"
                 labelRight={
-                  <Pressable hitSlop={8}>
-                    <Text style={styles.forgotLink}>Quên mật khẩu?</Text>
-                  </Pressable>
+                  <View style={styles.passwordLabelRight}>
+                    <Pressable
+                      onPress={() => setShowPassword((value) => !value)}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    >
+                      <MaterialIcons
+                        name={showPassword ? 'visibility-off' : 'visibility'}
+                        size={20}
+                        color={showPassword ? COLORS.primary : COLORS.outline}
+                      />
+                    </Pressable>
+                    <Pressable hitSlop={8}>
+                      <Text style={styles.forgotLink}>Quên mật khẩu?</Text>
+                    </Pressable>
+                  </View>
                 }
               />
 
@@ -197,6 +218,10 @@ const styles = StyleSheet.create({
   },
   forgotLink: {
     ...typography.linkSmall,
+  },
+  passwordLabelRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   footer: {
     marginTop: 32,

@@ -26,15 +26,12 @@ export default function AppNavigator() {
           contentStyle: { backgroundColor: COLORS.background },
         }}
       >
-        {user ? (
-          <Stack.Screen
-            name="Main"
-            component={MainNavigator}
-            options={{ animation: 'fade' }}
-          />
-        ) : (
-          <Stack.Screen name="Auth" component={AuthNavigator} />
-        )}
+        <Stack.Screen name="Auth" component={AuthNavigator} />
+        <Stack.Screen
+          name="Main"
+          component={MainNavigator}
+          options={{ animation: 'fade' }}
+        />
         <Stack.Screen
           name="Settings"
           component={SettingsScreen}
