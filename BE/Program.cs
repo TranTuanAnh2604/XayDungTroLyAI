@@ -9,6 +9,7 @@ using FluentValidation;
 using FluentValidation.AspNetCore;
 using Assistant.Validations;
 using Assistant.Services;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // validate jwt key
@@ -29,6 +30,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = false
         };
     });
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFE", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
 builder.Services.AddHttpClient<GmailService>();
 builder.Services.AddHttpClient<GroqService>();
 
@@ -36,17 +48,24 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddControllers();
 builder.Services.AddFluentValidationAutoValidation().AddValidatorsFromAssemblyContaining<RegisterValidator>();
-builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
 var app = builder.Build();
+
 app.UseSwagger();
 app.UseSwaggerUI();
+
 app.UseHttpsRedirection();
-app.UseAuthentication(); 
+
+// ✅ UseCors phải đặt trước Authentication
+app.UseCors("AllowFE");
+
+app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<ExceptionMiddleware>();
 app.MapControllers();
+
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;

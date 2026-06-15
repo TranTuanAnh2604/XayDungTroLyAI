@@ -1,4 +1,30 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { login } from '../services/authService'
+
 export default function Login() {
+    const navigate = useNavigate()
+    const [email, setEmail] = useState('')
+    const [password, setPassword] = useState('')
+    const [error, setError] = useState('')
+    const [loading, setLoading] = useState(false)
+
+    const handleLogin = async () => {
+        setLoading(true)
+        setError('')
+        try {
+            const res = await login(email, password)
+            localStorage.setItem('accessToken', res.data.accessToken)
+            localStorage.setItem('refreshToken', res.data.refreshToken)
+            localStorage.setItem('userName', res.data.name)
+            navigate('/dashboard')
+        } catch (err) {
+            setError(err.response?.data?.message || 'Đăng nhập thất bại!')
+        } finally {
+            setLoading(false)
+        }
+    }  // ← đóng handleLogin
+
     return (
         <div
             className="bg-[#f8f9ff] text-[#0b1c30] min-h-screen relative overflow-hidden flex items-center justify-center p-[16px]"
@@ -72,6 +98,8 @@ export default function Login() {
                                 className="w-full pl-10 pr-4 py-3 bg-[#f8f9ff] border border-[#c6c6cd] rounded-lg text-[16px] text-[#0b1c30] focus:outline-none focus:border-[#6b38d4] focus:ring-1 focus:ring-[#6b38d4] transition-all placeholder:text-[#45464d]/50"
                                 id="email"
                                 placeholder="name@company.com"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
                                 type="email"
                             />
                         </div>
@@ -95,20 +123,26 @@ export default function Login() {
                                 className="w-full pl-10 pr-4 py-3 bg-[#f8f9ff] border border-[#c6c6cd] rounded-lg text-[16px] text-[#0b1c30] focus:outline-none focus:border-[#6b38d4] focus:ring-1 focus:ring-[#6b38d4] transition-all placeholder:text-[#45464d]/50"
                                 id="password"
                                 placeholder="••••••••"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
                                 type="password"
                             />
                         </div>
                     </div>
 
                     {/* Submit */}
+                    {error && <p className="text-[#ba1a1a] text-sm text-center">{error}</p>}
+
                     <button
+                        onClick={handleLogin}
+                        disabled={loading}
                         className="w-full mt-2 py-3 px-4 bg-[#6b38d4] text-white rounded-lg text-[14px] font-semibold hover:bg-[#5a2ab3] transition-colors shadow-md hover:shadow-lg flex items-center justify-center gap-[8px]"
                         type="button"
                     >
-                        Log In
-                        <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                        {loading ? 'Đang đăng nhập...' : 'Log In'}
+                        {!loading && <span className="material-symbols-outlined text-[18px]">arrow_forward</span>}
                     </button>
-                </div>
+                </div> {/* ← đóng Form */}
 
                 {/* Footer */}
                 <div className="text-center pt-[8px] border-t border-[#c6c6cd]/50">
@@ -117,7 +151,8 @@ export default function Login() {
                         Sign up
                     </a>
                 </div>
-            </div>
-        </div>
-    );
+
+            </div> {/* ← đóng Login Card */}
+        </div> // ← đóng wrapper ngoài cùng
+    )
 }
