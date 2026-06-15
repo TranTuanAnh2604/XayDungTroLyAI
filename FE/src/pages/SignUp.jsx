@@ -1,25 +1,33 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom'
+import { register } from '../services/authService'
 
 export default function SignUp() {
-    const [showPassword, setShowPassword] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isSuccess, setIsSuccess] = useState(false);
+    const navigate = useNavigate()
+    const [showPassword, setShowPassword] = useState(false)
+    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [isSuccess, setIsSuccess] = useState(false)
+    const [error, setError] = useState('')
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        setIsSubmitting(true);
+    const [name, setName] = useState('')
+    const [email, setEmail] = useState('')
+    const [password, setPassword] = useState('')
 
-        // Giả lập thời gian call API
-        setTimeout(() => {
-            setIsSubmitting(false);
-            setIsSuccess(true);
-
-            // Reset lại nút sau 2 giây
-            setTimeout(() => {
-                setIsSuccess(false);
-            }, 2000);
-        }, 1500);
-    };
+    const handleSubmit = async (e) => {
+        e.preventDefault()
+        setIsSubmitting(true)
+        setError('')
+        try {
+            await register(name, email, password)
+            setIsSuccess(true)
+            // Đăng ký xong chuyển về login sau 1.5 giây
+            setTimeout(() => navigate('/login'), 1500)
+        } catch (err) {
+            setError(err.response?.data?.message || 'Đăng ký thất bại!')
+        } finally {
+            setIsSubmitting(false)
+        }
+    }
 
     return (
         <div className="bg-[#f8f9ff] text-[#0b1c30] font-sans min-h-screen flex flex-col relative overflow-hidden">
@@ -57,37 +65,39 @@ export default function SignUp() {
             ></div>
 
             {/* Main Content */}
-            <main className="flex-grow flex items-center justify-center p-4 sm:p-6">
-                <div className="w-full max-w-[480px] space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <main className="flex-grow flex items-center justify-center p-4 ">
+                <div className="w-full max-w-[460px] scale-[0.92] lg:scale-100 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
 
                     {/* Logo Section */}
-                    <div className="flex flex-col items-center mb-10">
-                        <div className="w-16 h-16 bg-[#8455ef] rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-[#6b38d4]/20">
-                            <span className="material-symbols-outlined text-[#fffbff] !text-[32px]">bolt</span>
+                    <div className="flex flex-col items-center mb-3">
+                        <div className="w-12 h-12 bg-[#8455ef] rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-[#6b38d4]/20">
+                            <span className="material-symbols-outlined text-[#fffbff] !text-[24px]">bolt</span>
                         </div>
                         <h2 className="text-2xl font-semibold text-black tracking-tight">AI Assistant</h2>
                         <p className="text-sm font-medium text-[#45464d] mt-1">Hệ sinh thái trí tuệ nhân tạo tương lai</p>
                     </div>
 
                     {/* Signup Card */}
-                    <div className="glass-morphism rounded-2xl p-10 shadow-xl transition-all hover:shadow-2xl">
+                    <div className="glass-morphism rounded-2xl p-6 shadow-xl transition-all hover:shadow-2xl">
                         <div className="mb-6">
                             <h1 className="text-3xl font-semibold text-black mb-1">Tạo tài khoản mới</h1>
                             <p className="text-base text-[#45464d]">Bắt đầu hành trình tối ưu hóa năng suất cùng AI</p>
                         </div>
 
-                        <form id="signupForm" className="space-y-4" onSubmit={handleSubmit}>
+                        <form id="signupForm" className="space-y-3" onSubmit={handleSubmit}>
                             {/* Name Input */}
                             <div className="space-y-1">
                                 <label htmlFor="fullName" className="block text-sm font-medium text-[#45464d] ml-1">Họ và tên</label>
                                 <div className="relative group">
                                     <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#76777d] group-focus-within:text-[#6b38d4] transition-colors">person</span>
                                     <input
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
                                         type="text"
                                         id="fullName"
                                         name="fullName"
                                         required
-                                        className="w-full bg-white border border-[#c6c6cd] rounded-xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-[#6b38d4]/20 focus:border-[#6b38d4] outline-none transition-all placeholder:text-[#76777d]"
+                                        className="w-full bg-white border border-[#c6c6cd] rounded-xl py-2.5 pl-12 pr-4 focus:ring-2 focus:ring-[#6b38d4]/20 focus:border-[#6b38d4] outline-none transition-all placeholder:text-[#76777d]"
                                         placeholder="Nguyễn Văn A"
                                     />
                                 </div>
@@ -99,11 +109,13 @@ export default function SignUp() {
                                 <div className="relative group">
                                     <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#76777d] group-focus-within:text-[#6b38d4] transition-colors">mail</span>
                                     <input
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
                                         type="email"
                                         id="email"
                                         name="email"
                                         required
-                                        className="w-full bg-white border border-[#c6c6cd] rounded-xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-[#6b38d4]/20 focus:border-[#6b38d4] outline-none transition-all placeholder:text-[#76777d]"
+                                        className="w-full bg-white border border-[#c6c6cd] rounded-xl py-2.5 pl-12 pr-4 focus:ring-2 focus:ring-[#6b38d4]/20 focus:border-[#6b38d4] outline-none transition-all placeholder:text-[#76777d]"
                                         placeholder="name@company.com"
                                     />
                                 </div>
@@ -115,11 +127,13 @@ export default function SignUp() {
                                 <div className="relative group">
                                     <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#76777d] group-focus-within:text-[#6b38d4] transition-colors">lock</span>
                                     <input
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
                                         type={showPassword ? "text" : "password"}
                                         id="password"
                                         name="password"
                                         required
-                                        className="w-full bg-white border border-[#c6c6cd] rounded-xl py-3 pl-12 pr-12 focus:ring-2 focus:ring-[#6b38d4]/20 focus:border-[#6b38d4] outline-none transition-all placeholder:text-[#76777d]"
+                                        className="w-full bg-white border border-[#c6c6cd] rounded-xl py-2.5 pl-12 pr-12 focus:ring-2 focus:ring-[#6b38d4]/20 focus:border-[#6b38d4] outline-none transition-all placeholder:text-[#76777d]"
                                         placeholder="••••••••"
                                     />
                                     <button
@@ -132,7 +146,7 @@ export default function SignUp() {
                                         </span>
                                     </button>
                                 </div>
-                                <p className="text-[12px] text-[#45464d] ml-1">Ít nhất 8 ký tự, bao gồm chữ cái và số.</p>
+                                <p className="hidden md:block text-[12px] text-[#45464d] ml-1">Ít nhất 8 ký tự, bao gồm chữ cái và số.</p>
                             </div>
 
                             {/* Terms checkbox */}
@@ -150,10 +164,12 @@ export default function SignUp() {
                             </div>
 
                             {/* CTA Button */}
+                            {error && <p className="text-[#ba1a1a] text-sm text-center">{error}</p>}
+
                             <button
                                 type="submit"
                                 disabled={isSubmitting || isSuccess}
-                                className="w-full bg-[#6b38d4] text-white text-sm font-medium py-4 rounded-xl shadow-lg shadow-[#6b38d4]/25 hover:shadow-xl hover:shadow-[#6b38d4]/40 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-6 group disabled:opacity-80 disabled:cursor-not-allowed"
+                                className="w-full bg-[#6b38d4] text-white text-sm font-medium py-3 rounded-xl shadow-lg shadow-[#6b38d4]/25 hover:shadow-xl hover:shadow-[#6b38d4]/40 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-3 group disabled:opacity-80 disabled:cursor-not-allowed"
                             >
                                 {isSubmitting ? (
                                     <>
@@ -173,7 +189,7 @@ export default function SignUp() {
                         </form>
 
                         {/* Divider */}
-                        <div className="relative my-10">
+                        <div className="relative my-5">
                             <div className="absolute inset-0 flex items-center">
                                 <div className="w-full border-t border-[#c6c6cd]"></div>
                             </div>
@@ -184,7 +200,7 @@ export default function SignUp() {
 
                         {/* Social Buttons */}
                         <div className="grid grid-cols-2 gap-4">
-                            <button className="flex items-center justify-center gap-2 bg-[#eff4ff] border border-[#c6c6cd] rounded-xl py-3 px-4 hover:bg-[#dce9ff] transition-colors active:scale-95">
+                            <button className="flex items-center justify-center gap-2 bg-[#eff4ff] border border-[#c6c6cd] rounded-xl py-2.5 px-4 hover:bg-[#dce9ff] transition-colors active:scale-95">
                                 <img
                                     src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png"
                                     className="w-5 h-5"
@@ -192,7 +208,7 @@ export default function SignUp() {
                                 />
                                 <span className="text-sm font-medium text-[#0b1c30]">Google</span>
                             </button>
-                            <button className="flex items-center justify-center gap-2 bg-[#eff4ff] border border-[#c6c6cd] rounded-xl py-3 px-4 hover:bg-[#dce9ff] transition-colors active:scale-95">
+                            <button className="flex items-center justify-center gap-2 bg-[#eff4ff] border border-[#c6c6cd] rounded-xl py-2.5 px-4 hover:bg-[#dce9ff] transition-colors active:scale-95">
                                 <span className="material-symbols-outlined text-[#1877F2]">facebook</span>
                                 <span className="text-sm font-medium text-[#0b1c30]">Facebook</span>
                             </button>
@@ -203,7 +219,7 @@ export default function SignUp() {
                     <div className="text-center">
                         <p className="text-base text-[#45464d]">
                             Đã có tài khoản?
-                            <a href="#" className="text-[#6b38d4] font-bold hover:underline ml-1">Đăng nhập</a>
+                            <a href="/login" className="text-[#6b38d4] font-bold hover:underline ml-1">Đăng nhập</a>
                         </p>
                     </div>
                 </div>

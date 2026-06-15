@@ -8,6 +8,7 @@ export default function Login() {
     const [password, setPassword] = useState('')
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
+    const [showPassword, setShowPassword] = useState(false);
 
     const handleLogin = async () => {
         setLoading(true)
@@ -64,7 +65,7 @@ export default function Login() {
 
                 {/* Google OAuth */}
                 <button
-                    className="w-full flex items-center justify-center gap-[8px] py-3 px-4 bg-white border border-[#c6c6cd] rounded-lg text-[14px] font-medium text-[#0b1c30] hover:bg-[#eff4ff] transition-colors duration-200"
+                    className="w-full flex items-center justify-center gap-[8px] py-2.5 px-4 bg-white border border-[#c6c6cd] rounded-lg text-[14px] font-medium text-[#0b1c30] hover:bg-[#eff4ff] transition-colors duration-200"
                     type="button"
                 >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -95,7 +96,7 @@ export default function Login() {
                                 mail
                             </span>
                             <input
-                                className="w-full pl-10 pr-4 py-3 bg-[#f8f9ff] border border-[#c6c6cd] rounded-lg text-[16px] text-[#0b1c30] focus:outline-none focus:border-[#6b38d4] focus:ring-1 focus:ring-[#6b38d4] transition-all placeholder:text-[#45464d]/50"
+                                className="w-full pl-10 pr-4 py-2.5 bg-[#f8f9ff] border border-[#c6c6cd] rounded-lg text-[16px] text-[#0b1c30] focus:outline-none focus:border-[#6b38d4] focus:ring-1 focus:ring-[#6b38d4] transition-all placeholder:text-[#45464d]/50"
                                 id="email"
                                 placeholder="name@company.com"
                                 value={email}
@@ -120,13 +121,22 @@ export default function Login() {
                                 lock
                             </span>
                             <input
-                                className="w-full pl-10 pr-4 py-3 bg-[#f8f9ff] border border-[#c6c6cd] rounded-lg text-[16px] text-[#0b1c30] focus:outline-none focus:border-[#6b38d4] focus:ring-1 focus:ring-[#6b38d4] transition-all placeholder:text-[#45464d]/50"
+                                className="w-full pl-10 pr-4 py-2.5 bg-[#f8f9ff] border border-[#c6c6cd] rounded-lg text-[16px] text-[#0b1c30] focus:outline-none focus:border-[#6b38d4] focus:ring-1 focus:ring-[#6b38d4] transition-all placeholder:text-[#45464d]/50"
                                 id="password"
                                 placeholder="••••••••"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                type="password"
+                                type={showPassword ? "text" : "password"}
                             />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#76777d] hover:text-[#45464d] transition-colors"
+                            >
+                                <span className="material-symbols-outlined !text-[20px]">
+                                    {showPassword ? 'visibility_off' : 'visibility'}
+                                </span>
+                            </button>
                         </div>
                     </div>
 
@@ -136,7 +146,7 @@ export default function Login() {
                     <button
                         onClick={handleLogin}
                         disabled={loading}
-                        className="w-full mt-2 py-3 px-4 bg-[#6b38d4] text-white rounded-lg text-[14px] font-semibold hover:bg-[#5a2ab3] transition-colors shadow-md hover:shadow-lg flex items-center justify-center gap-[8px]"
+                        className="w-full mt-2 py-2.5 px-4 bg-[#6b38d4] text-white rounded-lg text-[14px] font-semibold hover:bg-[#5a2ab3] transition-colors shadow-md hover:shadow-lg flex items-center justify-center gap-[8px]"
                         type="button"
                     >
                         {loading ? 'Đang đăng nhập...' : 'Log In'}
@@ -147,7 +157,7 @@ export default function Login() {
                 {/* Footer */}
                 <div className="text-center pt-[8px] border-t border-[#c6c6cd]/50">
                     <span className="text-[16px] text-[#45464d]">Don't have an account?</span>
-                    <a className="text-[14px] font-medium text-[#6b38d4] ml-1 hover:underline" href="#">
+                    <a className="text-[14px] font-medium text-[#6b38d4] ml-1 hover:underline" href="/signup">
                         Sign up
                     </a>
                 </div>
