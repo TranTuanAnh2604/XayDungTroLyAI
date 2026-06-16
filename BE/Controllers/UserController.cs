@@ -81,5 +81,33 @@ namespace Assistant.Controllers
             await _context.SaveChangesAsync();
             return Ok(new ApiResponse<string>("Đã ghi nhớ sở thích của bạn cho AI!"));
         }
+
+        [HttpPut("me/password")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto request)
+        {
+            var user = await _context.Users.FindAsync(GetUserId());
+            if (user == null) return NotFound(new ApiResponse<string>("Không tìm thấy user"));
+
+            if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+                return BadRequest(new ApiResponse<string>("Mật khẩu hiện tại không đúng!"));
+
+            if (request.NewPassword != request.ConfirmPassword)
+                return BadRequest(new ApiResponse<string>("Mật khẩu mới không khớp!"));
+
+            if (request.NewPassword.Length < 8)
+                return BadRequest(new ApiResponse<string>("Mật khẩu phải có ít nhất 8 ký tự!"));
+
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+            await _context.SaveChangesAsync();
+
+            return Ok(new ApiResponse<string>("Đổi mật khẩu thành công!"));
+        }
+
+        public class ChangePasswordDto
+        {
+            public string CurrentPassword { get; set; } = null!;
+            public string NewPassword { get; set; } = null!;
+            public string ConfirmPassword { get; set; } = null!;
+        }
     }
 }

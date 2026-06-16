@@ -14,8 +14,8 @@ export default function Sidebar() {
     ]
 
     const footerItems = [
-        { icon: "settings", label: "Settings" },
-        { icon: "help", label: "Help" },
+        { icon: "settings", label: "Settings", path: "/settings" },
+        { icon: "help", label: "Help", path: "/help" },
     ]
 
     return (
@@ -76,16 +76,25 @@ export default function Sidebar() {
 
             {/* Footer */}
             <div className="p-[16px] mt-auto border-t border-[#c6c6cd]/30 flex flex-col gap-[4px]">
-                {footerItems.map(({ icon, label }) => (
-                    <a
-                        key={label}
-                        href="#"
-                        className="flex items-center gap-[16px] px-[16px] py-[8px] text-[#45464d] hover:bg-[#dce9ff] rounded-lg text-[14px] font-medium transition-colors duration-200"
-                    >
-                        <span className="material-symbols-outlined">{icon}</span>
-                        {label}
-                    </a>
-                ))}
+                {footerItems.map(({ icon, label, path }) => {
+                    const active = location.pathname === path
+                    return (
+                        <button
+                            key={label}
+                            onClick={() => navigate(path)}
+                            className={`flex items-center gap-[16px] px-[16px] py-[8px] rounded-lg text-[14px] font-medium transition-colors duration-200 w-full text-left ${active ? "bg-[#8455ef] text-white" : "text-[#45464d] hover:bg-[#dce9ff]"
+                                }`}
+                        >
+                            <span
+                                className="material-symbols-outlined"
+                                style={active ? { fontVariationSettings: "'FILL' 1" } : {}}
+                            >
+                                {icon}
+                            </span>
+                            {label}
+                        </button>
+                    )
+                })}
             </div>
         </nav>
     )

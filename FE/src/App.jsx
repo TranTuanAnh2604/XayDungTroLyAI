@@ -7,6 +7,7 @@ import Chat from './pages/Chat'
 import Email from './pages/Email'
 import Tasks from './pages/Tasks'
 import Voice from './pages/Voice'
+import Settings from './pages/Settings'
 import PrivateRoute from './components/PrivateRoute'
 
 export default function App() {
@@ -22,6 +23,7 @@ export default function App() {
                 <Route path="/email" element={<Email />} />
                 <Route path="/tasks" element={<PrivateRoute><Tasks /></PrivateRoute>} />
                 <Route path="/voice" element={<Voice />} />
+                <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
             </Routes>
         </BrowserRouter>
     )
