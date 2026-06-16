@@ -1,10 +1,8 @@
 import { useRef } from "react";
-import { useNavigate, useLocation } from 'react-router-dom';
+import Sidebar from "../components/Sidebar";
 
 export default function Chat() {
     const textareaRef = useRef(null);
-    const navigate = useNavigate();
-    const location = useLocation();
     const handleInput = () => {
         const el = textareaRef.current;
         if (el) {
@@ -19,91 +17,7 @@ export default function Chat() {
             style={{ fontFamily: "Inter, sans-serif", backgroundColor: "#f8f9ff" }}
         >
             {/* Sidebar */}
-            <nav className="hidden md:flex fixed left-0 top-0 bottom-0 z-40 w-[280px] h-full flex-col bg-[#eff4ff] border-r border-[#c6c6cd]">
-                {/* Header */}
-                <div className="p-[24px] flex items-center gap-[16px]">
-                    <div className="w-10 h-10 rounded-full bg-[#8455ef] flex items-center justify-center text-white">
-                        <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
-                            robot_2
-                        </span>
-                    </div>
-                    <div>
-                        <h1 className="text-[24px] font-bold leading-[1.3] text-[#000000]">AI Assistant</h1>
-                        <p className="text-[14px] font-medium text-[#45464d]">Enterprise Edition</p>
-                    </div>
-                </div>
-
-                {/* New Chat */}
-                <div className="px-[16px] pb-[16px]">
-                    <button
-                        onClick={() => navigate('/chat')}
-                        className="w-full py-[8px] px-[16px] rounded-lg text-white text-[14px] font-medium flex items-center justify-center gap-[8px] hover:opacity-90 active:scale-95 transition-all duration-200 shadow-sm"
-                        style={{ background: "linear-gradient(to right, #6b38d4, #8455ef)" }}
-                    >
-                        <span className="material-symbols-outlined">add</span>
-                        New Chat
-                    </button>
-                </div>
-
-                {/* Nav Links */}
-                <div className="flex-1 overflow-y-auto px-[16px] flex flex-col gap-[4px]">
-                    {[
-                        { icon: "dashboard", label: "Dashboard", path: "/dashboard" },
-                        { icon: "chat", label: "Chat", path: "/chat" },
-                        { icon: "assignment", label: "Tasks", path: "/tasks" },
-                        { icon: "calendar_today", label: "Calendar", path: "/calendar" },
-                        { icon: "email", label: "Email", path: "/email" },
-                        { icon: "mic", label: "Voice", path: "/voice" },
-                    ].map(({ icon, label, path }) => {
-                        const active = location.pathname === path
-                        return (
-                            <button
-                                key={label}
-                                onClick={() => navigate(path)}
-                                className={`flex items-center gap-[8px] px-[8px] py-[8px] rounded-lg text-[14px] font-medium transition-colors duration-200 w-full text-left ${active ? "bg-[#8455ef] text-white" : "text-[#45464d] hover:bg-[#d3e4fe]"
-                                    }`}
-                            >
-                                <span
-                                    className="material-symbols-outlined"
-                                    style={active ? { fontVariationSettings: "'FILL' 1" } : {}}
-                                >
-                                    {icon}
-                                </span>
-                                {label}
-                            </button>
-                        )
-                    })}
-                </div>
-
-                {/* Footer */}
-                <div className="px-[16px] pb-[24px] pt-[16px] mt-auto flex flex-col gap-[4px] border-t border-[#c6c6cd]/30">
-                    {[
-                        { icon: "settings", label: "Settings" },
-                        { icon: "help", label: "Help" },
-                    ].map(({ icon, label }) => (
-                        <a
-                            key={label}
-                            href="#"
-                            className="flex items-center gap-[16px] px-[16px] py-[8px] rounded-lg text-[14px] font-medium text-[#45464d] hover:bg-[#dce9ff] transition-colors duration-200"
-                        >
-                            <span className="material-symbols-outlined">{icon}</span>
-                            {label}
-                        </a>
-                    ))}
-                    {/* User Profile */}
-                    <div className="mt-[8px] flex items-center gap-[8px] px-[16px] py-[8px] rounded-lg hover:bg-[#dce9ff] transition-colors cursor-pointer">
-                        <img
-                            alt="User Avatar"
-                            className="w-8 h-8 rounded-full border border-[#c6c6cd]"
-                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuCQBSns1JTG0XstYl-Em808C6m66tplSF0uS3wNTVdoXgS5aMtpy70rMhSOHhXjl8m6PtfJFlnkB3D92UmY348WkayaQydkY1XzfWemXLL9v9VBpD4MUqDswHfYGEM-Gsj4AyfGZpBNQRnNThJyW6TIbT6gJwXsHNsO3gl8nYMZDBjceKX6nid4DUrPEgHzYtfGfg_gVhTdyjWgxDGIF6Tf-YwG4PQTeSnmCDQMRZOuI3JHUNoSpVHfqtD6oJUP4FTyOD-jmGO23Qs"
-                        />
-                        <div className="flex flex-col">
-                            <span className="text-[14px] font-semibold text-[#0b1c30]">Jane Doe</span>
-                            <span className="text-[12px] text-[#45464d]">jane@enterprise.com</span>
-                        </div>
-                    </div>
-                </div>
-            </nav>
+            < Sidebar />
 
             {/* Main Content */}
             <div className="flex-1 flex flex-col md:ml-[280px] w-full relative bg-[#f8f9ff]">

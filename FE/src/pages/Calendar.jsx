@@ -1,7 +1,6 @@
-import { useNavigate, useLocation } from 'react-router-dom';
+import Sidebar from '../components/Sidebar';
+
 export default function Calendar() {
-    const navigate = useNavigate();
-    const location = useLocation();
     const days = [
         { num: "1", dim: true, events: [] },
         { num: "2", events: [{ label: "Weekly Sync", style: "bg-[#e9ddff]/50 text-[#23005c] border border-[#d0bcff]/30", icon: null }] },
@@ -35,60 +34,7 @@ export default function Calendar() {
             style={{ fontFamily: "Inter, sans-serif", backgroundColor: "#f8f9ff", color: "#0b1c30" }}
         >
             {/* Sidebar */}
-            <nav className="fixed left-0 top-0 bottom-0 z-40 w-[280px] h-full flex flex-col bg-[#eff4ff] border-r border-[#c6c6cd] py-[24px] px-[16px] shrink-0">
-                <div className="flex items-center gap-[8px] mb-[40px] px-[8px]">
-                    <div className="w-10 h-10 rounded-lg bg-[#131b2e] flex items-center justify-center text-[#7c839b]">
-                        <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>psychiatry</span>
-                    </div>
-                    <div>
-                        <h1 className="text-[24px] font-bold leading-tight tracking-tight text-[#000000]">AI Assistant</h1>
-                        <p className="text-[14px] font-medium text-[#45464d]">Enterprise Edition</p>
-                    </div>
-                </div>
-
-                <button onClick={() => navigate('/chat')} className="w-full flex items-center justify-center gap-[8px] bg-[#000000] text-white rounded-lg py-[8px] px-[16px] text-[14px] font-medium mb-[24px] hover:bg-[#565e74] transition-colors active:scale-95 duration-200">
-                    <span className="material-symbols-outlined">add</span>
-                    New Chat
-                </button>
-
-                <div className="flex-1 overflow-y-auto px-[16px] flex flex-col gap-[4px]">
-                    {[
-                        { icon: "dashboard", label: "Dashboard", path: "/dashboard" },
-                        { icon: "chat", label: "Chat", path: "/chat" },
-                        { icon: "assignment", label: "Tasks", path: "/tasks" },
-                        { icon: "calendar_today", label: "Calendar", path: "/calendar" },
-                        { icon: "email", label: "Email", path: "/email" },
-                        { icon: "mic", label: "Voice", path: "/voice" },
-                    ].map(({ icon, label, path }) => {
-                        const active = location.pathname === path
-                        return (
-                            <button
-                                key={label}
-                                onClick={() => navigate(path)}
-                                className={`flex items-center gap-[8px] px-[8px] py-[8px] rounded-lg text-[14px] font-medium transition-colors duration-200 w-full text-left ${active ? "bg-[#8455ef] text-white" : "text-[#45464d] hover:bg-[#d3e4fe]"
-                                    }`}
-                            >
-                                <span
-                                    className="material-symbols-outlined"
-                                    style={active ? { fontVariationSettings: "'FILL' 1" } : {}}
-                                >
-                                    {icon}
-                                </span>
-                                {label}
-                            </button>
-                        )
-                    })}
-                </div>
-
-                <div className="mt-auto pt-[24px] border-t border-[#c6c6cd]/30 flex flex-col gap-[4px]">
-                    {[{ icon: "settings", label: "Settings" }, { icon: "help", label: "Help" }].map(({ icon, label }) => (
-                        <a key={label} href="#" className="flex items-center gap-[16px] px-[16px] py-[8px] rounded-lg text-[14px] font-medium text-[#45464d] hover:bg-[#d3e4fe] transition-colors duration-200">
-                            <span className="material-symbols-outlined">{icon}</span>
-                            {label}
-                        </a>
-                    ))}
-                </div>
-            </nav>
+            < Sidebar />
 
             {/* Main */}
             <div className="ml-[280px] flex-1 flex flex-col min-w-0">

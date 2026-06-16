@@ -1,10 +1,8 @@
 import { useEffect, useRef } from "react";
-import { useNavigate, useLocation } from 'react-router-dom';
+import Sidebar from "../components/Sidebar";
 
 export default function Voice() {
     const barsRef = useRef([]);
-    const navigate = useNavigate();
-    const location = useLocation();
     useEffect(() => {
         const interval = setInterval(() => {
             barsRef.current.forEach((bar) => {
@@ -62,62 +60,7 @@ export default function Voice() {
                 style={{ fontFamily: "Inter, sans-serif", backgroundColor: "#f8f9ff", color: "#0b1c30" }}
             >
                 {/* Sidebar */}
-                <nav className="w-[280px] h-full flex flex-col border-r border-[#c6c6cd] bg-[#eff4ff] fixed left-0 top-0 bottom-0 z-40 hidden md:flex">
-                    <div className="p-[24px] flex items-center gap-[8px]">
-                        <div className="w-10 h-10 rounded-full bg-[#8455ef] flex items-center justify-center text-white">
-                            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>robot_2</span>
-                        </div>
-                        <div>
-                            <h1 className="text-[24px] font-bold text-[#000000]">AI Assistant</h1>
-                            <span className="text-[14px] font-medium text-[#45464d] block">Enterprise Edition</span>
-                        </div>
-                    </div>
-
-                    <div className="px-[16px] mb-[16px]">
-                        <button onClick={() => navigate('/chat')} className="w-full bg-[#000000] text-white rounded-full py-[8px] flex items-center justify-center gap-[4px] text-[14px] font-medium hover:bg-[#565e74] transition-colors">
-                            <span className="material-symbols-outlined text-[18px]">add</span>
-                            New Chat
-                        </button>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto px-[16px] flex flex-col gap-[4px]">
-                        {[
-                            { icon: "dashboard", label: "Dashboard", path: "/dashboard" },
-                            { icon: "chat", label: "Chat", path: "/chat" },
-                            { icon: "assignment", label: "Tasks", path: "/tasks" },
-                            { icon: "calendar_today", label: "Calendar", path: "/calendar" },
-                            { icon: "email", label: "Email", path: "/email" },
-                            { icon: "mic", label: "Voice", path: "/voice" },
-                        ].map(({ icon, label, path }) => {
-                            const active = location.pathname === path
-                            return (
-                                <button
-                                    key={label}
-                                    onClick={() => navigate(path)}
-                                    className={`flex items-center gap-[8px] px-[8px] py-[8px] rounded-lg text-[14px] font-medium transition-colors duration-200 w-full text-left ${active ? "bg-[#8455ef] text-white" : "text-[#45464d] hover:bg-[#d3e4fe]"
-                                        }`}
-                                >
-                                    <span
-                                        className="material-symbols-outlined"
-                                        style={active ? { fontVariationSettings: "'FILL' 1" } : {}}
-                                    >
-                                        {icon}
-                                    </span>
-                                    {label}
-                                </button>
-                            )
-                        })}
-                    </div>
-
-                    <div className="p-[16px] mt-auto flex flex-col gap-[4px] border-t border-[#c6c6cd]">
-                        {[{ icon: "settings", label: "Settings" }, { icon: "help", label: "Help" }].map(({ icon, label }) => (
-                            <a key={label} href="#" className="flex items-center gap-[8px] px-[8px] py-[8px] text-[#45464d] hover:bg-[#d3e4fe] transition-colors rounded-lg text-[14px] font-medium">
-                                <span className="material-symbols-outlined">{icon}</span>
-                                {label}
-                            </a>
-                        ))}
-                    </div>
-                </nav>
+                <Sidebar />
 
                 {/* Main */}
                 <div className="flex-1 ml-0 md:ml-[280px] flex flex-col h-full bg-[#f8f9ff] relative overflow-hidden">
