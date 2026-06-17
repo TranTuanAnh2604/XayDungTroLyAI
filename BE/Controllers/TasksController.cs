@@ -76,5 +76,83 @@ namespace Assistant.Controllers
 
             return Ok(new ApiResponse<bool>(true, "Đã đánh dấu hoàn thành!"));
         }
+        // Sửa công việc
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateTask( Guid id,[FromBody] UpdateTaskDto request)
+        {
+            var task = await _context.Tasks
+                .FirstOrDefaultAsync(x =>
+                    x.Id == id &&
+                    x.UserId == GetUserId());
+
+            if (task == null)
+                return NotFound();
+
+            task.Title = request.Title;
+            task.Description = request.Description;
+            task.Priority = request.Priority;
+            task.Status = request.Status;
+            task.DueDate = request.DueDate;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(
+                new ApiResponse<bool>(
+                    true,
+                    "Cập nhật công việc thành công!"
+                )
+            );
+        }
+        //Xoá công việc
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteTask(Guid id)
+        {
+            var task = await _context.Tasks
+                .FirstOrDefaultAsync(x =>
+                    x.Id == id &&
+                    x.UserId == GetUserId());
+
+            if (task == null)
+                return NotFound();
+
+            _context.Tasks.Remove(task);
+
+            await _context.SaveChangesAsync();
+
+            return Ok(
+                new ApiResponse<bool>(
+                    true,
+                    "Xóa công việc thành công!"
+                )
+            );
+        }
+        //Cập nhật trạng thái
+        [HttpPut("{id}/status")]
+        public async Task<IActionResult> UpdateStatus(Guid id,[FromBody] UpdateTaskStatusDto request)
+        {
+            var task = await _context.Tasks
+                .FirstOrDefaultAsync(x =>
+                    x.Id == id &&
+                    x.UserId == GetUserId());
+
+            if (task == null)
+                return NotFound();
+
+            task.Status = request.Status;
+
+            if (request.Status == "done")
+            {
+                task.CompletedAt = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(
+                new ApiResponse<bool>(
+                    true,
+                    "Cập nhật trạng thái thành công!"
+                )
+            );
+        }
     }
 }
