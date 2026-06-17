@@ -27,6 +27,11 @@ namespace Assistant.Services
                 model = "llama-3.1-8b-instant",
                 messages = new[]
                 {
+                    new
+                    {
+                        role = "system",
+                        content = "Bạn là một trợ lý AI. Luôn luôn trả lời bằng tiếng Việt, dù người dùng hỏi bằng ngôn ngữ nào. Trả lời ngắn gọn, tự nhiên, dễ hiểu."
+                    },
                     new { role = "user", content = prompt }
                 },
                 temperature = 0.7
