@@ -42,6 +42,9 @@ namespace Assistant.Controllers
         [HttpPut("me")]
         public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto request)
         {
+            if (string.IsNullOrWhiteSpace(request.Name))
+                return BadRequest(new ApiResponse<string>("Tên không được để trống!"));
+
             var user = await _context.Users.FindAsync(GetUserId());
             if (user == null) return NotFound(new ApiResponse<string>("Không tìm thấy user"));
 

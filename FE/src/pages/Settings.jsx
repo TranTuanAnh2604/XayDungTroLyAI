@@ -36,6 +36,12 @@ export default function Settings() {
 
     // Lưu profile
     const handleSaveProfile = async () => {
+        // Validate tên không được để trống
+        if (!name.trim()) {
+            setSaveError('Vui lòng nhập tên!')
+            return
+        }
+
         setSaving(true)
         setSaveMsg('')
         setSaveError('')
@@ -45,7 +51,7 @@ export default function Settings() {
             localStorage.setItem('userName', name)
             setSaveMsg('Cập nhật thành công!')
         } catch (err) {
-            setSaveError(err.response?.data?.message || 'Cập nhật thất bại!')
+            setSaveError(err.response?.data?.messenger || 'Cập nhật thất bại!')
         } finally {
             setSaving(false)
         }
@@ -62,7 +68,8 @@ export default function Settings() {
             setNewPassword('')
             setConfirmPassword('')
         } catch (err) {
-            setPasswordError(err.response?.data?.message || 'Đổi mật khẩu thất bại!')
+            console.log('Full error response:', err.response?.data)
+            setPasswordError(err.response?.data?.messenger || 'Đổi mật khẩu thất bại!')
         } finally {
             setSavingPassword(false)
         }
