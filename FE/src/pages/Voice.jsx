@@ -6,11 +6,13 @@ export default function Voice() {
     const barsRef = useRef([]);
     const recognitionRef = useRef(null);
     const transcriptRef = useRef(""); // giữ giá trị mới nhất, tránh lỗi closure
+    const isConversationModeRef = useRef(false);
 
     const [isListening, setIsListening] = useState(false);
     const [transcript, setTranscript] = useState("Bấm vào micro để bắt đầu nói...");
     const [aiResponse, setAiResponse] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
+    const [isConversationMode, setIsConversationMode] = useState(false);
     const [error, setError] = useState("");
 
     // Một số trình duyệt load danh sách voices bất đồng bộ, cần load trước
@@ -22,20 +24,22 @@ export default function Voice() {
     }, []);
 
     // Đọc to bằng Speech Synthesis — khai báo trước vì handleSendToAI cần dùng
-    const speakText = useCallback((text) => {
-        if (!window.speechSynthesis) return;
-
-        window.speechSynthesis.cancel(); // hủy câu đang đọc trước đó (nếu có)
+    const speakText = useCallback((text, onDone) => {
+        if (!window.speechSynthesis) {
+            onDone?.();
+            return;
+        }
+        window.speechSynthesis.cancel();
 
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = "vi-VN";
 
-        // Tìm giọng tiếng Việt nếu trình duyệt có hỗ trợ
         const voices = window.speechSynthesis.getVoices();
         const viVoice = voices.find((v) => v.lang === "vi-VN" || v.lang.startsWith("vi"));
-        if (viVoice) {
-            utterance.voice = viVoice;
-        }
+        if (viVoice) utterance.voice = viVoice;
+
+        // ✅ Callback khi đọc xong
+        utterance.onend = () => onDone?.();
 
         window.speechSynthesis.speak(utterance);
     }, []);
@@ -49,7 +53,16 @@ export default function Voice() {
             const res = await processVoice(text);
             const reply = res.data;
             setAiResponse(reply);
-            speakText(reply);
+
+            // ✅ Sau khi AI đọc xong → tự động bắt đầu lắng nghe lại
+            speakText(reply, () => {
+                if (recognitionRef.current) {
+                    transcriptRef.current = "";
+                    setTranscript("");
+                    recognitionRef.current.start();
+                    setIsListening(true);
+                }
+            });
         } catch (err) {
             setError(err.response?.data?.messenger || "AI xử lý thất bại!");
         } finally {
@@ -88,6 +101,11 @@ export default function Voice() {
             if (finalText) {
                 handleSendToAI(finalText);
             }
+            // Nếu không có text và đang ở conversation mode → restart
+            else if (isConversationModeRef.current) {
+                recognition.start();
+                setIsListening(true);
+            }
         };
 
         recognition.onerror = (event) => {
@@ -118,10 +136,16 @@ export default function Voice() {
     const toggleListening = () => {
         if (!recognitionRef.current) return;
 
-        if (isListening) {
+        if (isListening || isConversationMode) {
+            // Dừng hẳn
+            isConversationModeRef.current = false;
+            setIsConversationMode(false);
             recognitionRef.current.stop();
             setIsListening(false);
         } else {
+            // Bắt đầu conversation mode
+            isConversationModeRef.current = true;
+            setIsConversationMode(true);
             transcriptRef.current = "";
             setTranscript("");
             setAiResponse("");
@@ -132,6 +156,8 @@ export default function Voice() {
     };
 
     const handleEndCall = () => {
+        isConversationModeRef.current = false;
+        setIsConversationMode(false);
         if (recognitionRef.current && isListening) {
             recognitionRef.current.stop();
         }
