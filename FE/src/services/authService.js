@@ -10,7 +10,7 @@ export const register = async (name, email, password) => {
     return res.data
 }
 
-export const googleLogin = async (idToken) => {
-    const res = await api.post('/auth/google-login', { idToken })
+export const googleLogin = async (code) => {
+    const res = await api.post('/auth/google-login', { idToken: code })
     return res.data
 }

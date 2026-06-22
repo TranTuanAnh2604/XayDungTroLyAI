@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { login } from '../services/authService'
-
+import { useGoogleLogin } from '@react-oauth/google'
+import { login, googleLogin } from '../services/authService'
 export default function Login() {
     const navigate = useNavigate()
-    const [email, setEmail] = useState('')
+    const [gmail, setGmail] = useState('')
     const [password, setPassword] = useState('')
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
@@ -14,7 +14,7 @@ export default function Login() {
         setLoading(true)
         setError('')
         try {
-            const res = await login(email, password)
+            const res = await login(gmail, password)
             localStorage.setItem('accessToken', res.data.accessToken)
             localStorage.setItem('refreshToken', res.data.refreshToken)
             localStorage.setItem('userName', res.data.name)
@@ -24,7 +24,29 @@ export default function Login() {
         } finally {
             setLoading(false)
         }
-    }  // ← đóng handleLogin
+    }
+
+    const handleGoogleLogin = useGoogleLogin({
+        flow: 'auth-code',
+        scope: 'openid profile email https://www.googleapis.com/auth/gmail.readonly',
+        onSuccess: async (tokenResponse) => {
+            setLoading(true)
+            setError('')
+            try {
+                // ✅ Gửi thẳng code lên BE, để BE tự đổi lấy refresh_token
+                const res = await googleLogin(tokenResponse.code)
+                localStorage.setItem('accessToken', res.data.accessToken)
+                localStorage.setItem('refreshToken', res.data.refreshToken)
+                localStorage.setItem('userName', res.data.name)
+                navigate('/dashboard')
+            } catch (err) {
+                setError(err.response?.data?.messenger || 'Đăng nhập Google thất bại!')
+            } finally {
+                setLoading(false)
+            }
+        },
+        onError: () => setError('Đăng nhập Google thất bại!'),
+    })
 
     return (
         <div
@@ -65,6 +87,7 @@ export default function Login() {
 
                 {/* Google OAuth */}
                 <button
+                    onClick={() => handleGoogleLogin()}
                     className="w-full flex items-center justify-center gap-[8px] py-2.5 px-4 bg-white border border-[#c6c6cd] rounded-lg text-[14px] font-medium text-[#0b1c30] hover:bg-[#eff4ff] transition-colors duration-200"
                     type="button"
                 >
@@ -80,16 +103,16 @@ export default function Login() {
                 {/* Divider */}
                 <div className="flex items-center gap-[16px]">
                     <div className="flex-1 h-px bg-[#c6c6cd]"></div>
-                    <span className="text-[14px] font-medium text-[#45464d]">or email</span>
+                    <span className="text-[14px] font-medium text-[#45464d]">or gmail</span>
                     <div className="flex-1 h-px bg-[#c6c6cd]"></div>
                 </div>
 
                 {/* Form */}
                 <div className="flex flex-col gap-[16px]">
-                    {/* Email */}
+                    {/* Gmail */}
                     <div className="flex flex-col gap-[4px]">
-                        <label className="text-[14px] font-medium text-[#0b1c30]" htmlFor="email">
-                            Email address
+                        <label className="text-[14px] font-medium text-[#0b1c30]" htmlFor="gmail">
+                            Gmail address
                         </label>
                         <div className="relative">
                             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#45464d] pointer-events-none">
@@ -97,10 +120,10 @@ export default function Login() {
                             </span>
                             <input
                                 className="w-full pl-10 pr-4 py-2.5 bg-[#f8f9ff] border border-[#c6c6cd] rounded-lg text-[16px] text-[#0b1c30] focus:outline-none focus:border-[#6b38d4] focus:ring-1 focus:ring-[#6b38d4] transition-all placeholder:text-[#45464d]/50"
-                                id="email"
+                                id="gmail"
                                 placeholder="name@company.com"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
+                                value={gmail}
+                                onChange={(e) => setGmail(e.target.value)}
                                 type="email"
                             />
                         </div>

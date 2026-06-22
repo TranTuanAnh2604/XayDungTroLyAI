@@ -194,7 +194,7 @@ export default function Dashboard() {
                                 <div className="grid grid-cols-2 gap-[8px]">
                                     {[
                                         { icon: "chat_bubble", label: "Chat", path: "/chat" },
-                                        { icon: "mail", label: "Email", path: "/email" },
+                                        { icon: "mail", label: "Email", path: "/gmail" },
                                         { icon: "mic", label: "Voice", path: "/voice" },
                                         { icon: "note_add", label: "Task", path: "/tasks" },
                                     ].map(({ icon, label, path }) => (
@@ -242,7 +242,7 @@ export default function Dashboard() {
                                             },
                                             {
                                                 icon: "mail",
-                                                title: "Drafted email to Client Services",
+                                                title: "Drafted gmail to Client Services",
                                                 sub: "Draft saved • Yesterday",
                                                 tag: null,
                                             },

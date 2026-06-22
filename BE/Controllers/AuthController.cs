@@ -5,7 +5,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using Google.Apis.Auth; 
+using System.Text.Json;
 using Assistant.Models;
 using Assistant.Wrappers;
 
@@ -17,11 +17,13 @@ namespace Assistant.Controllers
     {
         private readonly AppDbContext _context;
         private readonly IConfiguration _config;
+        private readonly HttpClient _httpClient;
 
-        public AuthController(AppDbContext context, IConfiguration config)
+        public AuthController(AppDbContext context, IConfiguration config, IHttpClientFactory httpClientFactory)
         {
             _context = context;
             _config = config;
+            _httpClient = httpClientFactory.CreateClient();
         }
 
         [HttpPost("register")]
@@ -52,7 +54,7 @@ namespace Assistant.Controllers
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
 
             if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-                return Unauthorized(new ApiResponse<string>("Sai email hoặc mật khẩu!")); // Bọc lỗi
+                return Unauthorized(new ApiResponse<string>("Sai email hoặc mật khẩu!"));
 
             var accessToken = GenerateJwtToken(user);
             var refreshToken = GenerateRefreshToken();
@@ -71,52 +73,124 @@ namespace Assistant.Controllers
 
             return Ok(new ApiResponse<AuthResponseDto>(responseData, "Đăng nhập thành công!"));
         }
+
         [HttpPost("google-login")]
         public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginDto request)
         {
             if (string.IsNullOrWhiteSpace(request.IdToken))
-                return BadRequest(new ApiResponse<string>("Thiếu IdToken từ Google!"));
+                return BadRequest(new ApiResponse<string>("Thiếu code từ Google!"));
 
-            GoogleJsonWebSignature.Payload payload;
+            string googleAccessToken;
+            string? googleRefreshToken = null;
+
             try
             {
-                payload = await GoogleJsonWebSignature.ValidateAsync(request.IdToken);
+                // ✅ Đổi authorization code lấy access_token + refresh_token
+                var tokenRequest = new Dictionary<string, string>
+        {
+            { "code", request.IdToken },
+            { "client_id", _config["Google:ClientId"]! },
+            { "client_secret", _config["Google:ClientSecret"]! },
+            { "redirect_uri", "http://localhost:5173" },
+            { "grant_type", "authorization_code" }
+        };
+
+                var tokenResponse = await _httpClient.PostAsync(
+                    "https://oauth2.googleapis.com/token",
+                    new FormUrlEncodedContent(tokenRequest));
+
+                var tokenJson = await tokenResponse.Content.ReadAsStringAsync();
+                using var tokenDoc = JsonDocument.Parse(tokenJson);
+
+                googleAccessToken = tokenDoc.RootElement.GetProperty("access_token").GetString()!;
+
+                // refresh_token chỉ có lần đầu hoặc khi prompt=consent
+                if (tokenDoc.RootElement.TryGetProperty("refresh_token", out var rt))
+                    googleRefreshToken = rt.GetString();
             }
-            catch (InvalidJwtException)
+            catch
             {
-                return Unauthorized(new ApiResponse<string>("Xác thực Google thất bại hoặc Token giả mạo!"));
+                return Unauthorized(new ApiResponse<string>("Đổi code thất bại!"));
             }
 
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == payload.Email);
+            // Lấy thông tin user từ Google
+            GoogleUserInfo? googleUser;
+            try
+            {
+                var httpRequest = new HttpRequestMessage(HttpMethod.Get, "https://www.googleapis.com/oauth2/v3/userinfo");
+                httpRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", googleAccessToken);
+                var response = await _httpClient.SendAsync(httpRequest);
 
+                if (!response.IsSuccessStatusCode)
+                    return Unauthorized(new ApiResponse<string>("Xác thực Google thất bại!"));
+
+                var json = await response.Content.ReadAsStringAsync();
+                googleUser = JsonSerializer.Deserialize<GoogleUserInfo>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                if (googleUser == null || string.IsNullOrWhiteSpace(googleUser.Email))
+                    return Unauthorized(new ApiResponse<string>("Không lấy được thông tin từ Google!"));
+            }
+            catch
+            {
+                return Unauthorized(new ApiResponse<string>("Xác thực Google thất bại!"));
+            }
+
+            // Tạo hoặc lấy user
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == googleUser.Email);
             if (user == null)
             {
                 user = new User
                 {
-                    Name = payload.Name ?? "Google User",
-                    Email = payload.Email,
-                    PasswordHash = "GOOGLE_SSO_NO_PASSWORD", 
+                    Name = googleUser.Name ?? "Google User",
+                    Email = googleUser.Email,
+                    PasswordHash = "GOOGLE_SSO_NO_PASSWORD",
                     Timezone = "Asia/Ho_Chi_Minh"
                 };
                 _context.Users.Add(user);
                 await _context.SaveChangesAsync();
             }
+
             var accessToken = GenerateJwtToken(user);
             var refreshToken = GenerateRefreshToken();
-
             user.RefreshToken = refreshToken;
             user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
             await _context.SaveChangesAsync();
 
-            var responseData = new AuthResponseDto
+            // ✅ Lưu Google Refresh Token nếu có
+            if (!string.IsNullOrWhiteSpace(googleRefreshToken))
+            {
+                var existingToken = await _context.UserMemories
+                    .FirstOrDefaultAsync(m => m.UserId == user.Id && m.Category == "OAuth" && m.Key == "Google_RefreshToken");
+
+                if (existingToken != null)
+                {
+                    existingToken.Value = googleRefreshToken;
+                    existingToken.UpdatedAt = DateTime.UtcNow;
+                }
+                else
+                {
+                    _context.UserMemories.Add(new UserMemory
+                    {
+                        Id = Guid.NewGuid(),
+                        UserId = user.Id,
+                        Category = "OAuth",
+                        Key = "Google_RefreshToken",
+                        Value = googleRefreshToken,
+                        Source = "system",
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    });
+                }
+                await _context.SaveChangesAsync();
+            }
+
+            return Ok(new ApiResponse<AuthResponseDto>(new AuthResponseDto
             {
                 AccessToken = accessToken,
                 RefreshToken = refreshToken,
                 UserId = user.Id,
                 Name = user.Name
-            };
-
-            return Ok(new ApiResponse<AuthResponseDto>(responseData, "Đăng nhập Google thành công!"));
+            }, "Đăng nhập Google thành công!"));
         }
 
         [HttpPost("refresh_token")]
@@ -204,8 +278,20 @@ namespace Assistant.Controllers
         public string RefreshToken { get; set; } = null!;
     }
 
+    // IdToken giờ thực chất chứa access_token từ useGoogleLogin
     public class GoogleLoginDto
     {
         public string IdToken { get; set; } = null!;
+        public string? GoogleRefreshToken { get; set; }
+    }
+
+    // Cấu trúc JSON trả về từ https://www.googleapis.com/oauth2/v3/userinfo
+    public class GoogleUserInfo
+    {
+        public string? Sub { get; set; }
+        public string? Email { get; set; }
+        public bool? EmailVerified { get; set; }
+        public string? Name { get; set; }
+        public string? Picture { get; set; }
     }
 }

@@ -6,12 +6,13 @@ using System.Text.Json;
 using Assistant.Models;
 using Assistant.Services;
 using Assistant.Wrappers;
+using Assistant.DTOs; // dùng DTO từ đây, xóa class trùng bên dưới
 
 namespace Assistant.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize] // Bắt buộc đăng nhập app mình
+    [Authorize]
     public class GmailController : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -27,9 +28,7 @@ namespace Assistant.Controllers
 
         private Guid GetUserId() => Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
 
-        // =========================================================================
-        // 1. LIÊN KẾT GMAIL: FE gọi 1 lần duy nhất để cất chìa khóa Google
-        // =========================================================================
+        // 1. LIÊN KẾT GMAIL
         [HttpPost("connect")]
         public async Task<IActionResult> ConnectGmail([FromBody] ConnectGoogleDto request)
         {
@@ -38,7 +37,6 @@ namespace Assistant.Controllers
 
             var userId = GetUserId();
 
-            // Lưu khéo léo vào bảng user_memories
             var existingToken = await _context.UserMemories
                 .FirstOrDefaultAsync(m => m.UserId == userId && m.Category == "OAuth" && m.Key == "Google_RefreshToken");
 
@@ -66,13 +64,61 @@ namespace Assistant.Controllers
             return Ok(new ApiResponse<string>("Đã liên kết Gmail thành công!", "Thành công"));
         }
 
+        // 2. LẤY DANH SÁCH GMAIL (inbox) — đặt TRONG class
+        [HttpGet("inbox")]
+        public async Task<IActionResult> GetInbox([FromQuery] int maxResults = 10)
+        {
+            var userId = GetUserId();
+
+            var googleTokenMemory = await _context.UserMemories
+                .FirstOrDefaultAsync(m => m.UserId == userId && m.Category == "OAuth" && m.Key == "Google_RefreshToken");
+
+            if (googleTokenMemory == null)
+                return BadRequest(new ApiResponse<string>("Chưa liên kết Gmail!"));
+
+            try
+            {
+                var accessToken = await _gmailService.GetNewAccessTokenAsync(googleTokenMemory.Value);
+                var gmails = await _gmailService.GetInboxGmailsAsync(accessToken, maxResults);
+                return Ok(new ApiResponse<List<Assistant.DTOs.GmailDto>>(gmails, "Thành công"));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<string>($"Lỗi: {ex.Message}"));
+            }
+        }
+
+        // 3. LẤY CHI TIẾT 1 GMAIL — đặt TRONG class
+        [HttpGet("inbox/{messageId}")]
+        public async Task<IActionResult> GetGmailDetail(string messageId)
+        {
+            var userId = GetUserId();
+
+            var googleTokenMemory = await _context.UserMemories
+                .FirstOrDefaultAsync(m => m.UserId == userId && m.Category == "OAuth" && m.Key == "Google_RefreshToken");
+
+            if (googleTokenMemory == null)
+                return BadRequest(new ApiResponse<string>("Chưa liên kết Gmail!"));
+
+            try
+            {
+                var accessToken = await _gmailService.GetNewAccessTokenAsync(googleTokenMemory.Value);
+                var gmail = await _gmailService.GetGmailDetailAsync(accessToken, messageId);
+                return Ok(new ApiResponse<Assistant.DTOs.GmailDetailDto>(gmail, "Thành công"));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<string>($"Lỗi: {ex.Message}"));
+            }
+        }
+
+        // 4. AUTO SYNC
         [HttpPost("auto-sync")]
         public async Task<IActionResult> AutoSync()
         {
             var userId = GetUserId();
             var today = DateTime.Now;
 
-            // 1. Móc chìa khóa từ DB ra
             var googleTokenMemory = await _context.UserMemories
                 .FirstOrDefaultAsync(m => m.UserId == userId && m.Category == "OAuth" && m.Key == "Google_RefreshToken");
 
@@ -81,80 +127,67 @@ namespace Assistant.Controllers
 
             try
             {
-                // 2. Lên Google lấy Mail về
                 var accessToken = await _gmailService.GetNewAccessTokenAsync(googleTokenMemory.Value);
-                var emails = await _gmailService.GetRecentEmailsAsync(accessToken);
+                var gmails = await _gmailService.GetRecentGmailsAsync(accessToken);
 
-                if (!emails.Any())
-                    return Ok(new ApiResponse<string>("Không có email mới trong 24h qua."));
+                if (!gmails.Any())
+                    return Ok(new ApiResponse<string>("Không có gmail mới trong 24h qua."));
 
-                // 3. Đưa cho AI bóc tách (chỉ tìm lịch hẹn, deadline)
                 int addedTasks = 0;
-                foreach (var email in emails)
+                foreach (var gmail in gmails)
                 {
                     var prompt = $@"
 Thời gian hiện tại của hệ thống: {today:dd/MM/yyyy HH:mm}
-Nhiệm vụ: Đọc đoạn tóm tắt Email sau và trích xuất xem có lịch hẹn, deadline, lịch thi, hay công việc cụ thể nào không.
+Nhiệm vụ: Đọc đoạn tóm tắt Gmail sau và trích xuất xem có lịch hẹn, deadline, lịch thi, hay công việc cụ thể nào không.
 - Priority: Đánh giá độ ưu tiên (1: Thấp, 2: Trung bình, 3: Cao, 4: Khẩn cấp).
-- DueDate: Định dạng chuẩn ISO ""yyyy-MM-ddTHH:mm:ss"". Nếu email chỉ nói ngày (ví dụ: ngày mai, thứ hai tuần sau) mà không nói giờ, hãy tự định dạng về lúc 08:00:00 của ngày đó.
+- DueDate: Định dạng chuẩn ISO ""yyyy-MM-ddTHH:mm:ss"". Nếu gmail chỉ nói ngày (ví dụ: ngày mai, thứ hai tuần sau) mà không nói giờ, hãy tự định dạng về lúc 08:00:00 của ngày đó.
 
-Email nội dung: ""{email}""
+Gmail nội dung: ""{gmail}""
 
 RÀO CẢN BẢO MẬT:
-- Nếu nội dung email KHÔNG chứa bất kỳ lịch trình, deadline hay việc cần làm nào, bắt buộc trả về duy nhất cặp dấu ngoặc nhọn rỗng: {{}}
+- Nếu nội dung gmail KHÔNG chứa bất kỳ lịch trình, deadline hay việc cần làm nào, bắt buộc trả về duy nhất cặp dấu ngoặc nhọn rỗng: {{}}
 - Nếu CÓ, trả về duy nhất chuỗi JSON theo định dạng bắt buộc dưới đây, KHÔNG giải thích dông dài, KHÔNG chào hỏi.
 
 Định dạng bắt buộc:
 {{
-  ""Title"": ""Tên công việc ngắn gọn từ Email"",
+  ""Title"": ""Tên công việc ngắn gọn từ Gmail"",
   ""Priority"": 2,
   ""DueDate"": ""2026-05-26T08:00:00""
 }}
 ";
-
                     var aiResult = await _aiService.ChatAsync(prompt);
                     var cleanedJson = CleanJsonString(aiResult);
 
-                    // Nếu AI thấy có việc (không phải ngoặc rỗng) thì tiến hành bóc tách lưu DB
                     if (cleanedJson != "{}")
                     {
                         try
                         {
-                            var extractedTask = JsonSerializer.Deserialize<ExtractedEmailTaskDto>(cleanedJson);
+                            var extractedTask = JsonSerializer.Deserialize<ExtractedGmailTaskDto>(cleanedJson);
 
                             if (extractedTask != null && !string.IsNullOrEmpty(extractedTask.Title))
                             {
-                                // Tạo một Task mới ném vào bảng tasks của ông
                                 _context.Tasks.Add(new Assistant.Models.Task
                                 {
                                     Id = Guid.NewGuid(),
                                     UserId = userId,
-                                    Title = $"[Gmail] {extractedTask.Title}", // Gắn tag [Gmail] để phân biệt
+                                    Title = $"[Gmail] {extractedTask.Title}",
                                     Description = "Tự động trích xuất từ hòm thư điện tử",
-                                    Status = "pending", // Theo chuẩn DB cũ của ông
+                                    Status = "pending",
                                     Priority = (byte)(extractedTask.Priority >= 1 && extractedTask.Priority <= 4 ? extractedTask.Priority : 2),
                                     DueDate = extractedTask.DueDate ?? today.AddDays(1),
-                                    InputMethod = "ai", // Khớp với CHECK Constraint 'voice','text','ai' trong DB của ông
+                                    InputMethod = "ai",
                                     CreatedAt = DateTime.UtcNow
                                 });
                                 addedTasks++;
                             }
                         }
-                        catch (JsonException)
-                        {
-                            // Lỡ con AI nhả chuỗi lỗi thì bỏ qua mail này, chạy tiếp mail sau không để crash app
-                            continue;
-                        }
+                        catch (JsonException) { continue; }
                     }
                 }
 
-                // Nếu có việc mới thì chốt hạ lưu xuống SQL Server
-                if (addedTasks > 0)
-                {
-                    await _context.SaveChangesAsync();
-                }
+                if (addedTasks > 0) await _context.SaveChangesAsync();
 
-                return Ok(new ApiResponse<string>($"Đồng bộ hoàn tất! AI đã rà soát hòm thư và tự động thêm {addedTasks} công việc mới vào lịch lịch trình của bạn."));
+                return Ok(new ApiResponse<string>($"Đồng bộ hoàn tất! AI đã thêm {addedTasks} công việc mới."));
             }
             catch (Exception ex)
             {
@@ -162,7 +195,6 @@ RÀO CẢN BẢO MẬT:
             }
         }
 
-        // Hàm hỗ trợ làm sạch JSON giống bên AiController
         private string CleanJsonString(string jsonString)
         {
             if (string.IsNullOrWhiteSpace(jsonString)) return "{}";
@@ -181,12 +213,13 @@ RÀO CẢN BẢO MẬT:
         }
     }
 
+    // Các DTO nội bộ — KHÔNG trùng với Assistant.DTOs
     public class ConnectGoogleDto
     {
         public string GoogleRefreshToken { get; set; } = null!;
     }
 
-    public class ExtractedEmailTaskDto
+    public class ExtractedGmailTaskDto
     {
         public string Title { get; set; } = null!;
         public int Priority { get; set; }

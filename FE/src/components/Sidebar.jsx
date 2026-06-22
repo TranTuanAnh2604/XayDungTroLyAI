@@ -9,7 +9,7 @@ export default function Sidebar() {
         { icon: "chat", label: "Chat", path: "/chat" },
         { icon: "assignment", label: "Tasks", path: "/tasks" },
         { icon: "calendar_today", label: "Calendar", path: "/calendar" },
-        { icon: "email", label: "Email", path: "/email" },
+        { icon: "email", label: "Gmail", path: "/gmail" },
         { icon: "mic", label: "Voice", path: "/voice" },
     ]
 

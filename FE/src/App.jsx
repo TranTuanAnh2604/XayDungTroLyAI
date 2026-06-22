@@ -4,7 +4,7 @@ import SignUp from './pages/SignUp'
 import Dashboard from './pages/Dashboard'
 import Calendar from './pages/Calendar'
 import Chat from './pages/Chat'
-import Email from './pages/Email'
+import Gmail from './pages/Gmail'
 import Tasks from './pages/Tasks'
 import Voice from './pages/Voice'
 import Settings from './pages/Settings'
@@ -20,7 +20,7 @@ export default function App() {
                 <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
                 <Route path="/calendar" element={<Calendar />} />
                 <Route path="/chat" element={<PrivateRoute><Chat /></PrivateRoute>} />
-                <Route path="/email" element={<Email />} />
+                <Route path="/gmail" element={<Gmail />} />
                 <Route path="/tasks" element={<PrivateRoute><Tasks /></PrivateRoute>} />
                 <Route path="/voice" element={<Voice />} />
                 <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
