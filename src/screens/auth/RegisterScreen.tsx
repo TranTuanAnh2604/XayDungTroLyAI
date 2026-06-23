@@ -25,7 +25,8 @@ import { typography } from '../../constants/typography';
 import { SPACING } from '../../constants/spacing';
 import type { AuthStackParamList } from '../../navigation/types';
 import { useAuth } from '../../context/AuthContext';
-import { verifyOTP, login as loginApi } from '../../services/auth';
+import { login as loginApi } from '../../services/auth';
+import { completeRegistrationWithOtp } from '../../services/authFlow';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
@@ -74,11 +75,10 @@ export default function RegisterScreen({ navigation }: Props) {
       console.log('EMAIL:', email.trim());
     console.log('PASSWORD length:', password.length);
 
-    await verifyOTP(email.trim(), otp);
-
-    const authData = await loginApi(
+    const authData = await completeRegistrationWithOtp(
       email.trim(),
-      password
+      password,
+      otp,
     );
       console.log('AUTH:', authData);
 

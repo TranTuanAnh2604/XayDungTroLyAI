@@ -11,32 +11,6 @@ export type AuthResponse = {
   user: AuthUser;
 };
 
-export type ContactSyncRequest = {
-  name: string;
-  phone: string;
-};
-
-export type ContactSyncResponse = {
-  success?: boolean;
-  message?: string;
-};
-
-export type CalendarSyncRequest = {
-  title: string;
-  description: string;
-  startTime: string;
-  endTime: string;
-  location: string;
-  source: string;
-  externalId: string;
-  isAllDay: boolean;
-};
-
-export type CalendarSyncResponse = {
-  success?: boolean;
-  message?: string;
-};
-
 export type RefreshTokenRequest = {
   refreshToken: string;
 };
@@ -63,6 +37,7 @@ type RawAuthResponse = {
   data?: {
     token?: string | Record<string, unknown>;
     accessToken?: string | Record<string, unknown>;
+    refreshToken?: string | Record<string, unknown>;
     user?: AuthUser | Record<string, unknown>;
     userId?: string;
     name?: string;
@@ -70,14 +45,17 @@ type RawAuthResponse = {
   };
 };
 
-function normalizeAuthResponse(response: RawAuthResponse): AuthResponse {
+function normalizeAuthResponse(response: RawAuthResponse): AuthResponse & { refreshToken?: string } {
   console.log('🔍 normalizeAuthResponse: Parsing response', JSON.stringify(response, null, 2));
   
   const tokenValue =
     response.token ?? response.accessToken ?? response.data?.token ?? response.data?.accessToken;
+  const refreshTokenValue =
+    response.refreshToken ?? response.data?.refreshToken;
   const userValue = response.user ?? response.data?.user;
 
   console.log('🔍 normalizeAuthResponse: tokenValue =', tokenValue);
+  console.log('🔍 normalizeAuthResponse: refreshTokenValue =', refreshTokenValue);
   console.log('🔍 normalizeAuthResponse: userValue =', JSON.stringify(userValue, null, 2));
 
   const parsedUser = {
@@ -110,7 +88,11 @@ function normalizeAuthResponse(response: RawAuthResponse): AuthResponse {
   const token = typeof tokenValue === 'string' ? tokenValue : JSON.stringify(tokenValue);
   console.log('🔍 normalizeAuthResponse: Final token =', token);
 
-  return { token, user: parsedUser };
+  return {
+    token,
+    user: parsedUser,
+    refreshToken: typeof refreshTokenValue === 'string' ? refreshTokenValue : undefined,
+  };
 }
 
 export async function login(email: string, password: string): Promise<AuthResponse> {
@@ -204,34 +186,6 @@ export async function resetPassword({
   return {
     success: response.success ?? true,
     message: response.message,
-  };
-}
-
-export async function syncContacts(
-  contacts: ContactSyncRequest[],
-): Promise<ContactSyncResponse> {
-  const response = await apiPost<ContactSyncResponse>(
-    '/api/Contacts/sync',
-    contacts,
-  );
-
-  return {
-    success: response.success ?? true,
-    message: response.message,
-  };
-}
-
-export async function syncCalendars(
-  data: CalendarSyncRequest[]
-): Promise<CalendarSyncResponse> {
-  const response = await apiPost<CalendarSyncResponse>(
-    '/api/Calendar/sync',
-    data
-  );
-
-  return {
-    success: response?.success ?? true,
-    message: response?.message,
   };
 }
 

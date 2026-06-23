@@ -1,26 +1,8 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import * as SecureStore from 'expo-secure-store';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import type { AuthResponse, AuthUser } from '../services/auth';
 import { login as loginApi, register as registerApi, loginWithGoogle as loginWithGoogleApi } from '../services/auth';
-
-const AUTH_TOKEN_KEY = 'AUTH_TOKEN';
-const AUTH_USER_KEY = 'AUTH_USER';
-//test_app_bỏ_qua_login
-// const mockAuthResponse = ({
-//   fullName,
-//   email,
-// }: {
-//   fullName?: string;
-//   email: string;
-// }): AuthResponse => ({
-//   token: 'mock-token',
-//   user: {
-//     id: 'mock-user',
-//     name: fullName ?? email.split('@')[0] ?? 'Người dùng',
-//     email,
-//   },
-// });
+import { getSavedAuth, saveAuthData, clearAuthData } from '../services/authStorage';
+import { signOutGoogle } from '../services/googleAuth';
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -34,38 +16,6 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-
-async function getSavedAuth() {
-  const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
-  if (!token) {
-    return null;
-  }
-
-  const userJson = await SecureStore.getItemAsync(AUTH_USER_KEY);
-  if (!userJson) {
-    return { token, user: null };
-  }
-
-  try {
-    const user = JSON.parse(userJson) as AuthUser;
-    return { token, user };
-  } catch {
-    return { token, user: null };
-  }
-}
-
-async function saveAuthData(response: AuthResponse) {
-  const token = typeof response.token === 'string' ? response.token : JSON.stringify(response.token);
-  const userString = JSON.stringify(response.user ?? {});
-
-  await SecureStore.setItemAsync(AUTH_TOKEN_KEY, token);
-  await SecureStore.setItemAsync(AUTH_USER_KEY, userString);
-}
-
-async function clearAuthData() {
-  await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
-  await SecureStore.deleteItemAsync(AUTH_USER_KEY);
-}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -116,13 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    try {
-      // Sign out from Google if signed in with Google
-      await GoogleSignin.signOut();
-    } catch (error) {
-      console.log('Google Sign-out failed:', error);
-    }
-
+    await signOutGoogle();
     await clearAuthData();
     setToken(null);
     setUser(null);

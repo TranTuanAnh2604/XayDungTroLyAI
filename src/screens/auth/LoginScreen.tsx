@@ -10,10 +10,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  GoogleSignin,
-  statusCodes,
-} from '@react-native-google-signin/google-signin';
 import AppLogo from '../../components/ui/AppLogo';
 import { APP_EMAIL_PLACEHOLDER } from '../../constants/brand';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -33,10 +29,10 @@ import type { AuthStackParamList } from '../../navigation/types';
 import { useAuth } from '../../context/AuthContext';
 import { GOOGLE_WEB_CLIENT_ID } from '../../constants/config';
 import ForgotPasswordModal from '../../components/auth/ForgotPasswordModal';
-import { resetPassword, forgotPassword, login, loginWithGoogle } from '../../services/auth';
+import { resetPassword, forgotPassword } from '../../services/auth';
+import { configureGoogleSignIn, getGoogleIdToken, statusCodes } from '../../services/googleAuth';
 import OTPVerificationModal from '../../components/auth/OTPVerificationModal';
 import ResetPasswordModal from '../../components/auth/ResetPasswordModal';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
 export default function LoginScreen({ navigation }: Props) {
@@ -59,13 +55,8 @@ const [activeModal, setActiveModal] = useState<{
   
 
   useEffect(() => {
-    // Initialize Google Sign-in
-    GoogleSignin.configure({
-      webClientId: GOOGLE_WEB_CLIENT_ID,
-      offlineAccess: true,
-    });
+    configureGoogleSignIn(GOOGLE_WEB_CLIENT_ID);
   }, []);
-
 
   const handleLogin = async () => {
     
@@ -77,14 +68,6 @@ const [activeModal, setActiveModal] = useState<{
     setLoading(true);
 
     try {
-      await AsyncStorage.removeItem('token');
-      
-      const auth = await login(email, password);
-
-      await AsyncStorage.setItem(
-        'token',
-        auth.token
-      );
       await signIn(email.trim(), password);
       const rootNavigation = navigation.getParent();
       rootNavigation?.reset({
@@ -103,26 +86,8 @@ const [activeModal, setActiveModal] = useState<{
     setLoading(true);
     
     try {
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-      const response = await GoogleSignin.signIn();
-      const auth = await loginWithGoogle(await GoogleSignin.getTokens().then(tokens => tokens.idToken || ''));
-
-      await AsyncStorage.setItem(
-        'token',
-        auth.token
-      );
-      const responseData = response as any;
-      const idToken = responseData.data?.idToken || responseData.idToken;
-
-      if (!idToken) {
-        throw new Error('Không nhận được ID Token từ Google');
-      }
-
-      const userEmail = responseData.data?.user?.email || responseData.user?.email || 'User';
-      console.log('✅ Google Sign-in Success:', userEmail);
-
+      const idToken = await getGoogleIdToken();
       await signInWithGoogle(idToken);
-      
       const rootNavigation = navigation.getParent();
       rootNavigation?.reset({
         index: 0,

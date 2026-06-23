@@ -4,7 +4,7 @@ import ForgotPasswordModal from './ForgotPasswordModal';
 import OTPVerificationModal from './OTPVerificationModal';
 import ResetPasswordModal from './ResetPasswordModal';
 import PrimaryButton from '../ui/PrimaryButton';
-import { apiPost } from '../../services/api';
+import { forgotPassword, verifyOTP, resetPassword } from '../../services/auth';
 
 export type AuthStep = 'forgot' | 'otp' | 'reset' | 'none';
 
@@ -25,7 +25,7 @@ export default function AuthModal({
 
   const handleForgot = async (emailInput: string) => {
     try {
-      await apiPost('/api/Auth/forgot-password', { email: emailInput });
+      await forgotPassword(emailInput);
       onChangeStep('otp', emailInput);
     } catch (e) {
       Alert.alert('Lỗi', 'Không thể gửi OTP');
@@ -34,11 +34,7 @@ export default function AuthModal({
 
   const handleVerifyOtp = async (otp: string) => {
     try {
-      await apiPost('/api/Auth/verify-email', {
-        email,
-        otp,
-      });
-
+      await verifyOTP(email, otp);
       onChangeStep('reset', email);
     } catch (e) {
       Alert.alert('Lỗi', 'OTP không hợp lệ');
@@ -47,8 +43,9 @@ export default function AuthModal({
 
   const handleResetPassword = async (newPassword: string) => {
     try {
-      await apiPost('/api/Auth/reset-password', {
+      await resetPassword({
         email,
+        otp: '',
         newPassword,
       });
 
