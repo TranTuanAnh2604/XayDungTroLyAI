@@ -18,7 +18,7 @@ namespace Assistant.Services
 
             _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
         }
-
+        
         public async Task<string> ChatAsync(string prompt)
         {
             string url = "https://api.groq.com/openai/v1/chat/completions";

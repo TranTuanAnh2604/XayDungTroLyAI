@@ -85,7 +85,7 @@ namespace Assistant.Controllers
 
             try
             {
-                // ✅ Đổi authorization code lấy access_token + refresh_token
+                // Đổi authorization code lấy access_token + refresh_token
                 var tokenRequest = new Dictionary<string, string>
         {
             { "code", request.IdToken },
