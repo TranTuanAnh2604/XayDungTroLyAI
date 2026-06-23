@@ -11,6 +11,14 @@ export default function Gmail() {
     const [error, setError] = useState("");
 
     const handleSelectGmail = async (gmail) => {
+        // Nếu thư chưa đọc → mark as read trong state
+        if (gmail.isUnread) {
+            setGmails(prev =>
+                prev.map(g => g.id === gmail.id ? { ...g, isUnread: false } : g)
+            );
+            gmail = { ...gmail, isUnread: false };
+        }
+
         setSelectedGmail(gmail);
         setSelectedDetail(null);
         setIsDetailLoading(true);

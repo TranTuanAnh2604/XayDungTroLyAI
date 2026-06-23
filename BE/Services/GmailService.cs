@@ -105,7 +105,6 @@ namespace Assistant.Services
 
             Console.WriteLine($"=== Tìm thấy {messages.GetArrayLength()} gmails ===");
 
-            foreach (var msg in messages.EnumerateArray())
             {
                 var msgId = msg.GetProperty("id").GetString()!;
                 var detailRes = await client.GetAsync(
@@ -114,23 +113,26 @@ namespace Assistant.Services
                 if (!detailRes.IsSuccessStatusCode) continue;
 
                 var detailStr = await detailRes.Content.ReadAsStringAsync();
-                using var detailDoc = JsonDocument.Parse(detailStr);
-                var root = detailDoc.RootElement;
-                var headers = root.GetProperty("payload").GetProperty("headers");
 
-                var labelIds = root.TryGetProperty("labelIds", out var labels)
-                    ? labels.EnumerateArray().Select(l => l.GetString()).ToList()
-                    : new List<string?>();
-
-                result.Add(new GmailDto
+                using (var detailDoc = JsonDocument.Parse(detailStr))
                 {
-                    Id = msgId,
-                    From = GetHeader(headers, "From"),
-                    Subject = GetHeader(headers, "Subject"),
-                    Snippet = root.GetProperty("snippet").GetString() ?? "",
-                    Date = GetHeader(headers, "Date"),
-                    IsUnread = labelIds.Contains("UNREAD")
-                });
+                    var root = detailDoc.RootElement;
+                    var headers = root.GetProperty("payload").GetProperty("headers");
+
+                    var labelIds = root.TryGetProperty("labelIds", out var labels)
+                        ? labels.EnumerateArray().Select(l => l.GetString()).ToList()
+                        : new List<string?>();
+
+                    result.Add(new GmailDto
+                    {
+                        Id = msgId,
+                        From = GetHeader(headers, "From"),
+                        Subject = GetHeader(headers, "Subject"),
+                        Snippet = root.GetProperty("snippet").GetString() ?? "",
+                        Date = GetHeader(headers, "Date"),
+                        IsUnread = labelIds.Contains("UNREAD")
+                    });
+                }
             }
 
             return result;

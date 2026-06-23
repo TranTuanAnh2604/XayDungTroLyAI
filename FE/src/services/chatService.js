@@ -15,7 +15,7 @@ export const getMessages = async (sessionId) => {
     return res.data
 }
 
-// ✅ Thêm tham số history để gửi context lên BE
+// Thêm tham số history để gửi context lên BE
 export const sendMessage = async (sessionId, content, history = []) => {
     const res = await api.post(`/chat/sessions/${sessionId}/messages`, {
         content,
