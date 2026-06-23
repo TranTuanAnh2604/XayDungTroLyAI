@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -10,6 +10,10 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  GoogleSignin,
+  statusCodes,
+} from '@react-native-google-signin/google-signin';
 import AppLogo from '../../components/ui/AppLogo';
 import { APP_EMAIL_PLACEHOLDER } from '../../constants/brand';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -27,7 +31,12 @@ import { typography } from '../../constants/typography';
 import { SPACING } from '../../constants/spacing';
 import type { AuthStackParamList } from '../../navigation/types';
 import { useAuth } from '../../context/AuthContext';
-
+import { GOOGLE_WEB_CLIENT_ID } from '../../constants/config';
+import ForgotPasswordModal from '../../components/auth/ForgotPasswordModal';
+import { resetPassword, forgotPassword, login, loginWithGoogle } from '../../services/auth';
+import OTPVerificationModal from '../../components/auth/OTPVerificationModal';
+import ResetPasswordModal from '../../components/auth/ResetPasswordModal';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
 export default function LoginScreen({ navigation }: Props) {
@@ -37,9 +46,29 @@ export default function LoginScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
+
+const [activeModal, setActiveModal] = useState<{
+  type: 'none' | 'forgot' | 'otp' | 'reset';
+  email?: string;
+  otp?: string;
+}>({ type: 'none' });
+
+  const [resetEmail, setResetEmail] = useState('');
+  const [verifiedOtp, setVerifiedOtp] = useState('');
+  
+
+  useEffect(() => {
+    // Initialize Google Sign-in
+    GoogleSignin.configure({
+      webClientId: GOOGLE_WEB_CLIENT_ID,
+      offlineAccess: true,
+    });
+  }, []);
+
 
   const handleLogin = async () => {
+    
     if (!email.trim() || !password.trim()) {
       Alert.alert('Thông báo', 'Vui lòng nhập email và mật khẩu.');
       return;
@@ -48,6 +77,14 @@ export default function LoginScreen({ navigation }: Props) {
     setLoading(true);
 
     try {
+      await AsyncStorage.removeItem('token');
+      
+      const auth = await login(email, password);
+
+      await AsyncStorage.setItem(
+        'token',
+        auth.token
+      );
       await signIn(email.trim(), password);
       const rootNavigation = navigation.getParent();
       rootNavigation?.reset({
@@ -62,6 +99,124 @@ export default function LoginScreen({ navigation }: Props) {
     }
   };
 
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    
+    try {
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const response = await GoogleSignin.signIn();
+      const auth = await loginWithGoogle(await GoogleSignin.getTokens().then(tokens => tokens.idToken || ''));
+
+      await AsyncStorage.setItem(
+        'token',
+        auth.token
+      );
+      const responseData = response as any;
+      const idToken = responseData.data?.idToken || responseData.idToken;
+
+      if (!idToken) {
+        throw new Error('Không nhận được ID Token từ Google');
+      }
+
+      const userEmail = responseData.data?.user?.email || responseData.user?.email || 'User';
+      console.log('✅ Google Sign-in Success:', userEmail);
+
+      await signInWithGoogle(idToken);
+      
+      const rootNavigation = navigation.getParent();
+      rootNavigation?.reset({
+        index: 0,
+        routes: [{ name: 'Main' }],
+      });
+    } catch (error) {
+      let errorMessage = 'Đăng nhập bằng Google thất bại.';
+
+      if (error instanceof Error) {
+        const errorCode = (error as any).code;
+        
+        if (errorCode === statusCodes.SIGN_IN_CANCELLED) {
+          errorMessage = 'Bạn đã hủy đăng nhập.';
+        } else if (errorCode === statusCodes.IN_PROGRESS) {
+          errorMessage = 'Đăng nhập đang được xử lý...';
+        } else if (errorCode === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+          errorMessage = 'Google Play Services không có trên thiết bị này.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      console.log('❌ Google Login Error:', errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (email: string) => {
+  try {
+    await forgotPassword(email);
+
+    setResetEmail(email);
+
+   setActiveModal({ type: 'otp', email });
+
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Không thể gửi mã xác thực.';
+
+    Alert.alert('Lỗi', message);
+  }
+};
+
+const handleVerifyOtp = async (otp: string) => {
+  try {
+    setVerifiedOtp(otp);
+
+  setActiveModal({ type: 'reset', email: activeModal.email });
+
+
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'OTP không hợp lệ';
+
+    Alert.alert('Lỗi', message);
+  }
+};
+
+const handleResetPassword = async (newPassword: string) => {
+  try {
+    await resetPassword({
+      email: resetEmail,
+      otp: verifiedOtp,
+      newPassword,
+    });
+
+    setActiveModal({ type: 'none' });
+    setResetEmail('');
+    setVerifiedOtp('');
+
+
+    Alert.alert(
+      'Thành công',
+      'Mật khẩu đã được cập nhật. Vui lòng đăng nhập lại.'
+    );
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'Không thể đặt lại mật khẩu';
+
+    Alert.alert('Lỗi', message);
+  }
+};
+
+const closePasswordResetFlow = () => {
+  setActiveModal({ type: 'none' });
+  setResetEmail('');
+  setVerifiedOtp('');
+};
+
+const openForgotPassword = () => {
+  setActiveModal({ type: 'forgot' });
+};
   return (
     <View style={styles.root}>
       <MeshBackground />
@@ -128,9 +283,12 @@ export default function LoginScreen({ navigation }: Props) {
                         color={showPassword ? COLORS.primary : COLORS.outline}
                       />
                     </Pressable>
-                    <Pressable hitSlop={8}>
-                      <Text style={styles.forgotLink}>Quên mật khẩu?</Text>
-                    </Pressable>
+                    <Text
+                      style={styles.forgotLink}
+                      onPress={openForgotPassword}
+                    >
+                      Quên mật khẩu?
+                    </Text>
                   </View>
                 }
               />
@@ -147,7 +305,7 @@ export default function LoginScreen({ navigation }: Props) {
 
               <SocialLoginButton
                 label="Tiếp tục với Google"
-                onPress={() => {}}
+                onPress={handleGoogleLogin}
               />
             </GlassCard>
 
@@ -165,6 +323,26 @@ export default function LoginScreen({ navigation }: Props) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+    <ForgotPasswordModal
+      visible={activeModal.type === 'forgot'}
+      onClose={closePasswordResetFlow}
+      onSubmit={handleForgotPassword}
+    />
+
+    <OTPVerificationModal
+      visible={activeModal.type === 'otp'}
+      
+      email={resetEmail || activeModal.email || ''}
+      onClose={closePasswordResetFlow}
+      onVerify={handleVerifyOtp}
+    />
+
+    <ResetPasswordModal
+      visible={activeModal.type === 'reset'}
+      email={resetEmail || activeModal.email || ''}
+      onClose={closePasswordResetFlow}
+      onSubmit={handleResetPassword}
+    />
     </View>
   );
 }

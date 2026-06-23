@@ -7,7 +7,7 @@ import type {
 import { HOME_ASSETS } from '../constants/homeAssets';
 
 export const HOME_USER = {
-  name: 'Việt',
+  name: 'Sánh',
   greeting: 'Chào buổi sáng',
   subtitle: 'Hôm nay là một ngày tuyệt vời để bắt đầu.',
   brand: 'Synthesis',

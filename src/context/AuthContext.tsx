@@ -1,10 +1,26 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import type { AuthResponse, AuthUser } from '../services/auth';
-import { login as loginApi, register as registerApi } from '../services/auth';
+import { login as loginApi, register as registerApi, loginWithGoogle as loginWithGoogleApi } from '../services/auth';
 
 const AUTH_TOKEN_KEY = 'AUTH_TOKEN';
 const AUTH_USER_KEY = 'AUTH_USER';
+//test_app_bỏ_qua_login
+// const mockAuthResponse = ({
+//   fullName,
+//   email,
+// }: {
+//   fullName?: string;
+//   email: string;
+// }): AuthResponse => ({
+//   token: 'mock-token',
+//   user: {
+//     id: 'mock-user',
+//     name: fullName ?? email.split('@')[0] ?? 'Người dùng',
+//     email,
+//   },
+// });
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -12,6 +28,8 @@ type AuthContextValue = {
   initialized: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (fullName: string, email: string, password: string) => Promise<void>;
+  signInWithGoogle: (idToken: string) => Promise<void>;
+  setAuthDataFromOTP: (authData: AuthResponse) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -73,20 +91,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (fullName: string, email: string, password: string) => {
-    const response = await registerApi(fullName, email, password);
+    console.log('📝 signUp: Gọi registerApi', { fullName, email, password });
+    try {
+      const result = await registerApi(fullName, email, password);
+      console.log('✅ signUp: Đăng ký thành công', result);
+      // Don't save auth data yet - wait for OTP verification
+    } catch (error) {
+      console.error('❌ signUp: Lỗi registerApi', error);
+      throw error;
+    }
+  };
+
+  const signInWithGoogle = async (idToken: string) => {
+    const response = await loginWithGoogleApi(idToken);
     await saveAuthData(response);
     setToken(response.token);
     setUser(response.user);
   };
 
+  const setAuthDataFromOTP = async (authData: AuthResponse) => {
+    await saveAuthData(authData);
+    setToken(authData.token);
+    setUser(authData.user);
+  };
+
   const signOut = async () => {
+    try {
+      // Sign out from Google if signed in with Google
+      await GoogleSignin.signOut();
+    } catch (error) {
+      console.log('Google Sign-out failed:', error);
+    }
+
     await clearAuthData();
     setToken(null);
     setUser(null);
   };
 
   const value = useMemo(
-    () => ({ user, token, initialized, signIn, signUp, signOut }),
+    () => ({
+      user,
+      token,
+      initialized,
+      signIn,
+      signUp,
+      signInWithGoogle,
+      setAuthDataFromOTP,
+      signOut,
+    }),
     [user, token, initialized],
   );
 

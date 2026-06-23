@@ -6,7 +6,7 @@ import {
   IOS_GLASS_FILL_OPACITY,
   IOS_GLASS_IOS_INTENSITY,
 } from '../../constants/layout';
-
+import { LinearGradient } from 'expo-linear-gradient';
 export type IosGlassVariant = 'chrome' | 'thin' | 'regular';
 
 const IOS_TINT: Record<IosGlassVariant, BlurTint> = {
@@ -50,13 +50,28 @@ export default function IosGlassView({
         blurReductionFactor={Platform.OS === 'android' ? 2 : undefined}
         style={StyleSheet.absoluteFill}
       />
+
+      <LinearGradient
+      pointerEvents="none"
+      colors={[
+        'rgba(255,255,255,0.18)',
+        'rgba(255,255,255,0.05)',
+        'rgba(255,255,255,0.01)',
+      ]}
+      style={StyleSheet.absoluteFill}
+      />
+
       {fillOpacity > 0 ? (
         <View
-          pointerEvents="none"
-          style={[
-            StyleSheet.absoluteFill,
-            { backgroundColor: `rgba(255, 255, 255, ${fillOpacity})` },
-          ]}
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 1,
+        backgroundColor: 'rgba(255,255,255,0.7)',
+      }}
         />
       ) : null}
       {children}
@@ -67,5 +82,7 @@ export default function IosGlassView({
 const styles = StyleSheet.create({
   root: {
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
   },
 });

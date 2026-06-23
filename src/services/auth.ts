@@ -11,6 +11,47 @@ export type AuthResponse = {
   user: AuthUser;
 };
 
+export type ContactSyncRequest = {
+  name: string;
+  phone: string;
+};
+
+export type ContactSyncResponse = {
+  success?: boolean;
+  message?: string;
+};
+
+export type CalendarSyncRequest = {
+  title: string;
+  description: string;
+  startTime: string;
+  endTime: string;
+  location: string;
+  source: string;
+  externalId: string;
+  isAllDay: boolean;
+};
+
+export type CalendarSyncResponse = {
+  success?: boolean;
+  message?: string;
+};
+
+export type RefreshTokenRequest = {
+  refreshToken: string;
+};
+
+export type RefreshTokenResponse = {
+  token: string;
+  refreshToken?: string;
+};
+
+type ResetPasswordRequest = {
+  email: string;
+  otp: string;
+  newPassword: string;
+};
+
 type RawAuthResponse = {
   token?: string | Record<string, unknown>;
   accessToken?: string | Record<string, unknown>;
@@ -30,9 +71,14 @@ type RawAuthResponse = {
 };
 
 function normalizeAuthResponse(response: RawAuthResponse): AuthResponse {
+  console.log('🔍 normalizeAuthResponse: Parsing response', JSON.stringify(response, null, 2));
+  
   const tokenValue =
     response.token ?? response.accessToken ?? response.data?.token ?? response.data?.accessToken;
   const userValue = response.user ?? response.data?.user;
+
+  console.log('🔍 normalizeAuthResponse: tokenValue =', tokenValue);
+  console.log('🔍 normalizeAuthResponse: userValue =', JSON.stringify(userValue, null, 2));
 
   const parsedUser = {
     id:
@@ -49,15 +95,20 @@ function normalizeAuthResponse(response: RawAuthResponse): AuthResponse {
         : response.email ?? response.data?.email,
   };
 
+  console.log('🔍 normalizeAuthResponse: parsedUser =', JSON.stringify(parsedUser, null, 2));
+
   if (tokenValue == null) {
+    console.error('❌ normalizeAuthResponse: Không tìm thấy token');
     throw new Error('Không nhận được token từ server.');
   }
 
   if (!parsedUser.name && !parsedUser.id && !parsedUser.email) {
+    console.error('❌ normalizeAuthResponse: Không tìm thấy user info');
     throw new Error('Không nhận được thông tin người dùng từ server.');
   }
 
   const token = typeof tokenValue === 'string' ? tokenValue : JSON.stringify(tokenValue);
+  console.log('🔍 normalizeAuthResponse: Final token =', token);
 
   return { token, user: parsedUser };
 }
@@ -74,11 +125,139 @@ export async function register(
   name: string,
   email: string,
   password: string,
-): Promise<AuthResponse> {
-  const response = await apiPost<RawAuthResponse>('/api/Auth/register', {
-    name,
-    email,
-    password,
+): Promise<{ success: boolean }> {
+  console.log('📝 register: Gọi API', { name, email, password });
+  const response = await apiPost<{ 
+    success?: boolean; 
+    message?: string 
+  }>
+    ('/api/Auth/register', {
+      name,
+      email,
+      password,
+    });
+  console.log('📝 register: Response từ server', JSON.stringify(response, null, 2));
+  return { success: response.success ?? true };
+}
+
+export async function loginWithGoogle(idToken: string): Promise<AuthResponse> {
+  const response = await apiPost<RawAuthResponse>('/api/Auth/google-login', {
+    idToken,
   });
   return normalizeAuthResponse(response);
+}
+
+export async function verifyOTP(
+  email: string,
+  otp: string
+): Promise<{ success: boolean }> {
+  const response = await apiPost<{ 
+    success?: boolean; 
+    message?: string 
+  }>(
+    '/api/Auth/verify-email',
+    { email, otp }
+  );
+
+  return { success: response.success ?? true };
+}
+
+export async function resendOTP(email: string): Promise<{ success: boolean }> {
+  const response = await apiPost<{
+     success: boolean
+  }>('/api/Auth/resend-otp', {
+    email,
+  });
+  return response;
+}
+
+export async function forgotPassword(email: string) {
+  const response = await apiPost<{
+    success?: boolean;
+    message?: string;
+  }>('/api/Auth/forgot-password', { email });
+
+  console.log('📝 forgotPassword response:', response);
+
+    return {
+      success: response.success ?? false,
+      message: response.message,
+    };
+}
+
+export async function resetPassword({
+  email,
+  otp,
+  newPassword,
+}:ResetPasswordRequest) {
+  
+  const response = await apiPost<{
+    success?: boolean;
+    message?: string;
+  }>('/api/Auth/reset-password', {
+    email,
+    otp,
+    newPassword,
+  });
+
+  console.log('📝 resetPassword: Response từ server', JSON.stringify(response, null, 2));
+  return {
+    success: response.success ?? true,
+    message: response.message,
+  };
+}
+
+export async function syncContacts(
+  contacts: ContactSyncRequest[],
+): Promise<ContactSyncResponse> {
+  const response = await apiPost<ContactSyncResponse>(
+    '/api/Contacts/sync',
+    contacts,
+  );
+
+  return {
+    success: response.success ?? true,
+    message: response.message,
+  };
+}
+
+export async function syncCalendars(
+  data: CalendarSyncRequest[]
+): Promise<CalendarSyncResponse> {
+  const response = await apiPost<CalendarSyncResponse>(
+    '/api/Calendar/sync',
+    data
+  );
+
+  return {
+    success: response?.success ?? true,
+    message: response?.message,
+  };
+}
+
+export async function refreshToken(
+  refreshTokenValue: string,
+): Promise<RefreshTokenResponse> {
+  const response = await apiPost<{
+    token?: string;
+    accessToken?: string;
+    refreshToken?: string;
+  }>(
+    '/api/Auth/refresh_token',
+    {
+      refreshToken: refreshTokenValue,
+    },
+  );
+
+  const token =
+    response.token ?? response.accessToken;
+
+  if (!token) {
+    throw new Error('Không nhận được token mới từ server');
+  }
+
+  return {
+    token,
+    refreshToken: response.refreshToken,
+  };
 }

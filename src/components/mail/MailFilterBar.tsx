@@ -52,35 +52,37 @@ export default function MailFilterBar({
 
   return (
     <View style={styles.container}>
-      <Animated.View
-        style={[
-          styles.indicator,
-          {
-            left: indicatorX,
-            width: indicatorW,
-          },
-        ]}
-      />
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
       >
-        {filters.map((filter) => {
-          const active = filter.id === activeId;
-          return (
-            <Pressable
-              key={filter.id}
-              onLayout={onLayoutItem(filter.id)}
-              onPress={() => onChange?.(filter.id)}
-              style={styles.chip}
-            >
-              <Text style={[styles.label, active && styles.labelActive]}>
-                {filter.label}
-              </Text>
-            </Pressable>
-          );
-        })}
+        <View style={styles.content}>          
+          <Animated.View
+            style={[
+              styles.indicator,
+              {
+                left: indicatorX,
+                width: indicatorW,
+              },
+            ]}
+          />
+          {filters.map((filter) => {
+            const active = filter.id === activeId;
+            return (
+              <Pressable
+                key={filter.id}
+                onLayout={onLayoutItem(filter.id)}
+                onPress={() => onChange?.(filter.id)}
+                style={styles.chip}
+              >
+                <Text style={[styles.label, active && styles.labelActive]}>
+                  {filter.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </ScrollView>
     </View>
   );
@@ -99,9 +101,13 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.full,
   },
   scroll: {
-    flexDirection: 'row',
-    gap: 16,
     paddingHorizontal: 4,
+  },
+  content: {
+    position: 'relative',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
   },
   chip: {
     paddingHorizontal: 16,

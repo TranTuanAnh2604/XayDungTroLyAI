@@ -10,7 +10,7 @@ export const BOTTOM_NAV_Z_INDEX = 50;
 /** iOS-style material blur tuning */
 export const IOS_GLASS_IOS_INTENSITY = 100;
 export const IOS_GLASS_ANDROID_INTENSITY = 72;
-export const IOS_GLASS_FILL_OPACITY = 0.06;
+export const IOS_GLASS_FILL_OPACITY = 0.04;
 
 /** Main content gap below top bar / above bottom (`px-4` rhythm) */
 export const SCROLL_CONTENT_GAP = 16;

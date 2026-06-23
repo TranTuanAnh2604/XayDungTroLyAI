@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AuthHeroBranding from '../../components/auth/AuthHeroBranding';
+import OTPVerificationModal from '../../components/auth/OTPVerificationModal';
 import BorderTextInput from '../../components/ui/BorderTextInput';
 import DividerWithLabel from '../../components/ui/DividerWithLabel';
 import GlassCard from '../../components/ui/GlassCard';
@@ -24,6 +25,7 @@ import { typography } from '../../constants/typography';
 import { SPACING } from '../../constants/spacing';
 import type { AuthStackParamList } from '../../navigation/types';
 import { useAuth } from '../../context/AuthContext';
+import { verifyOTP, login as loginApi } from '../../services/auth';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
@@ -33,8 +35,9 @@ export default function RegisterScreen({ navigation }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { signUp } = useAuth();
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [showOTPModal, setShowOTPModal] = useState(false);
+  const { signUp, setAuthDataFromOTP } = useAuth();
 
   const handleRegister = async () => {
     if (!fullName.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
@@ -47,21 +50,59 @@ export default function RegisterScreen({ navigation }: Props) {
       return;
     }
 
-    setLoading(true);
+    setIsRegistering(true);
 
     try {
+      console.log('📝 Đang đăng ký...', { fullName, email });
       await signUp(fullName.trim(), email.trim(), password);
-      const rootNavigation = navigation.getParent();
-      rootNavigation?.reset({
-        index: 0,
-        routes: [{ name: 'Main' }],
-      });
+      console.log('✅ Đăng ký thành công, hiển thị OTP modal...');
+      
+
+      setShowOTPModal(true);
+      setIsRegistering(false);
+      
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Đăng ký thất bại.';
+      console.log('❌ Lỗi đăng ký:', message);
       Alert.alert('Lỗi đăng ký', message);
-    } finally {
-      setLoading(false);
+      setIsRegistering(false);
     }
+  };
+  
+  const handleVerifyOTP = async (otp: string) => {
+    try {
+      console.log('EMAIL:', email.trim());
+    console.log('PASSWORD length:', password.length);
+
+    await verifyOTP(email.trim(), otp);
+
+    const authData = await loginApi(
+      email.trim(),
+      password
+    );
+      console.log('AUTH:', authData);
+
+    await setAuthDataFromOTP(authData);
+
+    setShowOTPModal(false);
+
+    navigation.getParent()?.reset({
+      index: 0,
+      routes: [{ name: 'Main' }],
+    });
+    } catch (error) {
+     console.log('OTP ERROR:', error);
+    throw error;
+    }
+  };
+
+  const handleCloseOTPModal = () => {
+    setShowOTPModal(false);
+    // Reset registration state
+    setFullName('');
+    setEmail('');
+    setPassword('');
+    setConfirmPassword('');
   };
 
   return (
@@ -143,7 +184,7 @@ export default function RegisterScreen({ navigation }: Props) {
 
               <PrimaryButton
                 label="Đăng ký"
-                loading={loading}
+                loading={isRegistering}
                 onPress={handleRegister}
               />
 
@@ -172,6 +213,14 @@ export default function RegisterScreen({ navigation }: Props) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* OTP Verification Modal */}
+      <OTPVerificationModal
+        visible={showOTPModal}
+        email={email}
+        onVerify={handleVerifyOTP}
+        onClose={handleCloseOTPModal}
+      />
     </View>
   );
 }

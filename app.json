@@ -20,22 +20,43 @@
           "resizeMode": "contain",
           "backgroundColor": "#faf8ff"
         }
-      ]
+    
+      ],
+       [
+        "expo-calendar",
+        {
+          "calendarPermission": "App cần truy cập lịch để quản lý sự kiện"
+        }
+      ],
+      "expo-font",
+      "expo-secure-store",
+      "expo-mail-composer"
     ],
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "permissions": [
+        "READ_CONTACTS",
+        "READ_CALENDAR",
+        "WRITE_CALENDAR"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#faf8ff"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "softwareKeyboardLayoutMode": "resize"
+      "softwareKeyboardLayoutMode": "resize",
+      "package": "com.sanhsngdev.hivicai"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "13865e83-6289-4fa4-b987-3f8490ae0ada"
+      }
     }
   }
 }

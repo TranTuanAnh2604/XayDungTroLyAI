@@ -1,34 +1,86 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 export const API_BASE_URL = 'https://assistantai-bc7b.onrender.com';
 
-export type ApiResponse<T> = T;
+export type ApiResponse<T> = {
+  data?: T;
+  message?: string;
+  success?: boolean;
+};
 
-export async function apiPost<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  const requestUrl = `${API_BASE_URL}${normalizedPath}`;
+export async function apiPost<T>(
+  path: string,
+  body: unknown,
+): Promise<T> {
+  const token =
+    await AsyncStorage.getItem('token');
+    
+  const normalizedPath = path.startsWith('/')
+    ? path
+    : `/${path}`;
+
+  const requestUrl =
+    `${API_BASE_URL}${normalizedPath}`;
+
+  const REQUEST_TIMEOUT_MS = 300000;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    REQUEST_TIMEOUT_MS,
+  );
 
   let response;
+console.log('URL:', requestUrl);
+console.log('BODY:', JSON.stringify(body));
   try {
     response = await fetch(requestUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token && {
+          Authorization: `Bearer ${token}`,
+        }),
       },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
-  } catch (error) {
-  console.log('FETCH ERROR:', error);
-  throw new Error(
-    'Không thể kết nối tới máy chủ. Vui lòng kiểm tra kết nối mạng.'
-  );
-}
+  } catch (error:any) {
+    clearTimeout(timeoutId);
+    const isAbortError =
+      error instanceof Error
+        ? error.name === 'AbortError'
+        : error?.name === 'AbortError';
 
-  const responseBody = await response.json().catch(() => null);
+    if (isAbortError) {
+      console.error('FETCH ERROR: Request aborted by timeout');
+      console.error('TIMEOUT_MS:', REQUEST_TIMEOUT_MS);
+      throw new Error(
+        `Request timed out after ${REQUEST_TIMEOUT_MS / 1000} seconds. Please try again or check your network connection.`,
+      );
+    }
 
-  if (!response.ok) {
-    const errorMessage =
-      responseBody?.message || responseBody?.error || 'Đã xảy ra lỗi máy chủ.';
-    throw new Error(errorMessage);
+    console.error('FETCH ERROR:', error);
+    console.error('NAME:', error?.name);
+    console.error('MESSAGE:', error?.message);
+
+    throw error;
   }
 
-  return responseBody as ApiResponse<T>;
+  clearTimeout(timeoutId);
+
+  const responseBody =
+    await response.json().catch(() => ({}));
+
+  // console.log('TOKEN:', token);
+  console.log('STATUS:', response.status);
+
+  if (!response.ok) {
+    throw new Error(
+      responseBody?.message ||
+      responseBody?.error ||
+      'Server error',
+    );
+  }
+
+  return responseBody as T;
 }
