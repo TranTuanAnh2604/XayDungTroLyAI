@@ -10,6 +10,8 @@ using FluentValidation.AspNetCore;
 using Assistant.Validations;
 using Assistant.Services;
 
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 // validate jwt key
