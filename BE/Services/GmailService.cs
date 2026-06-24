@@ -104,7 +104,7 @@ namespace Assistant.Services
             }
 
             Console.WriteLine($"=== Tìm thấy {messages.GetArrayLength()} gmails ===");
-
+            foreach (var msg in messages.EnumerateArray())
             {
                 var msgId = msg.GetProperty("id").GetString()!;
                 var detailRes = await client.GetAsync(
