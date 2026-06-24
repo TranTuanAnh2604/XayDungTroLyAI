@@ -11,6 +11,7 @@ export default function Sidebar() {
         { icon: "calendar_today", label: "Calendar", path: "/calendar" },
         { icon: "email", label: "Email", path: "/email" },
         { icon: "mic", label: "Voice", path: "/voice" },
+        { icon: "notifications", label: "Reminders", path: "/reminders" },
     ]
 
     const footerItems = [
