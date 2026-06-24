@@ -85,6 +85,7 @@ export default function Sidebar({ onNewChat, currentSessionId, onSelectSession }
         { icon: "calendar_today", label: "Calendar", path: "/calendar" },
         { icon: "email", label: "Gmail", path: "/gmail" },
         { icon: "mic", label: "Voice", path: "/voice" },
+        { icon: "notifications", label: "Reminders", path: "/reminders" },
     ]
 
     const footerItems = [

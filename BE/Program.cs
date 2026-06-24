@@ -60,7 +60,6 @@ app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
 
-// UseCors phải đặt trước Authentication
 app.UseCors("AllowFE");
 
 app.UseAuthentication();
