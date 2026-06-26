@@ -46,6 +46,7 @@ namespace Assistant.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateTask([FromBody] CreateTaskDto request)
         {
+            Console.WriteLine($"Request Status: {request.Status}");
             var task = new TaskModel
             {
                 UserId = GetUserId(),
@@ -53,7 +54,7 @@ namespace Assistant.Controllers
                 Description = request.Description,
                 Priority = request.Priority,
                 DueDate = request.DueDate,
-                Status = "pending",
+                Status = request.Status ?? "pending",
                 InputMethod = "text",
                 CreatedAt = DateTime.UtcNow
             };

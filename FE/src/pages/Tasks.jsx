@@ -93,7 +93,8 @@ function TaskCard({ task, onStatusChange, onDelete, onEdit }) {
 }
 
 function TaskModal({ task, onClose, onSaved }) {
-    const isEdit = !!task;
+    const isEdit = !!task && !task.__isNew;
+    const defaultStatus = task?.__isNew ? task.defaultStatus : (task?.status ?? "pending");
 
     // Format datetime-local value từ ISO string
     const toLocalDatetimeValue = (isoStr) => {
@@ -104,12 +105,12 @@ function TaskModal({ task, onClose, onSaved }) {
     };
 
     const [form, setForm] = useState({
-        title: task?.title ?? "",
-        description: task?.description ?? "",
-        priority: task?.priority ?? 2,
-        status: task?.status ?? "pending",
-        due_date: task?.dueDate ? toLocalDatetimeValue(task.dueDate) : "",
-        estimated_minutes: task?.estimated_minutes ?? "",
+        title: isEdit ? task.title : "",
+        description: isEdit ? (task.description ?? "") : "",
+        priority: isEdit ? task.priority : 2,
+        status: defaultStatus,           // ← dòng này tự điền đúng cột
+        due_date: isEdit && task.dueDate ? toLocalDatetimeValue(task.dueDate) : "",
+        estimated_minutes: isEdit ? (task.estimated_minutes ?? "") : "",
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -124,6 +125,7 @@ function TaskModal({ task, onClose, onSaved }) {
                 priority: Number(form.priority),
                 // Gửi ISO string đầy đủ với timezone offset +07:00
                 dueDate: form.due_date ? new Date(form.due_date).toISOString() : null,
+                status: form.status,
             };
 
             if (isEdit) {
@@ -317,11 +319,11 @@ export default function Tasks() {
     const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
-    const [modalTask, setModalTask] = useState(undefined);
     const [filters, setFilters] = useState({
         search: "", priority: "all", dueDate: "all", sort: "newest",
     });
-
+    const [modalTask, setModalTask] = useState(undefined);
+    const openCreateModal = (defaultStatus = "pending") => setModalTask({ __isNew: true, defaultStatus });
     const fetchTasks = async () => {
         setLoading(true); setError("");
         try {
@@ -399,7 +401,7 @@ export default function Tasks() {
                             </p>
                         </div>
                         {/* ✅ Chỉ giữ 1 nút New Task ở góc phải trên */}
-                        <button onClick={() => setModalTask(null)}
+                        <button onClick={() => openCreateModal()}
                             className="flex items-center gap-[8px] bg-[#8455ef] text-white px-[16px] py-[8px] rounded-lg text-[14px] font-bold shadow-sm hover:shadow-md transition-all">
                             <span className="material-symbols-outlined">add</span>New Task
                         </button>
@@ -450,6 +452,10 @@ export default function Tasks() {
                                                 <h3 className="text-[18px] font-semibold text-[#000000]">{col.label}</h3>
                                             </div>
                                             <span className="bg-[#dce9ff] text-[#45464d] px-[8px] py-[2px] rounded-full text-[13px]">{colTasks.length}</span>
+                                            <button onClick={() => openCreateModal(col.key)}
+                                                className="w-[24px] h-[24px] flex items-center justify-center rounded-full text-[#45464d] hover:bg-[#e9ddff] hover:text-[#6b38d4] transition-colors">
+                                                <span className="material-symbols-outlined text-[18px]">add</span>
+                                            </button>
                                         </div>
                                         {/* ✅ Bỏ nút Add Task ở dưới mỗi cột */}
                                         <div className="flex flex-col gap-[8px] overflow-y-auto pr-[4px] flex-1">

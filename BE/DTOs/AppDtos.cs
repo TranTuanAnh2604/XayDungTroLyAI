@@ -40,6 +40,7 @@
         public string? Description { get; set; }
         public byte Priority { get; set; } = 2; // 1=Thấp, 2=TB, 3=Khẩn
         public DateTime? DueDate { get; set; }
+        public string? Status { get; set; }
     }
     // Cập nhật sau khi hoàn thành công việc
     public class UpdateTaskDto
