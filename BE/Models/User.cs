@@ -17,6 +17,14 @@ public partial class User
 
     public DateTime CreatedAt { get; set; }
 
+    public bool IsEmailVerified { get; set; } = false;
+
+    public string? OtpCode { get; set; }
+
+    public DateTime? OtpExpiry { get; set; }
+
+    public string? AvatarUrl { get; set; }
+
     public virtual ICollection<AutoAction> AutoActions { get; set; } = new List<AutoAction>();
 
     public virtual ICollection<CalendarEvent> CalendarEvents { get; set; } = new List<CalendarEvent>();

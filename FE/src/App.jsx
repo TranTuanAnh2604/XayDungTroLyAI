@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useNotificationPolling } from './hooks/useNotificationPolling'
 import Login from './pages/Login'
-import SignUp from './pages/SignUp'
+import VerifyOTP from './pages/VerifyOTP'
 import Dashboard from './pages/Dashboard'
 import Calendar from './pages/Calendar'
 import Chat from './pages/Chat'
@@ -20,7 +20,7 @@ export default function App() {
             <Routes>
                 <Route path="/" element={<Navigate to="/login" />} />
                 <Route path="/login" element={<Login />} />
-                <Route path="/signup" element={<SignUp />} />
+                <Route path="/verify-otp" element={<VerifyOTP />} />
                 <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
                 <Route path="/calendar" element={<Calendar />} />
                 <Route path="/chat" element={<PrivateRoute><Chat /></PrivateRoute>} />

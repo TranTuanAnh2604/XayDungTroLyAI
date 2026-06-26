@@ -44,6 +44,7 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddHttpClient<GmailService>();
+builder.Services.AddScoped<GmailService>();
 builder.Services.AddHttpClient<GroqService>();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -52,6 +53,10 @@ builder.Services.AddControllers();
 builder.Services.AddFluentValidationAutoValidation().AddValidatorsFromAssemblyContaining<RegisterValidator>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o => {
+    o.MultipartBodyLengthLimit = 10L * 1024 * 1024; // 10MB
+});
 
 var app = builder.Build();
 
@@ -65,6 +70,7 @@ app.UseCors("AllowFE");
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<ExceptionMiddleware>();
+app.UseStaticFiles();
 app.MapControllers();
 
 using (var scope = app.Services.CreateScope())

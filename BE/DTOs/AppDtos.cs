@@ -7,6 +7,7 @@
         public string Name { get; set; } = null!;
         public string Email { get; set; } = null!;
         public string Timezone { get; set; } = null!;
+        public string? AvatarUrl { get; set; }
     }
 
     public class UpdateProfileDto

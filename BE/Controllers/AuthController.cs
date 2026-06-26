@@ -8,6 +8,8 @@ using System.Text;
 using System.Text.Json;
 using Assistant.Models;
 using Assistant.Wrappers;
+using Assistant.DTOs;
+using Assistant.Services;
 
 namespace Assistant.Controllers
 {
@@ -18,21 +20,26 @@ namespace Assistant.Controllers
         private readonly AppDbContext _context;
         private readonly IConfiguration _config;
         private readonly HttpClient _httpClient;
+        private readonly GmailService _gmailService;
 
-        public AuthController(AppDbContext context, IConfiguration config, IHttpClientFactory httpClientFactory)
+        // ✅ Fix: thêm GmailService vào tham số constructor
+        public AuthController(
+            AppDbContext context,
+            IConfiguration config,
+            IHttpClientFactory httpClientFactory,
+            GmailService gmailService)          // ← inject đúng
         {
             _context = context;
             _config = config;
             _httpClient = httpClientFactory.CreateClient();
+            _gmailService = gmailService;       // ← gán đúng
         }
 
         [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] RegisterDto request)
+        public async System.Threading.Tasks.Task<IActionResult> Register([FromBody] RegisterDto request)
         {
             if (await _context.Users.AnyAsync(u => u.Email == request.Email))
-            {
                 return BadRequest(new ApiResponse<string>("Email đã được sử dụng!"));
-            }
 
             var user = new User
             {
@@ -49,7 +56,7 @@ namespace Assistant.Controllers
         }
 
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginDto request)
+        public async System.Threading.Tasks.Task<IActionResult> Login([FromBody] LoginDto request)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
 
@@ -63,19 +70,17 @@ namespace Assistant.Controllers
             user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
             await _context.SaveChangesAsync();
 
-            var responseData = new AuthResponseDto
+            return Ok(new ApiResponse<AuthResponseDto>(new AuthResponseDto
             {
                 AccessToken = accessToken,
                 RefreshToken = refreshToken,
                 UserId = user.Id,
                 Name = user.Name
-            };
-
-            return Ok(new ApiResponse<AuthResponseDto>(responseData, "Đăng nhập thành công!"));
+            }, "Đăng nhập thành công!"));
         }
 
         [HttpPost("google-login")]
-        public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginDto request)
+        public async System.Threading.Tasks.Task<IActionResult> GoogleLogin([FromBody] GoogleLoginDto request)
         {
             if (string.IsNullOrWhiteSpace(request.IdToken))
                 return BadRequest(new ApiResponse<string>("Thiếu code từ Google!"));
@@ -85,15 +90,14 @@ namespace Assistant.Controllers
 
             try
             {
-                // Đổi authorization code lấy access_token + refresh_token
                 var tokenRequest = new Dictionary<string, string>
-        {
-            { "code", request.IdToken },
-            { "client_id", _config["Google:ClientId"]! },
-            { "client_secret", _config["Google:ClientSecret"]! },
-            { "redirect_uri", "http://localhost:5173" },
-            { "grant_type", "authorization_code" }
-        };
+                {
+                    { "code", request.IdToken },
+                    { "client_id", _config["Google:ClientId"]! },
+                    { "client_secret", _config["Google:ClientSecret"]! },
+                    { "redirect_uri", "http://localhost:5173" },
+                    { "grant_type", "authorization_code" }
+                };
 
                 var tokenResponse = await _httpClient.PostAsync(
                     "https://oauth2.googleapis.com/token",
@@ -104,7 +108,6 @@ namespace Assistant.Controllers
 
                 googleAccessToken = tokenDoc.RootElement.GetProperty("access_token").GetString()!;
 
-                // refresh_token chỉ có lần đầu hoặc khi prompt=consent
                 if (tokenDoc.RootElement.TryGetProperty("refresh_token", out var rt))
                     googleRefreshToken = rt.GetString();
             }
@@ -113,7 +116,6 @@ namespace Assistant.Controllers
                 return Unauthorized(new ApiResponse<string>("Đổi code thất bại!"));
             }
 
-            // Lấy thông tin user từ Google
             GoogleUserInfo? googleUser;
             try
             {
@@ -135,7 +137,6 @@ namespace Assistant.Controllers
                 return Unauthorized(new ApiResponse<string>("Xác thực Google thất bại!"));
             }
 
-            // Tạo hoặc lấy user
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == googleUser.Email);
             if (user == null)
             {
@@ -156,7 +157,6 @@ namespace Assistant.Controllers
             user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
             await _context.SaveChangesAsync();
 
-            // ✅ Lưu Google Refresh Token nếu có
             if (!string.IsNullOrWhiteSpace(googleRefreshToken))
             {
                 var existingToken = await _context.UserMemories
@@ -194,7 +194,7 @@ namespace Assistant.Controllers
         }
 
         [HttpPost("refresh_token")]
-        public async Task<IActionResult> RefreshToken([FromBody] TokenDto tokenModel)
+        public async System.Threading.Tasks.Task<IActionResult> RefreshToken([FromBody] TokenDto tokenModel)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.RefreshToken == tokenModel.RefreshToken);
 
@@ -203,18 +203,124 @@ namespace Assistant.Controllers
 
             var newAccessToken = GenerateJwtToken(user);
             var newRefreshToken = GenerateRefreshToken();
-
             user.RefreshToken = newRefreshToken;
-
             await _context.SaveChangesAsync();
 
-            var responseData = new TokenResponseDto
+            return Ok(new ApiResponse<TokenResponseDto>(new TokenResponseDto
             {
                 AccessToken = newAccessToken,
                 RefreshToken = newRefreshToken
-            };
+            }, "Làm mới Token thành công!"));
+        }
 
-            return Ok(new ApiResponse<TokenResponseDto>(responseData, "Làm mới Token thành công!"));
+        [HttpPost("send-otp")]
+        public async System.Threading.Tasks.Task<IActionResult> SendOtp([FromBody] SendOtpDto request)
+        {
+            if (string.IsNullOrWhiteSpace(request.Gmail))
+                return BadRequest(new ApiResponse<string>("Vui lòng nhập email!"));
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Gmail);
+
+            // User đã verify trước đó → đăng nhập luôn, không cần OTP
+            if (user != null && user.IsEmailVerified)
+            {
+                var accessToken = GenerateJwtToken(user);
+                var refreshToken = GenerateRefreshToken();
+                user.RefreshToken = refreshToken;
+                user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
+                await _context.SaveChangesAsync();
+
+                return Ok(new ApiResponse<AuthResponseDto>(new AuthResponseDto
+                {
+                    AccessToken = accessToken,
+                    RefreshToken = refreshToken,
+                    UserId = user.Id,
+                    Name = user.Name
+                }, "Đăng nhập thành công!")
+                { RequireOtp = false });
+            }
+
+            // User chưa tồn tại → tạo mới
+            if (user == null)
+            {
+                user = new User
+                {
+                    Name = request.Gmail.Split('@')[0],
+                    Email = request.Gmail,
+                    PasswordHash = "OTP_NO_PASSWORD",
+                    Timezone = "Asia/Ho_Chi_Minh",
+                    IsEmailVerified = false
+                };
+                _context.Users.Add(user);
+            }
+
+            // Gửi OTP
+            var otp = GenerateOtp();
+            user.OtpCode = otp;
+            user.OtpExpiry = DateTime.UtcNow.AddMinutes(10);
+            await _context.SaveChangesAsync();
+
+            try
+            {
+                await SendOtpEmailAsync(user.Email, otp);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"=== Lỗi gửi OTP: {ex.Message} ===");
+                return StatusCode(500, new ApiResponse<string>("Không thể gửi mã xác thực. Vui lòng thử lại."));
+            }
+
+            return Ok(new ApiResponse<object>(new { }, "Đã gửi mã OTP!") { RequireOtp = true });
+        }
+
+        [HttpPost("verify-otp")]
+        public async System.Threading.Tasks.Task<IActionResult> VerifyOtp([FromBody] VerifyOtpDto request)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Gmail);
+
+            if (user == null)
+                return BadRequest(new ApiResponse<string>("Tài khoản không tồn tại!"));
+
+            if (string.IsNullOrEmpty(user.OtpCode) || user.OtpExpiry == null)
+                return BadRequest(new ApiResponse<string>("Vui lòng yêu cầu mã OTP trước!"));
+
+            if (user.OtpExpiry < DateTime.UtcNow)
+                return BadRequest(new ApiResponse<string>("Mã OTP đã hết hạn!"));
+
+            if (user.OtpCode != request.Otp)
+                return BadRequest(new ApiResponse<string>("Mã xác thực không đúng hoặc đã hết hạn."));
+
+            user.IsEmailVerified = true;
+            user.OtpCode = null;
+            user.OtpExpiry = null;
+
+            var accessToken = GenerateJwtToken(user);
+            var refreshToken = GenerateRefreshToken();
+            user.RefreshToken = refreshToken;
+            user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
+            await _context.SaveChangesAsync();
+
+            return Ok(new ApiResponse<AuthResponseDto>(new AuthResponseDto
+            {
+                AccessToken = accessToken,
+                RefreshToken = refreshToken,
+                UserId = user.Id,
+                Name = user.Name
+            }, "Xác thực thành công!"));
+        }
+
+        private string GenerateOtp()
+        {
+            var random = new Random();
+            return random.Next(100000, 999999).ToString();
+        }
+
+        private async System.Threading.Tasks.Task SendOtpEmailAsync(string toEmail, string otpCode)
+        {
+            var senderRefreshToken = _config["Google:SenderRefreshToken"]!;
+            var accessToken = await _gmailService.GetNewAccessTokenAsync(senderRefreshToken);
+            var html = $"<h2>Mã OTP của bạn là: {otpCode}</h2><p>Mã có hiệu lực trong 10 phút.</p>";
+            await _gmailService.SendEmailAsync(accessToken, toEmail, "Mã xác thực OTP của bạn", html);
         }
 
         private string GenerateRefreshToken()
@@ -232,9 +338,9 @@ namespace Assistant.Controllers
 
             var claims = new[]
             {
-                new Claim(ClaimTypes.NameIdentifier,user.Id.ToString()),
-                new Claim(ClaimTypes.Email,user.Email),
-                new Claim (ClaimTypes.Name,user.Name)
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new Claim(ClaimTypes.Email, user.Email),
+                new Claim(ClaimTypes.Name, user.Name)
             };
 
             var token = new JwtSecurityToken(
@@ -278,14 +384,12 @@ namespace Assistant.Controllers
         public string RefreshToken { get; set; } = null!;
     }
 
-    // IdToken giờ thực chất chứa access_token từ useGoogleLogin
     public class GoogleLoginDto
     {
         public string IdToken { get; set; } = null!;
         public string? GoogleRefreshToken { get; set; }
     }
 
-    // Cấu trúc JSON trả về từ https://www.googleapis.com/oauth2/v3/userinfo
     public class GoogleUserInfo
     {
         public string? Sub { get; set; }

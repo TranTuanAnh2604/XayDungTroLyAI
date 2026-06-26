@@ -1,29 +1,51 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGoogleLogin } from '@react-oauth/google'
-import { login, googleLogin } from '../services/authService'
+import { googleLogin, sendOtp} from '../services/authService'
+
 export default function Login() {
     const navigate = useNavigate()
     const [gmail, setGmail] = useState('')
-    const [password, setPassword] = useState('')
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
-    const [showPassword, setShowPassword] = useState(false);
 
-    const handleLogin = async () => {
+    const handleContinue = async () => {
+        if (!gmail.trim()) {
+            setError('Vui lòng nhập địa chỉ Gmail.')
+            return
+        }
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!emailRegex.test(gmail)) {
+            setError('Địa chỉ email không hợp lệ.')
+            return
+        }
+
         setLoading(true)
         setError('')
+
         try {
-            const res = await login(gmail, password)
-            localStorage.setItem('accessToken', res.data.accessToken)
-            localStorage.setItem('refreshToken', res.data.refreshToken)
-            localStorage.setItem('userName', res.data.name)
-            navigate('/dashboard')
-        } catch (err) {
-            setError(err.response?.data?.message || 'Đăng nhập thất bại!')
+            const res = await sendOtp(gmail)
+
+            if (res.data.requireOtp === false) {
+                // User đã verify trước đó -> vào thẳng dashboard, không cần OTP
+                localStorage.setItem('accessToken', res.data.data.accessToken)
+                localStorage.setItem('refreshToken', res.data.data.refreshToken)
+                localStorage.setItem('userName', res.data.data.name)
+                navigate('/dashboard')
+            } else {
+                // Lần đầu hoặc chưa verify -> qua trang nhập OTP
+                navigate('/verify-otp', { state: { gmail } })
+            }
+        } catch (otpErr) {
+            console.log('OTP Error:', otpErr.response?.status, otpErr.response?.data)
+            setError(otpErr.response?.data?.message || 'Không thể gửi mã xác thực. Vui lòng thử lại.')
         } finally {
             setLoading(false)
         }
+    }
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') handleContinue()
     }
 
     const handleGoogleLogin = useGoogleLogin({
@@ -33,14 +55,13 @@ export default function Login() {
             setLoading(true)
             setError('')
             try {
-                // ✅ Gửi thẳng code lên BE, để BE tự đổi lấy refresh_token
                 const res = await googleLogin(tokenResponse.code)
                 localStorage.setItem('accessToken', res.data.accessToken)
                 localStorage.setItem('refreshToken', res.data.refreshToken)
                 localStorage.setItem('userName', res.data.name)
                 navigate('/dashboard')
             } catch (err) {
-                setError(err.response?.data?.messenger || 'Đăng nhập Google thất bại!')
+                setError(err.response?.data?.message || 'Đăng nhập Google thất bại!')
             } finally {
                 setLoading(false)
             }
@@ -51,20 +72,20 @@ export default function Login() {
     return (
         <div
             className="bg-[#f8f9ff] text-[#0b1c30] min-h-screen relative overflow-hidden flex items-center justify-center p-[16px]"
-            style={{ fontFamily: "Inter, sans-serif" }}
+            style={{ fontFamily: 'Inter, sans-serif' }}
         >
-            {/* Background Layer */}
+            {/* Background */}
             <div className="absolute inset-0 z-0">
                 <img
                     alt="Background"
                     className="w-full h-full object-cover opacity-30 mix-blend-multiply"
                     src="https://lh3.googleusercontent.com/aida-public/AB6AXuCYCfR8jN9lrlCBolLXjIJWIm6qI1c5By5mbTOPUjafAxXYfQURu8mXS2O7LXaFSRe7XFdiY5Q7PrDY4vSzIIqAqGCrqxemh7YRiB_DCKXSRpmbORG5_EKyPARvivmOxMqPBY3GE-TNCHN4sDeedxJqKkCB36XhKSALpaQS3OG413OVgnzuLNgJ6u-bERXH1juttc5HRdICUbF6Mm5GT3-pXq04wFl5bHIVXg77i-nDBnzth4Q7KxpaeoD3ILxBX5kOZgsowoyQXIA"
                 />
-                <div className="absolute top-[-20%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-[#d3e4fe]/60 blur-[120px]"></div>
-                <div className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] rounded-full bg-[#e9ddff]/40 blur-[100px]"></div>
+                <div className="absolute top-[-20%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-[#d3e4fe]/60 blur-[120px]" />
+                <div className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] rounded-full bg-[#e9ddff]/40 blur-[100px]" />
             </div>
 
-            {/* Login Card */}
+            {/* Card */}
             <div className="relative z-10 w-full max-w-[420px] bg-white/80 backdrop-blur-xl border border-[#c6c6cd] rounded-xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05)] p-[40px] flex flex-col gap-[24px]">
 
                 {/* Header */}
@@ -81,14 +102,15 @@ export default function Login() {
                         Welcome back
                     </h1>
                     <p className="text-[16px] leading-[1.5] text-[#45464d]">
-                        Log in to your AI Assistant workspace.
+                        Log in or sign up to your AI Assistant workspace.
                     </p>
                 </div>
 
                 {/* Google OAuth */}
                 <button
                     onClick={() => handleGoogleLogin()}
-                    className="w-full flex items-center justify-center gap-[8px] py-2.5 px-4 bg-white border border-[#c6c6cd] rounded-lg text-[14px] font-medium text-[#0b1c30] hover:bg-[#eff4ff] transition-colors duration-200"
+                    disabled={loading}
+                    className="w-full flex items-center justify-center gap-[8px] py-2.5 px-4 bg-white border border-[#c6c6cd] rounded-lg text-[14px] font-medium text-[#0b1c30] hover:bg-[#eff4ff] transition-colors duration-200 disabled:opacity-60"
                     type="button"
                 >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -102,90 +124,71 @@ export default function Login() {
 
                 {/* Divider */}
                 <div className="flex items-center gap-[16px]">
-                    <div className="flex-1 h-px bg-[#c6c6cd]"></div>
-                    <span className="text-[14px] font-medium text-[#45464d]">or gmail</span>
-                    <div className="flex-1 h-px bg-[#c6c6cd]"></div>
+                    <div className="flex-1 h-px bg-[#c6c6cd]" />
+                    <span className="text-[14px] font-medium text-[#45464d]">or email</span>
+                    <div className="flex-1 h-px bg-[#c6c6cd]" />
                 </div>
 
-                {/* Form */}
+                {/* Email Form */}
                 <div className="flex flex-col gap-[16px]">
-                    {/* Gmail */}
                     <div className="flex flex-col gap-[4px]">
                         <label className="text-[14px] font-medium text-[#0b1c30]" htmlFor="gmail">
-                            Gmail address
+                            Email address
                         </label>
                         <div className="relative">
-                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#45464d] pointer-events-none">
+                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#45464d] pointer-events-none text-[20px]">
                                 mail
                             </span>
                             <input
                                 className="w-full pl-10 pr-4 py-2.5 bg-[#f8f9ff] border border-[#c6c6cd] rounded-lg text-[16px] text-[#0b1c30] focus:outline-none focus:border-[#6b38d4] focus:ring-1 focus:ring-[#6b38d4] transition-all placeholder:text-[#45464d]/50"
                                 id="gmail"
-                                placeholder="name@company.com"
+                                placeholder="name@example.com"
                                 value={gmail}
-                                onChange={(e) => setGmail(e.target.value)}
+                                onChange={(e) => {
+                                    setGmail(e.target.value)
+                                    if (error) setError('')
+                                }}
+                                onKeyDown={handleKeyDown}
                                 type="email"
+                                autoComplete="email"
                             />
                         </div>
                     </div>
 
-                    {/* Password */}
-                    <div className="flex flex-col gap-[4px]">
-                        <div className="flex justify-between items-center">
-                            <label className="text-[14px] font-medium text-[#0b1c30]" htmlFor="password">
-                                Password
-                            </label>
-                            <a className="text-[14px] font-medium text-[#6b38d4] hover:underline transition-all" href="#">
-                                Forgot password?
-                            </a>
-                        </div>
-                        <div className="relative">
-                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#45464d] pointer-events-none">
-                                lock
-                            </span>
-                            <input
-                                className="w-full pl-10 pr-4 py-2.5 bg-[#f8f9ff] border border-[#c6c6cd] rounded-lg text-[16px] text-[#0b1c30] focus:outline-none focus:border-[#6b38d4] focus:ring-1 focus:ring-[#6b38d4] transition-all placeholder:text-[#45464d]/50"
-                                id="password"
-                                placeholder="••••••••"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                type={showPassword ? "text" : "password"}
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#76777d] hover:text-[#45464d] transition-colors"
-                            >
-                                <span className="material-symbols-outlined !text-[20px]">
-                                    {showPassword ? 'visibility_off' : 'visibility'}
-                                </span>
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Submit */}
-                    {error && <p className="text-[#ba1a1a] text-sm text-center">{error}</p>}
+                    {error && (
+                        <p className="text-[#ba1a1a] text-sm text-center flex items-center justify-center gap-1">
+                            <span className="material-symbols-outlined text-[16px]">error</span>
+                            {error}
+                        </p>
+                    )}
 
                     <button
-                        onClick={handleLogin}
+                        onClick={handleContinue}
                         disabled={loading}
-                        className="w-full mt-2 py-2.5 px-4 bg-[#6b38d4] text-white rounded-lg text-[14px] font-semibold hover:bg-[#5a2ab3] transition-colors shadow-md hover:shadow-lg flex items-center justify-center gap-[8px]"
+                        className="w-full mt-2 py-2.5 px-4 bg-[#6b38d4] text-white rounded-lg text-[14px] font-semibold hover:bg-[#5a2ab3] transition-colors shadow-md hover:shadow-lg flex items-center justify-center gap-[8px] disabled:opacity-60 disabled:cursor-not-allowed"
                         type="button"
                     >
-                        {loading ? 'Đang đăng nhập...' : 'Log In'}
-                        {!loading && <span className="material-symbols-outlined text-[18px]">arrow_forward</span>}
+                        {loading ? (
+                            <>
+                                <svg className="animate-spin w-4 h-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                                </svg>
+                                Đang xử lý...
+                            </>
+                        ) : (
+                            <>
+                                Continue
+                                <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                            </>
+                        )}
                     </button>
-                </div> {/* ← đóng Form */}
 
-                {/* Footer */}
-                <div className="text-center pt-[8px] border-t border-[#c6c6cd]/50">
-                    <span className="text-[16px] text-[#45464d]">Don't have an account?</span>
-                    <a className="text-[14px] font-medium text-[#6b38d4] ml-1 hover:underline" href="/signup">
-                        Sign up
-                    </a>
+                    <p className="text-center text-[12px] text-[#45464d]">
+                        Chưa có tài khoản? Nhập email để đăng ký — mã xác thực sẽ được gửi cho bạn.
+                    </p>
                 </div>
-
-            </div> {/* ← đóng Login Card */}
-        </div> // ← đóng wrapper ngoài cùng
+            </div>
+        </div>
     )
 }

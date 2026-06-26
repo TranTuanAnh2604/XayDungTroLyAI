@@ -5,6 +5,7 @@
         public bool Success { get; set; }
         public string Messenger { get; set; } = string.Empty;
         public T? Data { get; set; }
+        public bool? RequireOtp { get; set; }
 
         public ApiResponse(T data,string messenger ="")
         {

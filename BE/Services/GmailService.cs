@@ -1,6 +1,7 @@
 ﻿using System.Net.Http.Headers;
 using System.Text.Json;
 using Assistant.DTOs;
+using System.Text;
 
 namespace Assistant.Services
 {
@@ -187,6 +188,50 @@ namespace Assistant.Services
                 Body = bodyText,
                 BodyHtml = bodyHtml
             };
+        }
+
+        // 5. Gửi email qua Gmail API (dùng cho OTP, thông báo...)
+        public async Task SendEmailAsync(string accessToken, string toEmail, string subject, string htmlBody)
+        {
+            using var client = new HttpClient();
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+            var rawMessage = BuildRawMimeMessage(toEmail, subject, htmlBody);
+
+            var payload = new { raw = rawMessage };
+            var content = new StringContent(
+                JsonSerializer.Serialize(payload),
+                System.Text.Encoding.UTF8,
+                "application/json");
+
+            var response = await client.PostAsync(
+                "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+                content);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var err = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"=== Lỗi gửi mail: {err} ===");
+                throw new Exception("Không thể gửi email qua Gmail API.");
+            }
+        }
+
+        // Helper: build raw MIME message (base64url, theo chuẩn Gmail API yêu cầu)
+        private string BuildRawMimeMessage(string toEmail, string subject, string htmlBody)
+        {
+            var subjectEncoded = $"=?UTF-8?B?{Convert.ToBase64String(Encoding.UTF8.GetBytes(subject))}?=";
+
+            var mime =
+                $"To: {toEmail}\r\n" +
+                $"Subject: {subjectEncoded}\r\n" +
+                "MIME-Version: 1.0\r\n" +
+                "Content-Type: text/html; charset=UTF-8\r\n\r\n" +
+                htmlBody;
+
+            var bytes = Encoding.UTF8.GetBytes(mime);
+            var base64 = Convert.ToBase64String(bytes);
+            // Gmail API yêu cầu base64url (không phải base64 thường)
+            return base64.Replace('+', '-').Replace('/', '_').Replace("=", "");
         }
 
         // Helper đọc header

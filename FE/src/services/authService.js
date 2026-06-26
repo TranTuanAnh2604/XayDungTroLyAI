@@ -14,3 +14,11 @@ export const googleLogin = async (code) => {
     const res = await api.post('/auth/google-login', { idToken: code })
     return res.data
 }
+
+// Gửi OTP tới email mới
+export const sendOtp = (gmail) =>
+    api.post('/auth/send-otp', { gmail })
+
+// Xác thực OTP + đăng ký tài khoản mới
+export const verifyOtp = (gmail, otp) =>
+    api.post('/auth/verify-otp', { gmail, otp })
