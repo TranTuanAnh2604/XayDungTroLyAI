@@ -98,7 +98,7 @@ namespace Assistant.Controllers
             return Ok(new ApiResponse<List<ChatMessageDto>>(messages, "Lấy tin nhắn thành công!"));
         }
 
-        // POST /api/chat/sessions/{sessionId}/messages — gửi tin nhắn, nhận phản hồi AI
+        // POST /api/chat/sessions/{sessionId}/messages
         [HttpPost("sessions/{sessionId}/messages")]
         public async Task<IActionResult> SendMessage(Guid sessionId, [FromBody] SendMessageDto request)
         {
@@ -112,7 +112,15 @@ namespace Assistant.Controllers
             if (session == null)
                 return NotFound(new ApiResponse<string>("Không tìm thấy hội thoại!"));
 
-            // 1. Lưu tin nhắn của user
+            // 1. Lấy lịch sử TRƯỚC — lúc này chưa có tin nhắn mới
+            var recentMessages = await _context.ChatMessages
+                .Where(m => m.SessionId == sessionId)
+                .OrderByDescending(m => m.CreatedAt)
+                .Take(20)
+                .OrderBy(m => m.CreatedAt)
+                .ToListAsync();
+
+            // 2. Lưu tin nhắn user SAU KHI đã lấy lịch sử
             var userMessage = new ChatMessage
             {
                 Id = Guid.NewGuid(),
@@ -123,7 +131,6 @@ namespace Assistant.Controllers
             };
             _context.ChatMessages.Add(userMessage);
 
-            // Nếu session chưa có title, lấy 50 ký tự đầu của câu hỏi đầu tiên làm title
             if (string.IsNullOrWhiteSpace(session.Title))
             {
                 session.Title = request.Content.Length > 50
@@ -131,24 +138,10 @@ namespace Assistant.Controllers
                     : request.Content;
             }
             session.LastActivity = DateTime.UtcNow;
-
             await _context.SaveChangesAsync();
 
-            // 2. Lấy lịch sử gần nhất trong session (tối đa 20 tin nhắn gần nhất) để AI có ngữ cảnh
-            var recentMessages = await _context.ChatMessages
-                .Where(m => m.SessionId == sessionId)
-                .OrderByDescending(m => m.CreatedAt)
-                .Take(20)
-                .OrderBy(m => m.CreatedAt) // đảo lại đúng thứ tự thời gian
-                .ToListAsync();
-
-            // 3. Lấy UserMemory để cá nhân hóa
-            var memories = await _context.UserMemories
-                .Where(m => m.UserId == userId)
-                .ToListAsync();
-
-            // 4. Build prompt tổng hợp gửi cho Groq
-            var prompt = BuildPrompt(memories, recentMessages, request.Content);
+            // 3. Build prompt với lịch sử cũ + câu hỏi mới
+            var prompt = BuildPrompt(recentMessages, request.Content);
 
             string aiReply;
             try
@@ -160,7 +153,7 @@ namespace Assistant.Controllers
                 return StatusCode(500, new ApiResponse<string>($"Lỗi gọi AI: {ex.Message}"));
             }
 
-            // 5. Lưu tin nhắn phản hồi của AI
+            // 4. Lưu tin nhắn AI
             var aiMessage = new ChatMessage
             {
                 Id = Guid.NewGuid(),
@@ -200,19 +193,9 @@ namespace Assistant.Controllers
         }
 
         // Helper: build prompt kết hợp UserMemory + lịch sử chat + câu hỏi mới
-        private string BuildPrompt(List<UserMemory> memories, List<ChatMessage> history, string newMessage)
+        private string BuildPrompt(List<ChatMessage> history, string newMessage)
         {
             var sb = new StringBuilder();
-
-            if (memories.Count > 0)
-            {
-                sb.AppendLine("Thông tin đã biết về người dùng (hãy dùng để cá nhân hóa câu trả lời, không lặp lại nguyên văn):");
-                foreach (var m in memories)
-                {
-                    sb.AppendLine($"- [{m.Category}] {m.Key}: {m.Value}");
-                }
-                sb.AppendLine();
-            }
 
             if (history.Count > 0)
             {

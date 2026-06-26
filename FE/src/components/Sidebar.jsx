@@ -95,7 +95,12 @@ export default function Sidebar({ onNewChat, currentSessionId, onSelectSession }
     // Format thời gian session
     const formatTime = (dateStr) => {
         if (!dateStr) return ''
-        const date = new Date(dateStr)
+        // Fix timezone: nếu không có Z hoặc offset thì thêm Z vào
+        const normalized = dateStr.endsWith('Z') || dateStr.includes('+')
+            ? dateStr
+            : dateStr + 'Z'
+
+        const date = new Date(normalized)
         const now = new Date()
         const diffMs = now - date
         const diffMins = Math.floor(diffMs / (1000 * 60))
@@ -141,7 +146,7 @@ export default function Sidebar({ onNewChat, currentSessionId, onSelectSession }
             </div>
 
             {/* Nav Items */}
-            <div className="px-[16px] flex flex-col gap-[4px]">
+            <div className="px-[16px] flex flex-col gap-[4px] flex-1 overflow-y-auto min-h-0">
                 {navItems.map(({ icon, label, path }) => {
                     const active = location.pathname === path
                     return (
@@ -157,9 +162,9 @@ export default function Sidebar({ onNewChat, currentSessionId, onSelectSession }
                                 {label}
                             </button>
 
-                            {/* ✅ Lịch sử nằm ngay dưới Chat */}
+                            {/* Lịch sử nằm ngay dưới Chat */}
                             {path === '/chat' && location.pathname === '/chat' && (
-                                <div className="ml-[8px] flex flex-col gap-[2px] mt-[2px]">
+                                <div className="ml-[8px] flex flex-col gap-[2px] mt-[2px] max-h-[35vh] overflow-y-auto">
                                     {loadingSessions ? (
                                         <div className="flex justify-center py-2">
                                             <span className="material-symbols-outlined animate-spin text-[#6b38d4] text-[18px]">progress_activity</span>

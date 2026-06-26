@@ -22,7 +22,6 @@ namespace Assistant.Controllers
         private readonly HttpClient _httpClient;
         private readonly GmailService _gmailService;
 
-        // ✅ Fix: thêm GmailService vào tham số constructor
         public AuthController(
             AppDbContext context,
             IConfiguration config,
