@@ -6,6 +6,7 @@ import {
     createSession,
     getMessages,
     sendMessage,
+    deleteMessage
 } from "../services/chatService";
 
 export default function Chat() {
@@ -17,7 +18,8 @@ export default function Chat() {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(true);
-    const [isSending, setIsSending] = useState(false);
+    const [isSending, setIsSending] = useState(false);        // cho handleSend
+    const [regeneratingIndex, setRegeneratingIndex] = useState(null); // cho handleRegenerate
     const [error, setError] = useState("");
     const [feedbacks, setFeedbacks] = useState({});
 
@@ -29,25 +31,27 @@ export default function Chat() {
     };
 
     const handleRegenerate = async (aiMsgIndex) => {
-        // Tìm tin nhắn user trước tin AI này
         const userMsg = messages[aiMsgIndex - 1];
+        const aiMsg = messages[aiMsgIndex];
         if (!userMsg || userMsg.role !== 'user') return;
 
-        // Xóa tin AI cũ
-        const historyBeforeAI = messages.slice(0, aiMsgIndex);
-        setMessages(historyBeforeAI);
-        setIsSending(true);
+        setRegeneratingIndex(aiMsgIndex); // ← chỉ đánh dấu index này
         setError("");
 
         try {
-            // history = tất cả tin TRƯỚC tin user cuối
-            const history = historyBeforeAI.slice(0, -1);
-            const res = await sendMessage(sessionId, userMsg.content, history);
-            setMessages([...historyBeforeAI, res.data]);
+            const isRealId = (id) => id && !String(id).startsWith('temp-')
+            if (isRealId(aiMsg?.id)) await deleteMessage(sessionId, aiMsg.id);
+            if (isRealId(userMsg?.id)) await deleteMessage(sessionId, userMsg.id);
+
+            await sendMessage(sessionId, userMsg.content);
+
+            const res = await getMessages(sessionId);
+            setMessages(res.data || []);
         } catch (err) {
-            setError(err.response?.data?.messenger || "Không thể tạo lại câu trả lời!");
+            console.log('Regenerate error:', err.response?.data)
+            setError(err.response?.data?.message || "Không thể tạo lại câu trả lời!");
         } finally {
-            setIsSending(false);
+            setRegeneratingIndex(null);
         }
     };
 
@@ -131,7 +135,6 @@ export default function Chat() {
         setIsSending(true);
         setError("");
 
-        // Hiện tin nhắn user ngay lập tức (optimistic update)
         const tempUserMsg = {
             id: `temp-${Date.now()}`,
             role: "user",
@@ -145,11 +148,14 @@ export default function Chat() {
         }
 
         try {
-            // Lấy lịch sử TRƯỚC khi thêm tin nhắn tạm (không gửi tin temp)
-            const res = await sendMessage(sessionId, content, messages);
-            // res.data là tin nhắn AI trả lời
-            setMessages((prev) => [...prev, res.data]);
+            await sendMessage(sessionId, content, messages);
+
+            // Load lại từ DB để có real id cho cả user msg lẫn AI msg
+            const res = await getMessages(sessionId);
+            setMessages(res.data || []);
         } catch (err) {
+            // Xóa temp msg nếu lỗi
+            setMessages((prev) => prev.filter(m => m.id !== tempUserMsg.id));
             setError(err.response?.data?.messenger || "Gửi tin nhắn thất bại!");
         } finally {
             setIsSending(false);
@@ -272,7 +278,7 @@ export default function Chat() {
                 </header>
 
                 {/* Chat Canvas */}
-                <main ref={scrollRef} className="flex-1 overflow-y-auto p-[24px] flex flex-col gap-[40px] pb-[140px]">
+                <main ref={scrollRef} className="flex-1 overflow-y-auto p-[24px] flex flex-col gap-[40px] pb-[200px]">
                     <div className="w-full max-w-[900px] mx-auto flex flex-col gap-[24px]">
 
                         {isLoading ? (
@@ -348,10 +354,10 @@ export default function Chat() {
                                                     <button
                                                         onClick={() => handleRegenerate(index)}
                                                         title="Regenerate"
-                                                        disabled={isSending}
+                                                        disabled={regeneratingIndex !== null} // disable tất cả khi đang regenerate 1 cái
                                                         className="p-[4px] rounded text-[#45464d] hover:bg-[#dce9ff] transition-colors disabled:opacity-40"
                                                     >
-                                                        <span className={`material-symbols-outlined text-[18px] ${isSending ? 'animate-spin' : ''}`}>
+                                                        <span className={`material-symbols-outlined text-[18px] ${regeneratingIndex === index ? 'animate-spin' : ''}`}>
                                                             refresh
                                                         </span>
                                                     </button>

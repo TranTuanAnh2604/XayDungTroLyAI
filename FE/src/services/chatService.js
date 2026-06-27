@@ -31,3 +31,8 @@ export const deleteSession = async (sessionId) => {
     const res = await api.delete(`/chat/sessions/${sessionId}`)
     return res.data
 }
+
+export const deleteMessage = async (sessionId, messageId) => {
+    const res = await api.delete(`/chat/sessions/${sessionId}/messages/${messageId}`)
+    return res.data
+}

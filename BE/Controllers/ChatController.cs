@@ -192,6 +192,30 @@ namespace Assistant.Controllers
             return Ok(new ApiResponse<string>("Đã xóa hội thoại!"));
         }
 
+        // DELETE /api/chat/sessions/{sessionId}/messages/{messageId}
+        [HttpDelete("sessions/{sessionId}/messages/{messageId}")]
+        [Route("api/chat/sessions/{sessionId}/messages/{messageId}")]
+        public async Task<IActionResult> DeleteMessage(Guid sessionId, Guid messageId)
+        {
+            var userId = GetUserId();
+            var session = await _context.ChatSessions
+                .FirstOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId);
+
+            if (session == null)
+                return NotFound(new ApiResponse<string>("Không tìm thấy hội thoại!"));
+
+            var message = await _context.ChatMessages
+                .FirstOrDefaultAsync(m => m.Id == messageId && m.SessionId == sessionId);
+
+            if (message == null)
+                return NotFound(new ApiResponse<string>("Không tìm thấy tin nhắn!"));
+
+            _context.ChatMessages.Remove(message);
+            await _context.SaveChangesAsync();
+
+            return Ok(new ApiResponse<string>("Đã xóa tin nhắn!"));
+        }
+
         // Helper: build prompt kết hợp UserMemory + lịch sử chat + câu hỏi mới
         private string BuildPrompt(List<ChatMessage> history, string newMessage)
         {
