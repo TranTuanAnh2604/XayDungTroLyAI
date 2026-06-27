@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import Sidebar from "../components/Sidebar";
-import { processVoice } from "../services/voiceService";
+import { processVoice, saveTranscript } from "../services/voiceService";
 
 export default function Voice() {
     const barsRef = useRef([]);
@@ -13,6 +13,7 @@ export default function Voice() {
     const [aiResponse, setAiResponse] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
     const [isConversationMode, setIsConversationMode] = useState(false);
+    const [taskCreated, setTaskCreated] = useState(false);
     const [error, setError] = useState("");
 
     // Một số trình duyệt load danh sách voices bất đồng bộ, cần load trước
@@ -49,18 +50,30 @@ export default function Voice() {
         setIsProcessing(true);
         setError("");
         setAiResponse("");
+        setTaskCreated(false);
         try {
             const res = await processVoice(text);
-            const reply = res.data;
-            setAiResponse(reply);
+            // Response giờ là { reply, taskCreated, taskId }
+            const { reply, taskCreated: created } = res.data;
 
-            // ✅ Sau khi AI đọc xong → tự động bắt đầu lắng nghe lại
+            setAiResponse(reply);
+            if (created) setTaskCreated(true);
+
+            saveTranscript(text, reply).catch(console.error);
+
             speakText(reply, () => {
-                if (recognitionRef.current) {
+                if (recognitionRef.current && isConversationModeRef.current) {
                     transcriptRef.current = "";
                     setTranscript("");
-                    recognitionRef.current.start();
-                    setIsListening(true);
+                    setTaskCreated(false);
+                    setTimeout(() => {
+                        try {
+                            recognitionRef.current.start();
+                            setIsListening(true);
+                        } catch (e) {
+                            console.warn("Recognition restart failed:", e);
+                        }
+                    }, 300);
                 }
             });
         } catch (err) {
@@ -98,13 +111,21 @@ export default function Voice() {
         recognition.onend = () => {
             setIsListening(false);
             const finalText = transcriptRef.current.trim();
+
             if (finalText) {
                 handleSendToAI(finalText);
-            }
-            // Nếu không có text và đang ở conversation mode → restart
-            else if (isConversationModeRef.current) {
-                recognition.start();
-                setIsListening(true);
+            } else if (isConversationModeRef.current) {
+                // Thêm delay nhỏ tránh restart quá nhanh
+                setTimeout(() => {
+                    if (isConversationModeRef.current) {
+                        try {
+                            recognition.start();
+                            setIsListening(true);
+                        } catch (e) {
+                            console.warn("Recognition restart failed:", e);
+                        }
+                    }
+                }, 300);
             }
         };
 
@@ -222,9 +243,20 @@ export default function Voice() {
                             </h2>
 
                             {aiResponse && (
-                                <div className="mt-[24px] p-[16px] bg-white rounded-xl border border-[#c6c6cd] text-left max-h-[200px] overflow-y-auto">
+                                <div className="mt-[24px] p-[16px] bg-white rounded-xl ...">
                                     <p className="text-[14px] font-semibold text-[#6b38d4] mb-[8px]">AI trả lời:</p>
                                     <p className="text-[16px] text-[#0b1c30]">{aiResponse}</p>
+                                </div>
+                            )}
+
+                            {taskCreated && (
+                                <div className="mt-[12px] p-[12px] bg-[#e6f4ea] border border-[#1a6b38] rounded-xl flex items-center gap-[8px]">
+                                    <span className="material-symbols-outlined text-[#1a6b38]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                                        task_alt
+                                    </span>
+                                    <p className="text-[14px] text-[#1a6b38] font-medium">
+                                        Task đã được tạo tự động!
+                                    </p>
                                 </div>
                             )}
 

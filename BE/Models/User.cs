@@ -58,4 +58,6 @@ public partial class User
     public virtual ICollection<Todo> Todos { get; set; } = new List<Todo>();
 
     public virtual ICollection<UserMemory> UserMemories { get; set; } = new List<UserMemory>();
+
+    public virtual ICollection<VoiceTranscript> VoiceTranscripts { get; set; } = new List<VoiceTranscript>();
 }

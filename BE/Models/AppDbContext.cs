@@ -37,6 +37,7 @@ public partial class AppDbContext : DbContext
     public virtual DbSet<Todo> Todos { get; set; }
     public virtual DbSet<User> Users { get; set; }
     public virtual DbSet<UserMemory> UserMemories { get; set; }
+    public virtual DbSet<VoiceTranscript> VoiceTranscripts { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -468,7 +469,24 @@ public partial class AppDbContext : DbContext
                 .HasConstraintName("FK_user_memories_user");
         });
 
+        modelBuilder.Entity<VoiceTranscript>(entity =>
+        {
+            entity.ToTable("voice_transcripts");
+            entity.HasIndex(e => new { e.UserId, e.CreatedAt }, "IX_voice_transcripts_user");
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+            entity.Property(e => e.Transcript).HasColumnName("transcript");
+            entity.Property(e => e.AiResponse).HasColumnName("ai_response");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+
+            entity.HasOne(d => d.User).WithMany(p => p.VoiceTranscripts)
+                .HasForeignKey(d => d.UserId)
+                .HasConstraintName("FK_voice_transcripts_user");
+        });
+
         OnModelCreatingPartial(modelBuilder);
+
     }
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
