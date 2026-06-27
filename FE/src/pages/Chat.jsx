@@ -251,14 +251,6 @@ export default function Chat() {
                 <header className="flex justify-between items-center w-full px-[24px] py-[8px] sticky top-0 z-30 bg-[#f8f9ff]/70 backdrop-blur-xl border-b border-[#c6c6cd] shadow-sm">
                     <div className="flex items-center gap-[16px] w-full max-w-[600px]">
                         <div className="relative w-full max-w-md focus-within:ring-2 focus-within:ring-[#6b38d4] rounded-lg transition-all">
-                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#45464d]">
-                                search
-                            </span>
-                            <input
-                                className="w-full pl-[40px] pr-[8px] py-[8px] bg-white border border-[#c6c6cd] rounded-lg text-[16px] text-[#0b1c30] placeholder:text-[#76777d] focus:outline-none focus:border-[#6b38d4]"
-                                placeholder="Search chats, prompts, or files..."
-                                type="text"
-                            />
                         </div>
                     </div>
                     <div className="flex items-center gap-[8px]">

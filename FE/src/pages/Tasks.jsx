@@ -93,7 +93,8 @@ function TaskCard({ task, onStatusChange, onDelete, onEdit }) {
 }
 
 function TaskModal({ task, onClose, onSaved }) {
-    const isEdit = !!task;
+    const isEdit = !!task && !task.__isNew;
+    const defaultStatus = task?.__isNew ? task.defaultStatus : (task?.status ?? "pending");
 
     // Format datetime-local value từ ISO string
     const toLocalDatetimeValue = (isoStr) => {
@@ -104,12 +105,12 @@ function TaskModal({ task, onClose, onSaved }) {
     };
 
     const [form, setForm] = useState({
-        title: task?.title ?? "",
-        description: task?.description ?? "",
-        priority: task?.priority ?? 2,
-        status: task?.status ?? "pending",
-        due_date: task?.dueDate ? toLocalDatetimeValue(task.dueDate) : "",
-        estimated_minutes: task?.estimated_minutes ?? "",
+        title: isEdit ? task.title : "",
+        description: isEdit ? (task.description ?? "") : "",
+        priority: isEdit ? task.priority : 2,
+        status: defaultStatus,           // ← dòng này tự điền đúng cột
+        due_date: isEdit && task.dueDate ? toLocalDatetimeValue(task.dueDate) : "",
+        estimated_minutes: isEdit ? (task.estimated_minutes ?? "") : "",
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -124,6 +125,7 @@ function TaskModal({ task, onClose, onSaved }) {
                 priority: Number(form.priority),
                 // Gửi ISO string đầy đủ với timezone offset +07:00
                 dueDate: form.due_date ? new Date(form.due_date).toISOString() : null,
+                status: form.status,
             };
 
             if (isEdit) {
@@ -166,15 +168,15 @@ function TaskModal({ task, onClose, onSaved }) {
                         {COLUMNS.map((col) => <option key={col.key} value={col.key}>{col.label}</option>)}
                     </select>
                 </div>
-                <div className="flex gap-[8px]">
-                    {/* ✅ Đổi thành datetime-local để chọn cả ngày lẫn giờ */}
+                <div className="flex gap-[8px] min-w-0">
+                    {/* Đổi thành datetime-local để chọn cả ngày lẫn giờ */}
                     <input
                         type="datetime-local"
-                        className="flex-1 border border-[#c6c6cd] rounded-lg px-[12px] py-[8px] text-[14px] focus:outline-none focus:ring-2 focus:ring-[#6b38d4]"
+                        className="flex-1 min-w-0 border border-[#c6c6cd] rounded-lg px-[12px] py-[8px] text-[14px] focus:outline-none focus:ring-2 focus:ring-[#6b38d4]"
                         value={form.due_date}
                         onChange={(e) => setForm({ ...form, due_date: e.target.value })}
                     />
-                    <input type="number" className="flex-1 border border-[#c6c6cd] rounded-lg px-[12px] py-[8px] text-[14px] focus:outline-none focus:ring-2 focus:ring-[#6b38d4]"
+                    <input type="number" className="flex-1 min-w-0 w-0 border border-[#c6c6cd] rounded-lg px-[12px] py-[8px] text-[14px] focus:outline-none focus:ring-2 focus:ring-[#6b38d4]"
                         placeholder="Ước tính (phút)" value={form.estimated_minutes} onChange={(e) => setForm({ ...form, estimated_minutes: e.target.value })} />
                 </div>
                 <div className="flex gap-[8px] justify-end">
@@ -317,11 +319,11 @@ export default function Tasks() {
     const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
-    const [modalTask, setModalTask] = useState(undefined);
     const [filters, setFilters] = useState({
         search: "", priority: "all", dueDate: "all", sort: "newest",
     });
-
+    const [modalTask, setModalTask] = useState(undefined);
+    const openCreateModal = (defaultStatus = "pending") => setModalTask({ __isNew: true, defaultStatus });
     const fetchTasks = async () => {
         setLoading(true); setError("");
         try {
@@ -366,7 +368,7 @@ export default function Tasks() {
     return (
         <div className="flex h-screen overflow-hidden" style={{ fontFamily: "Inter, sans-serif", backgroundColor: "#f8f9ff", color: "#0b1c30" }}>
             <Sidebar />
-            <main className="flex-1 flex flex-col md:ml-[280px] w-full h-full relative">
+            <main className="flex-1 min-w-0 flex flex-col ml-[280px] h-full relative">
                 <header className="flex justify-between items-center w-full px-[24px] py-[8px] sticky top-0 z-30 bg-[#f8f9ff]/70 backdrop-blur-xl border-b border-[#c6c6cd] shadow-sm">
                     <div className="flex items-center gap-[16px]">
                         <button className="md:hidden text-[#45464d] hover:text-[#000000] transition-colors">
@@ -398,8 +400,8 @@ export default function Tasks() {
                                 {loading ? "Đang tải..." : `${tasks.filter((t) => t.status !== "done").length} tasks đang hoạt động`}
                             </p>
                         </div>
-                        {/* ✅ Chỉ giữ 1 nút New Task ở góc phải trên */}
-                        <button onClick={() => setModalTask(null)}
+                        {/* Chỉ giữ 1 nút New Task ở góc phải trên */}
+                        <button onClick={() => openCreateModal()}
                             className="flex items-center gap-[8px] bg-[#8455ef] text-white px-[16px] py-[8px] rounded-lg text-[14px] font-bold shadow-sm hover:shadow-md transition-all">
                             <span className="material-symbols-outlined">add</span>New Task
                         </button>
@@ -450,6 +452,10 @@ export default function Tasks() {
                                                 <h3 className="text-[18px] font-semibold text-[#000000]">{col.label}</h3>
                                             </div>
                                             <span className="bg-[#dce9ff] text-[#45464d] px-[8px] py-[2px] rounded-full text-[13px]">{colTasks.length}</span>
+                                            <button onClick={() => openCreateModal(col.key)}
+                                                className="w-[24px] h-[24px] flex items-center justify-center rounded-full text-[#45464d] hover:bg-[#e9ddff] hover:text-[#6b38d4] transition-colors">
+                                                <span className="material-symbols-outlined text-[18px]">add</span>
+                                            </button>
                                         </div>
                                         {/* ✅ Bỏ nút Add Task ở dưới mỗi cột */}
                                         <div className="flex flex-col gap-[8px] overflow-y-auto pr-[4px] flex-1">

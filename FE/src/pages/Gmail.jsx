@@ -107,21 +107,6 @@ export default function Gmail() {
             <Sidebar />
 
             <main className="flex-1 flex flex-col ml-0 md:ml-[280px] h-screen overflow-hidden bg-[#f8f9ff]">
-
-                {/* TopBar */}
-                <header className="flex justify-between items-center w-full px-[24px] py-[8px] sticky top-0 z-30 bg-[#f8f9ff]/70 backdrop-blur-xl shadow-sm border-b border-[#c6c6cd] shrink-0">
-                    <div className="flex-1 max-w-md mx-[16px] relative group">
-                        <div className="absolute inset-y-0 left-0 pl-[8px] flex items-center pointer-events-none">
-                            <span className="material-symbols-outlined text-[#45464d] group-focus-within:text-[#6b38d4] transition-colors">search</span>
-                        </div>
-                        <input
-                            className="w-full pl-[40px] pr-[16px] py-[8px] bg-white border border-[#c6c6cd] rounded-full text-[16px] text-[#0b1c30] focus:outline-none focus:border-[#6b38d4] focus:ring-1 focus:ring-[#6b38d4] transition-all"
-                            placeholder="Tìm kiếm gmail..."
-                            type="text"
-                        />
-                    </div>
-                </header>
-
                 {/* Inbox Canvas */}
                 <div className="flex-1 flex overflow-hidden">
 

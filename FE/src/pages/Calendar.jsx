@@ -546,29 +546,6 @@ export default function Calendar() {
             <Sidebar />
 
             <div className="ml-[280px] flex-1 flex flex-col min-w-0">
-                {/* TopBar */}
-                <header className="flex justify-between items-center w-full px-6 py-2 sticky top-0 z-30 bg-[#f8f9ff]/70 backdrop-blur-xl border-b border-[#c6c6cd] shadow-sm h-[72px]">
-                    <div className="relative w-96 flex items-center bg-white border border-[#c6c6cd]/50 rounded-full px-4 py-1 focus-within:ring-2 focus-within:ring-[#6b38d4] focus-within:border-transparent transition-all shadow-sm">
-                        <span className="material-symbols-outlined text-[#45464d] mr-2 text-sm">search</span>
-                        <input
-                            className="w-full bg-transparent border-none focus:ring-0 text-[16px] placeholder-[#45464d]/70 text-[#0b1c30] py-1 focus:outline-none"
-                            placeholder="Tìm sự kiện..."
-                            type="text"
-                        />
-                        <div className="absolute right-2 px-2 py-0.5 rounded-md bg-[#eff4ff] border border-[#c6c6cd] text-[10px] text-[#45464d] font-bold">⌘K</div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <button className="w-10 h-10 rounded-full flex items-center justify-center text-[#45464d] hover:bg-[#e5eeff] transition-colors relative">
-                            <span className="material-symbols-outlined">notifications</span>
-                            <span className="absolute top-2 right-2 w-2 h-2 bg-[#ba1a1a] rounded-full border border-white"></span>
-                        </button>
-                        <div className="w-px h-6 bg-[#c6c6cd]/50 mx-1"></div>
-                        <button className="w-9 h-9 rounded-full overflow-hidden border-2 border-transparent hover:border-[#6b38d4] transition-colors">
-                            <img alt="User" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAiVgdQM7Ps1HbC3ZmnSmfDE3Tk36tNE_59xt-B6UjlCNiCBHFypXLjcGqAzCQb8ayX2_SrWBQAgOYNgxePfiJp0Hd2D653n0529ToQm8NslboXV5ANB8G8gBdMKjo7zbBRogtlYSQV_rYEWXRmPPaG-cKfhmULPl5r0fJpbqthA1o-w3hnuSUc7oshvj-sIR_TeKdPeimuCm5EKrp_pgU2QFwIPZpp8ZdZd_6p9OT9vdkl7Amx5Tmw4iwjSz7KQI1wLzk-tFTZfKA" />
-                        </button>
-                    </div>
-                </header>
-
                 {/* Page Content */}
                 <main className="flex-1 overflow-y-auto p-6 flex gap-6 bg-[#f8f9ff]">
                     {/* Calendar Grid */}

@@ -46,6 +46,7 @@ namespace Assistant.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateTask([FromBody] CreateTaskDto request)
         {
+            Console.WriteLine($"Request Status: {request.Status}");
             var task = new TaskModel
             {
                 UserId = GetUserId(),
@@ -53,7 +54,7 @@ namespace Assistant.Controllers
                 Description = request.Description,
                 Priority = request.Priority,
                 DueDate = request.DueDate,
-                Status = "pending",
+                Status = request.Status ?? "pending",
                 InputMethod = "text",
                 CreatedAt = DateTime.UtcNow
             };
@@ -62,6 +63,35 @@ namespace Assistant.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new ApiResponse<Guid>(task.Id, "Tạo công việc mới thành công!"));
+        }
+
+        //Cập nhật trạng thái
+        [HttpPut("{id}/status")]
+        public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] UpdateTaskStatusDto request)
+        {
+            var task = await _context.Tasks
+                .FirstOrDefaultAsync(x =>
+                    x.Id == id &&
+                    x.UserId == GetUserId());
+
+            if (task == null)
+                return NotFound();
+
+            task.Status = request.Status;
+
+            if (request.Status == "done")
+            {
+                task.CompletedAt = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(
+                new ApiResponse<bool>(
+                    true,
+                    "Cập nhật trạng thái thành công!"
+                )
+            );
         }
 
         [HttpPut("{id}/complete")]
@@ -123,34 +153,6 @@ namespace Assistant.Controllers
                 new ApiResponse<bool>(
                     true,
                     "Xóa công việc thành công!"
-                )
-            );
-        }
-        //Cập nhật trạng thái
-        [HttpPut("{id}/status")]
-        public async Task<IActionResult> UpdateStatus(Guid id,[FromBody] UpdateTaskStatusDto request)
-        {
-            var task = await _context.Tasks
-                .FirstOrDefaultAsync(x =>
-                    x.Id == id &&
-                    x.UserId == GetUserId());
-
-            if (task == null)
-                return NotFound();
-
-            task.Status = request.Status;
-
-            if (request.Status == "done")
-            {
-                task.CompletedAt = DateTime.UtcNow;
-            }
-
-            await _context.SaveChangesAsync();
-
-            return Ok(
-                new ApiResponse<bool>(
-                    true,
-                    "Cập nhật trạng thái thành công!"
                 )
             );
         }
