@@ -211,6 +211,50 @@ RÀO CẢN BẢO MẬT:
 
             return "{}";
         }
+
+        // 5. TÓM TẮT GMAIL BẰNG AI
+        [HttpPost("summarize/{messageId}")]
+        public async Task<IActionResult> SummarizeGmail(string messageId)
+        {
+            var userId = GetUserId();
+
+            var googleTokenMemory = await _context.UserMemories
+                .FirstOrDefaultAsync(m => m.UserId == userId && m.Category == "OAuth" && m.Key == "Google_RefreshToken");
+
+            if (googleTokenMemory == null)
+                return BadRequest(new ApiResponse<string>("Chưa liên kết Gmail!"));
+
+            try
+            {
+                var accessToken = await _gmailService.GetNewAccessTokenAsync(googleTokenMemory.Value);
+                var gmail = await _gmailService.GetGmailDetailAsync(accessToken, messageId);
+
+                var content = !string.IsNullOrWhiteSpace(gmail.Body)
+                    ? gmail.Body
+                    : gmail.Snippet;
+
+                var prompt = $@"
+Bạn là trợ lý tóm tắt email chuyên nghiệp. Hãy tóm tắt email sau bằng tiếng Việt, ngắn gọn, súc tích.
+
+Người gửi: {gmail.From}
+Tiêu đề: {gmail.Subject}
+Nội dung:
+{content}
+
+Yêu cầu:
+- Tóm tắt trong 3-5 câu
+- Nêu rõ: mục đích chính, thông tin quan trọng, hành động cần làm (nếu có)
+- Chỉ trả về đoạn tóm tắt, không giải thích thêm
+";
+
+                var summary = await _aiService.ChatAsync(prompt);
+                return Ok(new ApiResponse<string>(summary.Trim(), "Thành công"));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<string>($"Lỗi: {ex.Message}"));
+            }
+        }
     }
 
     // Các DTO nội bộ — KHÔNG trùng với Assistant.DTOs

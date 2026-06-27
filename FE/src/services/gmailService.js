@@ -28,3 +28,9 @@ export const getGmailDetail = (messageId) =>
     fetch(`${BASE_URL}/api/gmail/inbox/${messageId}`, {
         headers: getHeaders(),
     }).then((r) => r.json());
+
+export const summarizeGmail = (messageId) =>
+    fetch(`${BASE_URL}/api/gmail/summarize/${messageId}`, {
+        method: "POST",
+        headers: getHeaders(),
+    }).then((r) => r.json());
