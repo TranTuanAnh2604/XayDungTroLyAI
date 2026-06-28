@@ -1001,3 +1001,18 @@ The following elements are foundational contracts. Changing them would cascade a
 ---
 
 *This document is the source of truth for architectural decisions in the Hivic AI project. Update it when making structural changes. If a code change contradicts this document, the document should be updated first and reviewed before the code change is merged.*
+
+## AI Coding Rules
+
+Before implementing any feature:
+
+- Read this ARCHITECTURE.md first.
+- Reuse existing components whenever possible.
+- Reuse existing services before creating new ones.
+- Never duplicate business logic.
+- Never hardcode colors, spacing, or typography.
+- Always use constants from src/constants.
+- Never call fetch() directly. Use services/api.ts.
+- Keep naming consistent with the existing codebase.
+- Follow the current folder structure.
+- Do not introduce a new architecture without explicit instruction.
