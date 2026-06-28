@@ -1,177 +1,186 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Assistant.Models;
+using System.Security.Claims;
 
-namespace Assistant.Controllers;
-
-[ApiController]
-[Route("api/[controller]")]
-public class CalendarController : ControllerBase
+namespace Assistant.Controllers
 {
-    private readonly AppDbContext _db;
-
-    public CalendarController(AppDbContext db)
+    [ApiController]
+    [Route("api/[controller]")]
+    [Authorize]
+    public class CalendarController : ControllerBase
     {
-        _db = db;
-    }
+        private readonly AppDbContext _db;
 
-    // ─── GET /api/calendar?year=2025&month=10 ──────────────────────────────
-    [HttpGet]
-    public async Task<IActionResult> GetEvents([FromQuery] int? year, [FromQuery] int? month)
-    {
-        var userId = await _db.Users.Select(u => u.Id).FirstOrDefaultAsync();
-
-        var query = _db.CalendarEvents
-            .Where(e => e.UserId == userId);
-
-        if (year.HasValue && month.HasValue)
+        public CalendarController(AppDbContext db)
         {
-            var start = DateTime.SpecifyKind(new DateTime(year.Value, month.Value, 1), DateTimeKind.Utc);
-            var end = DateTime.SpecifyKind(start.AddMonths(1), DateTimeKind.Utc);
-            query = query.Where(e => e.StartTime < end && e.EndTime >= start);
+            _db = db;
         }
 
-        var events = await query
-            .OrderBy(e => e.StartTime)
-            .Select(e => new CalendarEventDto
+        [HttpGet]
+        public async Task<IActionResult> GetEvents([FromQuery] int? year, [FromQuery] int? month)
+        {
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
+
+            var query = _db.CalendarEvents.Where(e => e.UserId == userId);
+
+            if (year.HasValue && month.HasValue)
             {
-                Id = e.Id,
-                Title = e.Title,
-                Description = e.Description,
-                StartTime = e.StartTime,
-                EndTime = e.EndTime,
-                Location = e.Location,
-                Source = e.Source,
-                IsAllDay = e.IsAllDay,
-            })
-            .ToListAsync();
+                var start = DateTime.SpecifyKind(new DateTime(year.Value, month.Value, 1), DateTimeKind.Utc);
+                var end = DateTime.SpecifyKind(start.AddMonths(1), DateTimeKind.Utc);
+                query = query.Where(e => e.StartTime < end && e.EndTime >= start);
+            }
 
-        return Ok(events);
-    }
+            var events = await query
+                .OrderBy(e => e.StartTime)
+                .Select(e => new CalendarEventDto
+                {
+                    Id = e.Id,
+                    Title = e.Title,
+                    Description = e.Description,
+                    StartTime = e.StartTime,
+                    EndTime = e.EndTime,
+                    Location = e.Location,
+                    Source = e.Source,
+                    IsAllDay = e.IsAllDay,
+                })
+                .ToListAsync();
 
-    // ─── GET /api/calendar/{id} ────────────────────────────────────────────
-    [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetEvent(Guid id)
-    {
-        var ev = await _db.CalendarEvents.FindAsync(id);
-        if (ev is null) return NotFound();
+            return Ok(events);
+        }
 
-        return Ok(new CalendarEventDto
+        [HttpGet("{id:guid}")]
+        public async Task<IActionResult> GetEvent(Guid id)
         {
-            Id = ev.Id,
-            Title = ev.Title,
-            Description = ev.Description,
-            StartTime = ev.StartTime,
-            EndTime = ev.EndTime,
-            Location = ev.Location,
-            Source = ev.Source,
-            IsAllDay = ev.IsAllDay,
-        });
-    }
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
 
-    // ─── POST /api/calendar ────────────────────────────────────────────────
-    [HttpPost]
-    public async Task<IActionResult> CreateEvent([FromBody] CreateCalendarEventRequest req)
-    {
-        if (!ModelState.IsValid) return BadRequest(ModelState);
+            var ev = await _db.CalendarEvents
+                .FirstOrDefaultAsync(e => e.Id == id && e.UserId == userId);
+            if (ev is null) return NotFound();
 
-        var userId = await _db.Users.Select(u => u.Id).FirstOrDefaultAsync();
+            return Ok(new CalendarEventDto
+            {
+                Id = ev.Id,
+                Title = ev.Title,
+                Description = ev.Description,
+                StartTime = ev.StartTime,
+                EndTime = ev.EndTime,
+                Location = ev.Location,
+                Source = ev.Source,
+                IsAllDay = ev.IsAllDay,
+            });
+        }
 
-        var ev = new CalendarEvent
+        [HttpPost]
+        public async Task<IActionResult> CreateEvent([FromBody] CreateCalendarEventRequest req)
         {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            Title = req.Title,
-            Description = req.Description,
-            StartTime = DateTime.SpecifyKind(req.StartTime, DateTimeKind.Utc),
-            EndTime = DateTime.SpecifyKind(req.EndTime, DateTimeKind.Utc),
-            Location = req.Location,
-            Source = req.Source ?? "manual",
-            IsAllDay = req.IsAllDay,
-            CreatedAt = DateTime.UtcNow,
-        };
+            if (!ModelState.IsValid) return BadRequest(ModelState);
 
-        _db.CalendarEvents.Add(ev);
-        await _db.SaveChangesAsync();
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
 
-        return CreatedAtAction(nameof(GetEvent), new { id = ev.Id }, new CalendarEventDto
+            var ev = new CalendarEvent
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                Title = req.Title,
+                Description = req.Description,
+                StartTime = DateTime.SpecifyKind(req.StartTime, DateTimeKind.Utc),
+                EndTime = DateTime.SpecifyKind(req.EndTime, DateTimeKind.Utc),
+                Location = req.Location,
+                Source = req.Source ?? "manual",
+                IsAllDay = req.IsAllDay,
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            _db.CalendarEvents.Add(ev);
+            await _db.SaveChangesAsync();
+
+            return CreatedAtAction(nameof(GetEvent), new { id = ev.Id }, new CalendarEventDto
+            {
+                Id = ev.Id,
+                Title = ev.Title,
+                Description = ev.Description,
+                StartTime = ev.StartTime,
+                EndTime = ev.EndTime,
+                Location = ev.Location,
+                Source = ev.Source,
+                IsAllDay = ev.IsAllDay,
+            });
+        }
+
+        [HttpPut("{id:guid}")]
+        public async Task<IActionResult> UpdateEvent(Guid id, [FromBody] UpdateCalendarEventRequest req)
         {
-            Id = ev.Id,
-            Title = ev.Title,
-            Description = ev.Description,
-            StartTime = ev.StartTime,
-            EndTime = ev.EndTime,
-            Location = ev.Location,
-            Source = ev.Source,
-            IsAllDay = ev.IsAllDay,
-        });
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
+
+            var ev = await _db.CalendarEvents
+                .FirstOrDefaultAsync(e => e.Id == id && e.UserId == userId);
+            if (ev is null) return NotFound();
+
+            ev.Title = req.Title;
+            ev.Description = req.Description;
+            ev.StartTime = DateTime.SpecifyKind(req.StartTime, DateTimeKind.Utc);
+            ev.EndTime = DateTime.SpecifyKind(req.EndTime, DateTimeKind.Utc);
+            ev.Location = req.Location;
+            ev.IsAllDay = req.IsAllDay;
+
+            await _db.SaveChangesAsync();
+            return NoContent();
+        }
+
+        [HttpDelete("{id:guid}")]
+        public async Task<IActionResult> DeleteEvent(Guid id)
+        {
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
+
+            var ev = await _db.CalendarEvents
+                .FirstOrDefaultAsync(e => e.Id == id && e.UserId == userId);
+            if (ev is null) return NotFound();
+
+            _db.CalendarEvents.Remove(ev);
+            await _db.SaveChangesAsync();
+            return NoContent();
+        }
     }
 
-    // ─── PUT /api/calendar/{id} ────────────────────────────────────────────
-    [HttpPut("{id:guid}")]
-    public async Task<IActionResult> UpdateEvent(Guid id, [FromBody] UpdateCalendarEventRequest req)
+    public class CalendarEventDto
     {
-        if (!ModelState.IsValid) return BadRequest(ModelState);
-
-        var ev = await _db.CalendarEvents.FindAsync(id);
-        if (ev is null) return NotFound();
-
-        ev.Title = req.Title;
-        ev.Description = req.Description;
-        ev.StartTime = DateTime.SpecifyKind(req.StartTime, DateTimeKind.Utc);
-        ev.EndTime = DateTime.SpecifyKind(req.EndTime, DateTimeKind.Utc);
-        ev.Location = req.Location;
-        ev.IsAllDay = req.IsAllDay;
-
-        await _db.SaveChangesAsync();
-        return NoContent();
+        public Guid Id { get; set; }
+        public string Title { get; set; } = null!;
+        public string? Description { get; set; }
+        public DateTime StartTime { get; set; }
+        public DateTime EndTime { get; set; }
+        public string? Location { get; set; }
+        public string Source { get; set; } = null!;
+        public bool IsAllDay { get; set; }
     }
 
-    // ─── DELETE /api/calendar/{id} ─────────────────────────────────────────
-    [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> DeleteEvent(Guid id)
+    public class CreateCalendarEventRequest
     {
-        var ev = await _db.CalendarEvents.FindAsync(id);
-        if (ev is null) return NotFound();
-
-        _db.CalendarEvents.Remove(ev);
-        await _db.SaveChangesAsync();
-        return NoContent();
+        public string Title { get; set; } = null!;
+        public string? Description { get; set; }
+        public DateTime StartTime { get; set; }
+        public DateTime EndTime { get; set; }
+        public string? Location { get; set; }
+        public string? Source { get; set; }
+        public bool IsAllDay { get; set; }
     }
-}
 
-// ─── DTOs ──────────────────────────────────────────────────────────────────────
-
-public class CalendarEventDto
-{
-    public Guid Id { get; set; }
-    public string Title { get; set; } = null!;
-    public string? Description { get; set; }
-    public DateTime StartTime { get; set; }
-    public DateTime EndTime { get; set; }
-    public string? Location { get; set; }
-    public string Source { get; set; } = null!;
-    public bool IsAllDay { get; set; }
-    // styleIndex KHÔNG lưu DB — frontend tự quản lý
-}
-
-public class CreateCalendarEventRequest
-{
-    public string Title { get; set; } = null!;
-    public string? Description { get; set; }
-    public DateTime StartTime { get; set; }
-    public DateTime EndTime { get; set; }
-    public string? Location { get; set; }
-    public string? Source { get; set; }
-    public bool IsAllDay { get; set; }
-}
-
-public class UpdateCalendarEventRequest
-{
-    public string Title { get; set; } = null!;
-    public string? Description { get; set; }
-    public DateTime StartTime { get; set; }
-    public DateTime EndTime { get; set; }
-    public string? Location { get; set; }
-    public bool IsAllDay { get; set; }
+    public class UpdateCalendarEventRequest
+    {
+        public string Title { get; set; } = null!;
+        public string? Description { get; set; }
+        public DateTime StartTime { get; set; }
+        public DateTime EndTime { get; set; }
+        public string? Location { get; set; }
+        public bool IsAllDay { get; set; }
+    }
 }

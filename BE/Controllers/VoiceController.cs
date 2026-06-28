@@ -35,26 +35,26 @@ namespace Assistant.Controllers
 
             try
             {
-                var (reply, taskJson) = await _groqService.ChatWithIntentAsync(request.Text);
+                var (reply, taskJson, calendarJson) = await _groqService.ChatWithIntentAsync(request.Text);
 
                 Guid? createdTaskId = null;
+                Guid? createdEventId = null;
 
-                // Nếu AI detect được task → tự động tạo
+                // ── Tạo Task nếu có ──────────────────────────────────────────
                 if (!string.IsNullOrEmpty(taskJson) && taskJson != "null")
                 {
                     try
                     {
-                        var taskNode = JsonNode.Parse(taskJson);
-                        var title = taskNode?["title"]?.ToString();
+                        var node = JsonNode.Parse(taskJson);
+                        var title = node?["title"]?.ToString();
+
+                        Console.WriteLine($"[VOICE] taskJson = {taskJson}");
+                        Console.WriteLine($"[VOICE] title = {title}");
 
                         if (!string.IsNullOrWhiteSpace(title))
                         {
-                            var dueDateStr = taskNode?["dueDate"]?.ToString();
-                            DateTime? dueDate = null;
-                            if (!string.IsNullOrEmpty(dueDateStr))
-                                DateTime.TryParse(dueDateStr, out var parsedDate);
-
-                            var priorityStr = taskNode?["priority"]?.ToString();
+                            var dueDateStr = node?["dueDate"]?.ToString();
+                            var priorityStr = node?["priority"]?.ToString();
                             byte priority = byte.TryParse(priorityStr, out var p) ? p : (byte)2;
 
                             var task = new Assistant.Models.Task
@@ -62,29 +62,71 @@ namespace Assistant.Controllers
                                 Id = Guid.NewGuid(),
                                 UserId = userId,
                                 Title = title,
-                                Description = taskNode?["description"]?.ToString(),
-                                DueDate = string.IsNullOrEmpty(dueDateStr)
-                                    ? null
+                                Description = node?["description"]?.ToString(),
+                                DueDate = string.IsNullOrEmpty(dueDateStr) ? null
                                     : DateTime.TryParse(dueDateStr, out var pd) ? pd : null,
                                 Priority = priority,
                                 Status = "pending",
                                 InputMethod = "voice",
                                 CreatedAt = DateTime.UtcNow
                             };
-
                             _db.Tasks.Add(task);
                             await _db.SaveChangesAsync();
                             createdTaskId = task.Id;
                         }
                     }
-                    catch { /* không tạo được task thì thôi, vẫn trả reply */ }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[VOICE] Task error: {ex.Message}");
+                    }
+                }
+
+                // ── Tạo Calendar Event nếu có ─────────────────────────────────
+                if (!string.IsNullOrEmpty(calendarJson) && calendarJson != "null")
+                {
+                    Console.WriteLine($"[VOICE] calendarJson = {calendarJson}");
+                    try
+                    {
+                        var node = JsonNode.Parse(calendarJson);
+                        var title = node?["title"]?.ToString();
+                        var startStr = node?["startTime"]?.ToString();
+
+                        if (!string.IsNullOrWhiteSpace(title) && !string.IsNullOrWhiteSpace(startStr)
+                            && DateTime.TryParse(startStr, out var startTime))
+                        {
+                            var endStr = node?["endTime"]?.ToString();
+                            DateTime endTime = DateTime.TryParse(endStr, out var et)
+                                ? et
+                                : startTime.AddHours(1); // mặc định +1h
+
+                            var calEvent = new CalendarEvent
+                            {
+                                Id = Guid.NewGuid(),
+                                UserId = userId,
+                                Title = title,
+                                Description = node?["description"]?.ToString(),
+                                Location = node?["location"]?.ToString(),
+                                StartTime = DateTime.SpecifyKind(startTime.ToUniversalTime(), DateTimeKind.Utc),
+                                EndTime = DateTime.SpecifyKind(endTime.ToUniversalTime(), DateTimeKind.Utc),
+                                IsAllDay = node?["isAllDay"]?.GetValue<bool>() ?? false,
+                                Source = "voice",
+                                CreatedAt = DateTime.UtcNow
+                            };
+                            _db.CalendarEvents.Add(calEvent);
+                            await _db.SaveChangesAsync();
+                            createdEventId = calEvent.Id;
+                        }
+                    }
+                    catch { }
                 }
 
                 return Ok(new ApiResponse<VoiceProcessResult>(new VoiceProcessResult
                 {
                     Reply = reply,
                     TaskCreated = createdTaskId.HasValue,
-                    TaskId = createdTaskId
+                    TaskId = createdTaskId,
+                    CalendarEventCreated = createdEventId.HasValue,
+                    CalendarEventId = createdEventId
                 }, "AI đã phản hồi!"));
             }
             catch (Exception ex)
@@ -127,5 +169,7 @@ namespace Assistant.Controllers
         public string Reply { get; set; } = null!;
         public bool TaskCreated { get; set; }
         public Guid? TaskId { get; set; }
+        public bool CalendarEventCreated { get; set; }
+        public Guid? CalendarEventId { get; set; }
     }
 }

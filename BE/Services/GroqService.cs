@@ -53,29 +53,59 @@ namespace Assistant.Services
             return replyText ?? "AI không có phản hồi.";
         }
 
-        public async Task<(string reply, string? taskJson)> ChatWithIntentAsync(string prompt)
+        public async Task<(string reply, string? taskJson, string? calendarJson)> ChatWithIntentAsync(string prompt)
         {
             string url = "https://api.groq.com/openai/v1/chat/completions";
 
-            var systemPrompt = "Bạn là trợ lý AI. Luôn trả lời bằng tiếng Việt, ngắn gọn, tự nhiên.\n\n" +
-                "Nếu người dùng đề cập đến một công việc, lịch hẹn, cuộc họp, deadline, " +
-                "nhiệm vụ cần làm → hãy trả lời JSON theo format sau (KHÔNG kèm text nào khác):\n" +
+            var now = DateTime.Now;
+            var systemPrompt = "Bạn là trợ lý AI thông minh. Luôn trả lời bằng tiếng Việt, ngắn gọn, tự nhiên.\n\n" +
+                "=== THÔNG TIN THỜI GIAN HIỆN TẠI ===\n" +
+                $"- Ngày giờ hiện tại: {now:yyyy-MM-dd HH:mm} (UTC+7)\n" +
+                $"- Thứ trong tuần: {GetVietnameseDayOfWeek(now.DayOfWeek)}\n" +
+                $"- Ngày: {now.Day}, Tháng: {now.Month}, Năm: {now.Year}\n" +
+                $"- Ngày mai: {now.AddDays(1):yyyy-MM-dd} ({GetVietnameseDayOfWeek(now.AddDays(1).DayOfWeek)})\n" +
+                $"- Tuần này: {now.AddDays(-(int)now.DayOfWeek + 1):yyyy-MM-dd} đến {now.AddDays(7 - (int)now.DayOfWeek):yyyy-MM-dd}\n\n" +
+                "=== QUY TẮC PHÂN TÍCH THỜI GIAN ===\n" +
+                "- 'sáng' = 08:00, 'trưa' = 12:00, 'chiều' = 14:00, 'tối' = 19:00 nếu không nói rõ giờ\n" +
+                "- '7h', '7 giờ' = 07:00; '7h30' = 07:30; '7h tối' = 19:00\n" +
+                "- 'ngày mai' = " + now.AddDays(1).ToString("yyyy-MM-dd") + "\n" +
+                "- 'tuần sau' = ngày tương ứng của tuần sau\n" +
+                "- 'thứ 2' = thứ Hai tuần này hoặc tuần sau nếu đã qua\n" +
+                "- 'cuối tuần' = thứ Bảy " + now.AddDays(6 - (int)now.DayOfWeek).ToString("yyyy-MM-dd") + "\n" +
+                "- Nếu không rõ ngày → dùng ngày mai\n" +
+                "- Nếu không rõ giờ → dùng 08:00\n" +
+                "- Thời gian kết thúc mặc định = bắt đầu + 1 giờ\n" +
+                "- Luôn dùng múi giờ +07:00 khi xuất ISO 8601\n\n" +
+                "=== QUY TẮC PHÂN LOẠI ===\n" +
+                "- LUÔN LUÔN tạo cả task lẫn calendarEvent cho mọi công việc, lịch hẹn, nhắc nhở\n" +
+                "- task.title = nội dung công việc ngắn gọn\n" +
+                "- calendarEvent.title = giống task.title\n" +
+                "- Nếu không có giờ cụ thể → startTime = ngày đó lúc 08:00, endTime = 09:00\n" +
+                "- Nếu không có ngày cụ thể → dùng ngày mai\n" +
+                "- Chỉ trả task: null, calendarEvent: null khi là câu hỏi thông thường không liên quan đến công việc\n\n" +
+                "=== FORMAT JSON BẮT BUỘC (KHÔNG thêm text nào ngoài JSON) ===\n" +
                 "{\n" +
-                "  \"reply\": \"câu trả lời tự nhiên cho người dùng\",\n" +
+                "  \"reply\": \"câu trả lời tự nhiên xác nhận những gì đã tạo\",\n" +
+                "  \"task\": null,\n" +
+                "  \"calendarEvent\": null\n" +
+                "}\n\n" +
+                "Khi có task:\n" +
                 "  \"task\": {\n" +
                 "    \"title\": \"tên task ngắn gọn\",\n" +
                 "    \"description\": \"mô tả chi tiết hoặc null\",\n" +
-                "    \"dueDate\": \"ISO 8601 hoặc null, múi giờ +07:00\",\n" +
+                "    \"dueDate\": \"2025-06-15T07:00:00+07:00\",\n" +
                 "    \"priority\": 2\n" +
-                "  }\n" +
-                "}\n\n" +
-                "Nếu KHÔNG liên quan đến task → trả về:\n" +
-                "{\n" +
-                "  \"reply\": \"câu trả lời tự nhiên\",\n" +
-                "  \"task\": null\n" +
-                "}\n\n" +
-                "Quy tắc priority: 1=thấp, 2=bình thường, 3=khẩn cấp.\n" +
-                "Hôm nay là: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm") + " (UTC+7).";
+                "  }\n\n" +
+                "Khi có calendarEvent:\n" +
+                "  \"calendarEvent\": {\n" +
+                "    \"title\": \"tên sự kiện\",\n" +
+                "    \"description\": \"mô tả hoặc null\",\n" +
+                "    \"location\": \"địa điểm hoặc null\",\n" +
+                "    \"startTime\": \"2025-06-15T07:00:00+07:00\",\n" +
+                "    \"endTime\": \"2025-06-15T08:00:00+07:00\",\n" +
+                "    \"isAllDay\": false\n" +
+                "  }\n\n" +
+                "priority: 1=thấp, 2=bình thường, 3=khẩn cấp";
 
             var requestBody = new
             {
@@ -97,19 +127,32 @@ namespace Assistant.Services
 
             var jsonNode = JsonNode.Parse(responseString);
             var replyText = jsonNode?["choices"]?[0]?["message"]?["content"]?.ToString();
-            if (replyText == null) return ("AI không có phản hồi.", null);
+            if (replyText == null) return ("AI không có phản hồi.", null, null);
 
             try
             {
                 var parsed = JsonNode.Parse(replyText);
                 var taskJson = parsed?["task"]?.ToJsonString();
+                var calendarJson = parsed?["calendarEvent"]?.ToJsonString();
                 var reply = parsed?["reply"]?.ToString() ?? replyText;
-                return (reply, taskJson);
+                return (reply, taskJson, calendarJson);
             }
             catch
             {
-                return (replyText, null);
+                return (replyText, null, null);
             }
         }
+
+        private static string GetVietnameseDayOfWeek(DayOfWeek day) => day switch
+        {
+            DayOfWeek.Monday => "Thứ Hai",
+            DayOfWeek.Tuesday => "Thứ Ba",
+            DayOfWeek.Wednesday => "Thứ Tư",
+            DayOfWeek.Thursday => "Thứ Năm",
+            DayOfWeek.Friday => "Thứ Sáu",
+            DayOfWeek.Saturday => "Thứ Bảy",
+            DayOfWeek.Sunday => "Chủ Nhật",
+            _ => ""
+        };
     }
 }

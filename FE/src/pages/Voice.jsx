@@ -12,8 +12,8 @@ export default function Voice() {
     const [transcript, setTranscript] = useState("Bấm vào micro để bắt đầu nói...");
     const [aiResponse, setAiResponse] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
-    const [isConversationMode, setIsConversationMode] = useState(false);
     const [taskCreated, setTaskCreated] = useState(false);
+    const [calendarCreated, setCalendarCreated] = useState(false);
     const [error, setError] = useState("");
 
     // Một số trình duyệt load danh sách voices bất đồng bộ, cần load trước
@@ -54,10 +54,11 @@ export default function Voice() {
         try {
             const res = await processVoice(text);
             // Response giờ là { reply, taskCreated, taskId }
-            const { reply, taskCreated: created } = res.data;
+            const { reply, taskCreated: tCreated, calendarEventCreated: cCreated } = res.data;
 
             setAiResponse(reply);
-            if (created) setTaskCreated(true);
+            if (tCreated) setTaskCreated(true);
+            if (cCreated) setCalendarCreated(true);
 
             saveTranscript(text, reply).catch(console.error);
 
@@ -73,7 +74,7 @@ export default function Voice() {
                         } catch (e) {
                             console.warn("Recognition restart failed:", e);
                         }
-                    }, 300);
+                    }, 800);
                 }
             });
         } catch (err) {
@@ -114,22 +115,29 @@ export default function Voice() {
 
             if (finalText) {
                 handleSendToAI(finalText);
-            } else if (isConversationModeRef.current) {
-                // Thêm delay nhỏ tránh restart quá nhanh
+                return; // không restart ngay, chờ AI xong
+            }
+
+            // Không có text + đang conversation mode → restart
+            if (isConversationModeRef.current) {
                 setTimeout(() => {
-                    if (isConversationModeRef.current) {
-                        try {
-                            recognition.start();
-                            setIsListening(true);
-                        } catch (e) {
-                            console.warn("Recognition restart failed:", e);
-                        }
+                    if (!isConversationModeRef.current) return;
+                    try {
+                        recognition.start();
+                        setIsListening(true);
+                    } catch (e) {
+                        console.warn("Restart failed:", e);
                     }
-                }, 300);
+                }, 500);
             }
         };
 
         recognition.onerror = (event) => {
+            // Bỏ qua lỗi aborted — đây là lỗi bình thường khi stop thủ công
+            if (event.error === "aborted" || event.error === "no-speech") {
+                setIsListening(false);
+                return;
+            }
             setError("Lỗi nhận diện giọng nói: " + event.error);
             setIsListening(false);
         };
@@ -154,31 +162,41 @@ export default function Voice() {
         return () => clearInterval(interval);
     }, [isListening]);
 
-    const toggleListening = () => {
-        if (!recognitionRef.current) return;
+    // Nút 1: tắt mic, giữ chat
+    const handleMicOff = () => {
+        isConversationModeRef.current = false;
+        if (recognitionRef.current) {
+            recognitionRef.current.abort();
+        }
+        window.speechSynthesis.cancel();
+        setIsListening(false);
+    };
 
-        if (isListening || isConversationMode) {
-            // Dừng hẳn
-            isConversationModeRef.current = false;
-            setIsConversationMode(false);
-            recognitionRef.current.stop();
+    // Nút 2: nghe 1 lần rồi dừng chờ (không auto restart)
+    const handleSingleListen = () => {
+        if (!recognitionRef.current || isProcessing) return;
+
+        if (isListening) {
+            recognitionRef.current.abort();
             setIsListening(false);
-        } else {
-            // Bắt đầu conversation mode
-            isConversationModeRef.current = true;
-            setIsConversationMode(true);
-            transcriptRef.current = "";
-            setTranscript("");
-            setAiResponse("");
-            setError("");
+            return;
+        }
+
+        isConversationModeRef.current = false;
+        transcriptRef.current = "";
+        setTranscript("");
+        setError("");
+
+        try {
             recognitionRef.current.start();
             setIsListening(true);
+        } catch (e) {
+            console.warn("Start failed:", e);
         }
     };
 
     const handleEndCall = () => {
         isConversationModeRef.current = false;
-        setIsConversationMode(false);
         if (recognitionRef.current && isListening) {
             recognitionRef.current.stop();
         }
@@ -260,6 +278,17 @@ export default function Voice() {
                                 </div>
                             )}
 
+                            {calendarCreated && (
+                                <div className="mt-[12px] p-[12px] bg-[#e5eeff] border border-[#6b38d4] rounded-xl flex items-center gap-[8px]">
+                                    <span className="material-symbols-outlined text-[#6b38d4]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                                        calendar_add_on
+                                    </span>
+                                    <p className="text-[14px] text-[#6b38d4] font-medium">
+                                        Sự kiện đã được thêm vào Calendar!
+                                    </p>
+                                </div>
+                            )}
+
                             {error && (
                                 <p className="mt-[16px] text-[#ba1a1a] text-[14px]">{error}</p>
                             )}
@@ -276,14 +305,20 @@ export default function Voice() {
                         </div>
 
                         <div className="bg-[#f8f9ff]/80 backdrop-blur-xl border border-[#c6c6cd] shadow-sm rounded-full px-[24px] py-[8px] flex items-center justify-center gap-[24px] mb-[24px]">
-                            <button className="w-12 h-12 rounded-full flex items-center justify-center text-[#45464d] hover:bg-[#e5eeff] hover:text-[#000000] transition-all">
+
+                            {/* Nút 1: tắt mic, giữ chat */}
+                            <button
+                                onClick={handleMicOff}
+                                className="w-12 h-12 rounded-full flex items-center justify-center text-[#45464d] hover:bg-[#e5eeff] hover:text-[#000000] transition-all"
+                            >
                                 <span className="material-symbols-outlined">mic_off</span>
                             </button>
 
+                            {/* Nút 2: nghe 1 lần rồi dừng chờ */}
                             <div className="relative">
                                 {isListening && <div className="absolute inset-0 bg-[#6b38d4] rounded-full pulse-ring opacity-50"></div>}
                                 <button
-                                    onClick={toggleListening}
+                                    onClick={handleSingleListen}
                                     disabled={isProcessing}
                                     className={`w-16 h-16 rounded-full text-white shadow-md flex items-center justify-center relative z-10 hover:opacity-90 transition-transform active:scale-95 disabled:opacity-50 ${isListening ? "bg-[#ba1a1a]" : "bg-[#6b38d4]"
                                         }`}
@@ -294,6 +329,7 @@ export default function Voice() {
                                 </button>
                             </div>
 
+                            {/* Nút 3: tắt toàn bộ cuộc hội thoại */}
                             <button
                                 onClick={handleEndCall}
                                 className="w-12 h-12 rounded-full flex items-center justify-center bg-[#ffdad6] text-[#93000a] hover:bg-[#ba1a1a] hover:text-white transition-all active:scale-95"
