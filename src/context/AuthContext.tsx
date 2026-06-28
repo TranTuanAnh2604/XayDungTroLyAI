@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { AuthResponse, AuthUser } from '../services/auth';
 import { login as loginApi, register as registerApi, loginWithGoogle as loginWithGoogleApi } from '../services/auth';
-import { getSavedAuth, saveAuthData, clearAuthData } from '../services/authStorage';
+import { getSavedAuth, saveAuthData, clearAuthData, saveGoogleRefreshToken, getGmailConnectSent, saveGmailConnectSent } from '../services/authStorage';
 import { signOutGoogle } from '../services/googleAuth';
+import { connectGmail } from '../services/gmail';
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -10,7 +11,7 @@ type AuthContextValue = {
   initialized: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (fullName: string, email: string, password: string) => Promise<void>;
-  signInWithGoogle: (idToken: string) => Promise<void>;
+  signInWithGoogle: (idToken: string, serverAuthCode?: string) => Promise<void>;
   setAuthDataFromOTP: (authData: AuthResponse) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -52,9 +53,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signInWithGoogle = async (idToken: string) => {
-    const response = await loginWithGoogleApi(idToken);
+  const signInWithGoogle = async (idToken: string, serverAuthCode?: string) => {
+    const response = await loginWithGoogleApi(idToken, serverAuthCode);
     await saveAuthData(response);
+    if (response.refreshToken) {
+      await saveGoogleRefreshToken(response.refreshToken);
+    }
+
+    const userId = response.user?.id;
+    if (serverAuthCode && userId) {
+      const hasSentGmailConnect = await getGmailConnectSent(userId);
+      if (!hasSentGmailConnect) {
+        const connectResult = await connectGmail(serverAuthCode);
+        if (connectResult.success) {
+          await saveGmailConnectSent(userId);
+        } else {
+          console.warn('⚠️ AuthContext: Gmail connect failed on first login', connectResult.message);
+        }
+      }
+    }
+
     setToken(response.token);
     setUser(response.user);
   };

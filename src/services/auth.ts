@@ -9,6 +9,7 @@ export type AuthUser = {
 export type AuthResponse = {
   token: string;
   user: AuthUser;
+  refreshToken?: string;
 };
 
 export type RefreshTokenRequest = {
@@ -96,10 +97,14 @@ function normalizeAuthResponse(response: RawAuthResponse): AuthResponse & { refr
 }
 
 export async function login(email: string, password: string): Promise<AuthResponse> {
-  const response = await apiPost<RawAuthResponse>('/api/Auth/login', {
-    email,
-    password,
-  });
+  const response = await apiPost<RawAuthResponse>(
+    '/api/Auth/login',
+    {
+      email,
+      password,
+    },
+    { skipAuth: true },
+  );
   return normalizeAuthResponse(response);
 }
 
@@ -112,20 +117,43 @@ export async function register(
   const response = await apiPost<{ 
     success?: boolean; 
     message?: string 
-  }>
-    ('/api/Auth/register', {
+  }>(
+    '/api/Auth/register',
+    {
       name,
       email,
       password,
-    });
+    },
+    { skipAuth: true },
+  );
   console.log('📝 register: Response từ server', JSON.stringify(response, null, 2));
   return { success: response.success ?? true };
 }
 
-export async function loginWithGoogle(idToken: string): Promise<AuthResponse> {
-  const response = await apiPost<RawAuthResponse>('/api/Auth/google-login', {
+export async function loginWithGoogle(idToken: string, serverAuthCode?: string): Promise<AuthResponse> {
+  const body: { idToken: string; serverAuthCode?: string } = {
     idToken,
-  });
+  };
+  if (serverAuthCode) {
+    body.serverAuthCode = serverAuthCode;
+  }
+
+  const response = await apiPost<RawAuthResponse>(
+    '/api/Auth/google-login',
+    body,
+    { skipAuth: true },
+  );
+  return normalizeAuthResponse(response);
+}
+
+export async function loginWithGoogleRefreshToken(refreshToken: string): Promise<AuthResponse> {
+  const response = await apiPost<RawAuthResponse>(
+    '/api/Auth/google-login',
+    {
+      refreshToken,
+    },
+    { skipAuth: true },
+  );
   return normalizeAuthResponse(response);
 }
 
@@ -138,7 +166,8 @@ export async function verifyOTP(
     message?: string 
   }>(
     '/api/Auth/verify-email',
-    { email, otp }
+    { email, otp },
+    { skipAuth: true },
   );
 
   return { success: response.success ?? true };
@@ -147,9 +176,13 @@ export async function verifyOTP(
 export async function resendOTP(email: string): Promise<{ success: boolean }> {
   const response = await apiPost<{
      success: boolean
-  }>('/api/Auth/resend-otp', {
-    email,
-  });
+  }>(
+    '/api/Auth/resend-otp',
+    {
+      email,
+    },
+    { skipAuth: true },
+  );
   return response;
 }
 
@@ -157,7 +190,11 @@ export async function forgotPassword(email: string) {
   const response = await apiPost<{
     success?: boolean;
     message?: string;
-  }>('/api/Auth/forgot-password', { email });
+  }>(
+    '/api/Auth/forgot-password',
+    { email },
+    { skipAuth: true },
+  );
 
   console.log('📝 forgotPassword response:', response);
 
@@ -171,16 +208,20 @@ export async function resetPassword({
   email,
   otp,
   newPassword,
-}:ResetPasswordRequest) {
+}: ResetPasswordRequest) {
   
   const response = await apiPost<{
     success?: boolean;
     message?: string;
-  }>('/api/Auth/reset-password', {
-    email,
-    otp,
-    newPassword,
-  });
+  }>(
+    '/api/Auth/reset-password',
+    {
+      email,
+      otp,
+      newPassword,
+    },
+    { skipAuth: true },
+  );
 
   console.log('📝 resetPassword: Response từ server', JSON.stringify(response, null, 2));
   return {
@@ -196,15 +237,29 @@ export async function refreshToken(
     token?: string;
     accessToken?: string;
     refreshToken?: string;
+    data?: {
+      token?: string;
+      accessToken?: string;
+      refreshToken?: string;
+    };
   }>(
     '/api/Auth/refresh_token',
     {
       refreshToken: refreshTokenValue,
     },
+    { skipAuth: true },
   );
 
+  console.log('🔄 refreshToken response:', JSON.stringify(response, null, 2));
+
   const token =
-    response.token ?? response.accessToken;
+    response.token ??
+    response.accessToken ??
+    response.data?.token ??
+    response.data?.accessToken;
+
+  const refreshToken =
+    response.refreshToken ?? response.data?.refreshToken;
 
   if (!token) {
     throw new Error('Không nhận được token mới từ server');
@@ -212,6 +267,6 @@ export async function refreshToken(
 
   return {
     token,
-    refreshToken: response.refreshToken,
+    refreshToken,
   };
 }

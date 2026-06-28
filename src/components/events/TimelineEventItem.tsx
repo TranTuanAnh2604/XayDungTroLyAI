@@ -17,12 +17,14 @@ type TimelineEventItemProps = {
   event: TimelineEvent;
   index?: number;
   isLast?: boolean;
+  onEdit?: () => void;
 };
 
 export default function TimelineEventItem({
   event,
   index = 0,
   isLast = false,
+  onEdit,
 }: TimelineEventItemProps) {
   const [expanded, setExpanded] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -128,8 +130,8 @@ export default function TimelineEventItem({
             <Text style={styles.cardTitle}>{event.title}</Text>
           </View>
           <View style={styles.tags}>
-            {event.tags.map((tag) => (
-              <View key={tag} style={styles.tag}>
+            {(event.tags ?? []).map((tag, tagIndex) => (
+              <View key={`${tag}-${tagIndex}`} style={styles.tag}>
                 <Text style={styles.tagText}>{tag}</Text>
               </View>
             ))}
@@ -137,6 +139,15 @@ export default function TimelineEventItem({
           {expanded && event.expandedDetail ? (
             <View style={styles.expanded}>
               <Text style={styles.expandedText}>{event.expandedDetail}</Text>
+              {onEdit ? (
+                <Pressable
+                  onPress={onEdit}
+                  style={({ pressed }) => [styles.editBtn, pressed && styles.editBtnPressed]}
+                >
+                  <MaterialIcons name="edit" size={16} color={COLORS.primary} />
+                  <Text style={styles.editBtnText}>Chỉnh sửa</Text>
+                </Pressable>
+              ) : null}
             </View>
           ) : null}
           </AppGlassCard>
@@ -201,6 +212,15 @@ export default function TimelineEventItem({
         {expanded && event.expandedDetail ? (
           <View style={styles.expanded}>
             <Text style={styles.expandedText}>{event.expandedDetail}</Text>
+            {onEdit ? (
+              <Pressable
+                onPress={onEdit}
+                style={({ pressed }) => [styles.editBtn, pressed && styles.editBtnPressed]}
+              >
+                <MaterialIcons name="edit" size={16} color={COLORS.primary} />
+                <Text style={styles.editBtnText}>Chỉnh sửa</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
         </AppGlassCard>
@@ -364,6 +384,26 @@ const styles = StyleSheet.create({
   },
   expandedText: {
     ...typography.bodyMd,
+  },
+  editBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  editBtnPressed: {
+    transform: [{ scale: 0.95 }],
+  },
+  editBtnText: {
+    ...typography.labelCaps,
+    color: COLORS.primary,
+    fontSize: 12,
+    letterSpacing: 0.3,
   },
   breakCard: {
     paddingVertical: 16,

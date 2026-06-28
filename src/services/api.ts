@@ -1,4 +1,9 @@
-import { getAuthToken, getRefreshToken, updateAuthToken } from './authStorage';
+import {
+  getAuthToken,
+  getRefreshToken,
+  updateAuthToken,
+  clearAuthData,
+} from './authStorage';
 
 export const API_BASE_URL = 'https://assistantai-bc7b.onrender.com';
 
@@ -46,6 +51,7 @@ async function makeRequest<T>(
   method: string,
   path: string,
   body?: unknown,
+  skipAuth = false,
 ): Promise<T> {
   const token = await getAuthToken();
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
@@ -62,9 +68,11 @@ async function makeRequest<T>(
     'Content-Type': 'application/json',
   };
 
-  if (token) {
+  if (!skipAuth && token) {
     headers.Authorization = `Bearer ${token}`;
   }
+
+  console.log('REQUEST:', { requestUrl, method, skipAuth, hasAuthHeader: !!headers.Authorization });
 
   let response;
   try {
@@ -94,26 +102,53 @@ async function makeRequest<T>(
 
   clearTimeout(timeoutId);
 
-  const responseBody =
+  const rawResponseBody =
     await response.json().catch(() => ({}));
+
+  const responseBody =
+    rawResponseBody &&
+    typeof rawResponseBody === 'object' &&
+    'body' in rawResponseBody &&
+    rawResponseBody.body &&
+    typeof rawResponseBody.body === 'object'
+      ? rawResponseBody.body
+      : rawResponseBody;
 
   console.log('STATUS:', response.status);
 
-  // Handle 401 Unauthorized - try to refresh token
-  if (response.status === 401 && method !== 'POST' && !path.includes('/refresh_token') && !path.includes('/login')) {
+  // Handle 401 Unauthorized - try to refresh token for any authenticated request.
+  // POST requests may also require refresh when the current auth token is expired.
+  if (response.status === 401 && !path.includes('/refresh_token') && !path.includes('/login')) {
+    console.log('AUTH: Received 401, attempting token refresh for', requestUrl);
     const refreshed = await refreshAccessToken();
     if (refreshed) {
       // Retry request with new token
       return makeRequest<T>(method, path, body);
     }
+
+    // Refresh failed, clear auth data to force re-login
+    await clearAuthData();
+    throw new Error('Phiên đã hết hạn. Vui lòng đăng nhập lại.');
   }
 
   if (!response.ok) {
-    throw new Error(
+    const errorMessage =
       responseBody?.message ||
+      responseBody?.Messenger ||
+      responseBody?.messenger ||
       responseBody?.error ||
-      'Server error',
-    );
+      responseBody?.errorMessage ||
+      responseBody?.Message ||
+      (typeof responseBody?.Messenger === 'string' ? responseBody.Messenger : undefined) ||
+      `Server error (${response.status})`;
+
+    console.error('API ERROR RESPONSE:', {
+      url: requestUrl,
+      status: response.status,
+      body: responseBody,
+    });
+
+    throw new Error(errorMessage);
   }
 
   return responseBody as T;
@@ -121,21 +156,28 @@ async function makeRequest<T>(
 
 export async function apiPost<T>(
   path: string,
-  body: unknown,
+  body?: unknown,
+  options?: { skipAuth?: boolean },
 ): Promise<T> {
   console.log('URL:', `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`);
-  console.log('BODY:', JSON.stringify(body));
-  return makeRequest<T>('POST', path, body);
+  if (body !== undefined) {
+    console.log('BODY:', JSON.stringify(body));
+  }
+  return makeRequest<T>('POST', path, body, options?.skipAuth ?? false);
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
-  return makeRequest<T>('GET', path);
+export async function apiGet<T>(
+  path: string,
+  options?: { skipAuth?: boolean },
+): Promise<T> {
+  return makeRequest<T>('GET', path, undefined, options?.skipAuth ?? false);
 }
 
 export async function apiPut<T>(
   path: string,
   body: unknown,
+  options?: { skipAuth?: boolean },
 ): Promise<T> {
-  return makeRequest<T>('PUT', path, body);
+  return makeRequest<T>('PUT', path, body, options?.skipAuth ?? false);
 }
 

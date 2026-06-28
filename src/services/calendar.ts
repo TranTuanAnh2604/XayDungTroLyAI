@@ -1,6 +1,5 @@
 import * as Calendar from 'expo-calendar';
 import type { CalendarSyncRequest } from './sync';
-
 const DEFAULT_CALENDAR_SYNC_START = new Date('2026-01-01');
 const DEFAULT_CALENDAR_SYNC_END = new Date('2027-01-01');
 
@@ -25,6 +24,7 @@ export async function fetchDeviceCalendarEvents(
   );
 
   const eventRequests = visibleCalendars.map((calendar) =>
+    // fetchCalendarEventsForCalendar(calendar, startDate, endDate, accountId),
     fetchCalendarEventsForCalendar(calendar, startDate, endDate),
   );
 

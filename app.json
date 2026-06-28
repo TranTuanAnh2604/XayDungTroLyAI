@@ -20,9 +20,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#faf8ff"
         }
-    
       ],
-       [
+      [
         "expo-calendar",
         {
           "calendarPermission": "App cần truy cập lịch để quản lý sự kiện"
@@ -30,7 +29,8 @@
       ],
       "expo-font",
       "expo-secure-store",
-      "expo-mail-composer"
+      "expo-mail-composer",
+      "@react-native-community/datetimepicker"
     ],
     "ios": {
       "supportsTablet": true

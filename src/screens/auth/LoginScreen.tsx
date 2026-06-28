@@ -27,7 +27,7 @@ import { typography } from '../../constants/typography';
 import { SPACING } from '../../constants/spacing';
 import type { AuthStackParamList } from '../../navigation/types';
 import { useAuth } from '../../context/AuthContext';
-import { GOOGLE_WEB_CLIENT_ID } from '../../constants/config';
+import { GOOGLE_ANDROID_CLIENT_ID, GOOGLE_WEB_CLIENT_ID } from '../../constants/config';
 import ForgotPasswordModal from '../../components/auth/ForgotPasswordModal';
 import { resetPassword, forgotPassword } from '../../services/auth';
 import { configureGoogleSignIn, getGoogleIdToken, statusCodes } from '../../services/googleAuth';
@@ -86,8 +86,9 @@ const [activeModal, setActiveModal] = useState<{
     setLoading(true);
     
     try {
-      const idToken = await getGoogleIdToken();
-      await signInWithGoogle(idToken);
+      const { idToken, serverAuthCode } = await getGoogleIdToken();
+      console.log('🔑 LoginScreen: received serverAuthCode length =', serverAuthCode?.length);
+      await signInWithGoogle(idToken, serverAuthCode);
       const rootNavigation = navigation.getParent();
       rootNavigation?.reset({
         index: 0,

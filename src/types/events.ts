@@ -19,6 +19,7 @@ export type EventsInsight = {
 
 type TimelineEventBase = {
   id: string;
+  date?: string;
   time: string;
   expandedDetail?: string;
 };

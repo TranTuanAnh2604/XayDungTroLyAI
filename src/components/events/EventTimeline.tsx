@@ -6,9 +6,10 @@ import type { TimelineEvent } from '../../types/events';
 
 type EventTimelineProps = {
   events: TimelineEvent[];
+  onEdit?: (eventId: string) => void;
 };
 
-export default function EventTimeline({ events }: EventTimelineProps) {
+export default function EventTimeline({ events, onEdit }: EventTimelineProps) {
   return (
     <View style={styles.container}>
       <View style={styles.line} />
@@ -18,6 +19,7 @@ export default function EventTimeline({ events }: EventTimelineProps) {
           event={event}
           index={index}
           isLast={index === events.length - 1}
+          onEdit={onEdit ? () => onEdit(event.id) : undefined}
         />
       ))}
     </View>
