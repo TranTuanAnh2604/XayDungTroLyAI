@@ -42,11 +42,15 @@ export const deleteCalendarEvent = async (id) => {
     if (!res.ok) throw new Error('Xóa thất bại')
 }
 
-export async function getAiSuggestions() {
-    const res = await fetch('/api/scheduling/suggestions')
+export const getAiSuggestions = async () => {
+    const res = await fetch(`${BASE_URL}/ai-suggestions`, {
+        headers: getAuthHeaders(),
+    })
+
     if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.message || 'Không lấy được gợi ý AI')
+        throw new Error(err.error || 'Không lấy được gợi ý AI')
     }
-    return res.json()
+
+    return await res.json()
 }

@@ -656,7 +656,7 @@ export default function Calendar() {
                                 )}
                             </div>
                             <div className="p-4 flex flex-col gap-2 overflow-y-auto max-h-[400px]">
-                                <p className="text-sm text-[#45464d] mb-2">Tôi đã phân tích email của bạn. Đây là các sự kiện được đề xuất:</p>
+                                <p className="text-sm text-[#45464d] mb-2">Tôi đã phân tích công việc của bạn. Đây là các sự kiện được đề xuất:</p>
 
                                 {!suggestionsLoading && suggestions.length === 0 && (
                                     <p className="text-[13px] text-[#45464d]/60 italic py-4 text-center">
