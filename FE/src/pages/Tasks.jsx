@@ -382,10 +382,6 @@ export default function Tasks() {
                         <h1 className="md:hidden text-[24px] font-extrabold text-[#000000]">AI Assistant</h1>
                     </div>
                     <div className="flex items-center gap-[16px]">
-                        <button className="text-[#45464d] hover:text-[#000000] transition-colors relative">
-                            <span className="material-symbols-outlined">notifications</span>
-                            <span className="absolute top-0 right-0 w-2 h-2 bg-[#ba1a1a] rounded-full"></span>
-                        </button>
                         <button className="hidden sm:block text-[#45464d] hover:text-[#000000] transition-colors" onClick={fetchTasks}>
                             <span className="material-symbols-outlined">refresh</span>
                         </button>

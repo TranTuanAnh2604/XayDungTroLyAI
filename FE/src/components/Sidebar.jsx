@@ -1,6 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { getSessions, deleteSession } from '../services/chatService'
+import NotificationBell from './NotificationBell'
 
 export default function Sidebar({ onNewChat, currentSessionId, onSelectSession }) {
     const navigate = useNavigate()
@@ -8,7 +9,6 @@ export default function Sidebar({ onNewChat, currentSessionId, onSelectSession }
     const [sessions, setSessions] = useState([])
     const [loadingSessions, setLoadingSessions] = useState(false)
 
-    // Load danh sách sessions
     const fetchSessions = async () => {
         setLoadingSessions(true)
         try {
@@ -21,12 +21,9 @@ export default function Sidebar({ onNewChat, currentSessionId, onSelectSession }
         }
     }
 
-    // Thay useEffect cũ bằng cách này — dùng async trực tiếp, không gọi setState trong effect body
     useEffect(() => {
         if (location.pathname !== '/chat') return
-
         let isMounted = true
-
         const load = async () => {
             setLoadingSessions(true)
             try {
@@ -40,23 +37,20 @@ export default function Sidebar({ onNewChat, currentSessionId, onSelectSession }
                 if (isMounted) setLoadingSessions(false)
             }
         }
-
         load()
-
         return () => { isMounted = false }
     }, [location.pathname, currentSessionId])
 
     const handleNewChatClick = async () => {
         if (location.pathname === '/chat' && onNewChat) {
             await onNewChat()
-            fetchSessions() // Reload lại list sau khi tạo mới
+            fetchSessions()
         } else {
             navigate('/chat')
         }
     }
 
     const handleSelectSession = (sessionId) => {
-        console.log("handleSelectSession called:", sessionId)
         if (onSelectSession) onSelectSession(sessionId)
     }
 
@@ -92,21 +86,15 @@ export default function Sidebar({ onNewChat, currentSessionId, onSelectSession }
         { icon: "settings", label: "Settings", path: "/settings" },
     ]
 
-    // Format thời gian session
     const formatTime = (dateStr) => {
         if (!dateStr) return ''
-        // Fix timezone: nếu không có Z hoặc offset thì thêm Z vào
-        const normalized = dateStr.endsWith('Z') || dateStr.includes('+')
-            ? dateStr
-            : dateStr + 'Z'
-
+        const normalized = dateStr.endsWith('Z') || dateStr.includes('+') ? dateStr : dateStr + 'Z'
         const date = new Date(normalized)
         const now = new Date()
         const diffMs = now - date
         const diffMins = Math.floor(diffMs / (1000 * 60))
         const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
         const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-
         if (diffMins < 1) return 'Vừa xong'
         if (diffMins < 60) return `${diffMins} phút trước`
         if (diffHours < 24) return `${diffHours} giờ trước`
@@ -122,16 +110,14 @@ export default function Sidebar({ onNewChat, currentSessionId, onSelectSession }
                     className="w-10 h-10 rounded-full flex items-center justify-center text-white shadow-sm"
                     style={{ background: "linear-gradient(135deg, #000000 0%, #6b38d4 100%)" }}
                 >
-                    <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
-                        robot_2
-                    </span>
+                    <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>robot_2</span>
                 </div>
-                <div>
+                <div className="flex-1">
                     <h1 className="text-[24px] font-bold leading-[1.3] text-[#000000]">AI Assistant</h1>
-                    <p className="text-[14px] leading-[1.4] tracking-[0.01em] font-medium text-[#45464d]">
-                        Enterprise Edition
-                    </p>
+                    <p className="text-[14px] leading-[1.4] tracking-[0.01em] font-medium text-[#45464d]">Enterprise Edition</p>
                 </div>
+                {/* 🔔 NotificationBell ở header sidebar */}
+                <NotificationBell />
             </div>
 
             {/* New Chat Button */}
@@ -162,7 +148,6 @@ export default function Sidebar({ onNewChat, currentSessionId, onSelectSession }
                                 {label}
                             </button>
 
-                            {/* Lịch sử nằm ngay dưới Chat */}
                             {path === '/chat' && location.pathname === '/chat' && (
                                 <div className="ml-[8px] flex flex-col gap-[2px] mt-[2px] max-h-[35vh] overflow-y-auto">
                                     {loadingSessions ? (
@@ -178,8 +163,7 @@ export default function Sidebar({ onNewChat, currentSessionId, onSelectSession }
                                                 <div
                                                     key={session.id}
                                                     onClick={() => handleSelectSession(session.id)}
-                                                    className={`group flex items-center justify-between gap-[8px] px-[10px] py-[7px] rounded-lg cursor-pointer transition-colors ${isActive ? 'bg-[#8455ef]/20 text-[#6b38d4]' : 'text-[#45464d] hover:bg-[#d3e4fe]'
-                                                        }`}
+                                                    className={`group flex items-center justify-between gap-[8px] px-[10px] py-[7px] rounded-lg cursor-pointer transition-colors ${isActive ? 'bg-[#8455ef]/20 text-[#6b38d4]' : 'text-[#45464d] hover:bg-[#d3e4fe]'}`}
                                                 >
                                                     <div className="flex items-center gap-[8px] min-w-0">
                                                         <span className={`material-symbols-outlined text-[15px] flex-shrink-0 ${isActive ? 'text-[#6b38d4]' : 'text-[#76777d]'}`}>

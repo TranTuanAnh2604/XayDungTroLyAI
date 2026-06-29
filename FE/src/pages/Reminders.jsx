@@ -266,10 +266,7 @@ export default function Reminders() {
                         <div className="flex-1 flex flex-col items-center justify-center gap-[12px] text-[#45464d]">
                             <span className="material-symbols-outlined text-[48px] text-[#c6c6cd]">notifications_off</span>
                             <p className="text-[14px] font-medium">Không có nhắc nhở nào</p>
-                            <button onClick={() => setShowModal(true)}
-                                className="px-[16px] py-[8px] bg-[#8455ef] text-white rounded-lg text-[14px] font-bold">
-                                Tạo nhắc nhở đầu tiên
-                            </button>
+                            
                         </div>
                     ) : (
                         <div className="flex flex-col gap-[8px] max-w-2xl">
