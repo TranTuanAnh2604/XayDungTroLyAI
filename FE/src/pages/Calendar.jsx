@@ -81,6 +81,227 @@ const EMPTY_FORM = {
     styleIndex: 0,
 }
 
+// ─── Custom DateTime Picker ───────────────────────────────────────────────
+// Thay cho input type="datetime-local" mặc định của trình duyệt (không style
+// được phần lịch/giờ do trình duyệt vẽ). Component này tự vẽ UI, vẫn giữ
+// nguyên format giá trị "YYYY-MM-DDTHH:mm" để không ảnh hưởng phần lưu DB.
+
+const PICKER_WEEKDAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
+const PICKER_MONTHS = [
+    'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
+    'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12',
+]
+
+function parseLocalValue(value) {
+    if (!value) {
+        const now = new Date()
+        now.setMinutes(Math.ceil(now.getMinutes() / 5) * 5, 0, 0)
+        return now
+    }
+    const [datePart, timePart] = value.split('T')
+    const [y, m, d] = datePart.split('-').map(Number)
+    const [hh, mm] = (timePart || '00:00').split(':').map(Number)
+    return new Date(y, m - 1, d, hh, mm)
+}
+
+function formatDateForInput(date) {
+    const pad = n => String(n).padStart(2, '0')
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function formatDateForDisplay(date) {
+    const pad = n => String(n).padStart(2, '0')
+    const weekday = date.toLocaleDateString('vi-VN', { weekday: 'short' })
+    return `${weekday}, ${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} • ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function DateTimePicker({ value, onChange, hasError }) {
+    const [open, setOpen] = useState(false)
+    const [draft, setDraft] = useState(parseLocalValue(value))
+    const [viewYear, setViewYear] = useState(draft.getFullYear())
+    const [viewMonth, setViewMonth] = useState(draft.getMonth())
+    const wrapRef = useRef(null)
+    const hourListRef = useRef(null)
+    const minuteListRef = useRef(null)
+
+    useEffect(() => {
+        const d = parseLocalValue(value)
+        setDraft(d)
+        setViewYear(d.getFullYear())
+        setViewMonth(d.getMonth())
+    }, [value])
+
+    useEffect(() => {
+        if (!open) return
+        const handleClickOutside = (e) => {
+            if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false)
+        }
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [open])
+
+    useEffect(() => {
+        if (!open) return
+        // tự scroll tới giờ/phút đang chọn khi mở popover
+        requestAnimationFrame(() => {
+            hourListRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'center' })
+            minuteListRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'center' })
+        })
+    }, [open])
+
+    const commit = (next) => {
+        setDraft(next)
+        onChange(formatDateForInput(next))
+    }
+
+    const grid = buildGrid(viewYear, viewMonth)
+    const minuteOptions = Array.from({ length: 60 }, (_, m) => m)
+
+    const prevMonthView = () => {
+        if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11) }
+        else setViewMonth(m => m - 1)
+    }
+    const nextMonthView = () => {
+        if (viewMonth === 11) { setViewYear(y => y + 1); setViewMonth(0) }
+        else setViewMonth(m => m + 1)
+    }
+
+    const pickDay = (cell) => {
+        let m = cell.month, y = cell.year
+        if (m < 0) { m = 11; y -= 1 }
+        if (m > 11) { m = 0; y += 1 }
+        const next = new Date(draft)
+        next.setFullYear(y, m, cell.num)
+        commit(next)
+    }
+
+    const pickHour = (h) => {
+        const next = new Date(draft)
+        next.setHours(h)
+        commit(next)
+    }
+
+    const pickMinute = (mn) => {
+        const next = new Date(draft)
+        next.setMinutes(mn)
+        commit(next)
+    }
+
+    return (
+        <div className="relative" ref={wrapRef}>
+            <button
+                type="button"
+                onClick={() => setOpen(o => !o)}
+                className={`w-full flex items-center justify-between border rounded-lg px-3 py-2 text-[13px] text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#6b38d4] transition-all bg-white ${hasError ? 'border-[#ba1a1a]' : 'border-[#c6c6cd]'}`}
+            >
+                <span className="truncate">{formatDateForDisplay(draft)}</span>
+                <span className="material-symbols-outlined text-[16px] text-[#45464d] shrink-0 ml-2">calendar_month</span>
+            </button>
+
+            {open && (
+                <div className="absolute z-20 mt-2 left-0 bg-white rounded-xl shadow-xl border border-[#c6c6cd]/40 p-3 w-[320px] flex flex-col gap-3">
+                    {/* Header lịch */}
+                    <div className="flex items-center justify-between">
+                        <span className="text-[13px] font-bold text-[#0b1c30]">{PICKER_MONTHS[viewMonth]} {viewYear}</span>
+                        <div className="flex items-center gap-1">
+                            <button onClick={prevMonthView} type="button" className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#e5eeff] text-[#45464d]">
+                                <span className="material-symbols-outlined text-[16px]">chevron_left</span>
+                            </button>
+                            <button onClick={nextMonthView} type="button" className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#e5eeff] text-[#45464d]">
+                                <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Lưới ngày */}
+                    <div className="grid grid-cols-7 text-center">
+                        {PICKER_WEEKDAYS.map(d => (
+                            <div key={d} className="text-[10px] font-semibold text-[#45464d]/60 py-1">{d}</div>
+                        ))}
+                        {grid.map((cell, i) => {
+                            const isSelected =
+                                !cell.dim &&
+                                cell.num === draft.getDate() &&
+                                viewMonth === draft.getMonth() &&
+                                viewYear === draft.getFullYear()
+                            return (
+                                <button
+                                    type="button"
+                                    key={i}
+                                    onClick={() => pickDay(cell)}
+                                    className={`text-[12px] py-1.5 rounded-full transition-colors
+                                        ${cell.dim ? 'text-[#45464d]/30 hover:bg-[#f0f0f5]' : 'text-[#0b1c30] hover:bg-[#e5eeff]'}
+                                        ${isSelected ? 'bg-[#8455ef] text-white font-bold hover:bg-[#6b38d4]' : ''}`}
+                                >
+                                    {cell.num}
+                                </button>
+                            )
+                        })}
+                    </div>
+
+                    <div className="h-px bg-[#c6c6cd]/30" />
+
+                    {/* Giờ / Phút — 24h, 0-23 chuẩn */}
+                    <div>
+                        <p className="text-[11px] font-semibold text-[#45464d] mb-1.5">Giờ (24h)</p>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div ref={hourListRef} className="h-[140px] overflow-y-auto border border-[#c6c6cd]/40 rounded-lg flex flex-col">
+                                {Array.from({ length: 24 }, (_, h) => h).map(h => {
+                                    const active = h === draft.getHours()
+                                    return (
+                                        <button
+                                            type="button"
+                                            key={h}
+                                            data-active={active}
+                                            onClick={() => pickHour(h)}
+                                            className={`text-[13px] py-1.5 text-center transition-colors ${active ? 'bg-[#8455ef] text-white font-bold' : 'text-[#0b1c30] hover:bg-[#eff4ff]'}`}
+                                        >
+                                            {String(h).padStart(2, '0')}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                            <div ref={minuteListRef} className="h-[140px] overflow-y-auto border border-[#c6c6cd]/40 rounded-lg flex flex-col">
+                                {minuteOptions.map(mn => {
+                                    const active = mn === draft.getMinutes()
+                                    return (
+                                        <button
+                                            type="button"
+                                            key={mn}
+                                            data-active={active}
+                                            onClick={() => pickMinute(mn)}
+                                            className={`text-[13px] py-1.5 text-center transition-colors ${active ? 'bg-[#8455ef] text-white font-bold' : 'text-[#0b1c30] hover:bg-[#eff4ff]'}`}
+                                        >
+                                            {String(mn).padStart(2, '0')}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-1">
+                        <button
+                            type="button"
+                            onClick={() => commit(new Date())}
+                            className="text-[12px] font-medium text-[#6b38d4] hover:underline"
+                        >
+                            Hôm nay, bây giờ
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setOpen(false)}
+                            className="px-3 py-1.5 rounded-lg text-[12px] font-medium bg-[#8455ef] text-white hover:bg-[#6b38d4] transition-colors"
+                        >
+                            Xong
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
+
 // ─── Event Modal ─────────────────────────────────────────────────────────────
 
 function EventModal({ mode, initialData, onClose, onSave, onDelete, saving }) {
@@ -171,16 +392,15 @@ function EventModal({ mode, initialData, onClose, onSave, onDelete, saving }) {
                     </label>
 
                     {!form.isAllDay && (
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 gap-3">
                             <div>
                                 <label className="block text-[13px] font-semibold text-[#0b1c30] mb-1">
                                     Bắt đầu <span className="text-[#ba1a1a]">*</span>
                                 </label>
-                                <input
-                                    type="datetime-local"
-                                    className={`w-full border rounded-lg px-3 py-2 text-[13px] text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#6b38d4] transition-all ${errors.startTime ? 'border-[#ba1a1a]' : 'border-[#c6c6cd]'}`}
+                                <DateTimePicker
                                     value={form.startTime}
-                                    onChange={e => set('startTime', e.target.value)}
+                                    onChange={(v) => set('startTime', v)}
+                                    hasError={!!errors.startTime}
                                 />
                                 {errors.startTime && <p className="text-[11px] text-[#ba1a1a] mt-1">{errors.startTime}</p>}
                             </div>
@@ -188,11 +408,10 @@ function EventModal({ mode, initialData, onClose, onSave, onDelete, saving }) {
                                 <label className="block text-[13px] font-semibold text-[#0b1c30] mb-1">
                                     Kết thúc <span className="text-[#ba1a1a]">*</span>
                                 </label>
-                                <input
-                                    type="datetime-local"
-                                    className={`w-full border rounded-lg px-3 py-2 text-[13px] text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#6b38d4] transition-all ${errors.endTime ? 'border-[#ba1a1a]' : 'border-[#c6c6cd]'}`}
+                                <DateTimePicker
                                     value={form.endTime}
-                                    onChange={e => set('endTime', e.target.value)}
+                                    onChange={(v) => set('endTime', v)}
+                                    hasError={!!errors.endTime}
                                 />
                                 {errors.endTime && <p className="text-[11px] text-[#ba1a1a] mt-1">{errors.endTime}</p>}
                             </div>
@@ -657,8 +876,8 @@ export default function Calendar() {
                                             {/* Badge nguồn gốc */}
                                             <div className="flex items-center justify-between mb-2 pr-6">
                                                 <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${isFromData
-                                                        ? 'bg-green-100 text-green-700'
-                                                        : 'bg-[#8455ef]/10 text-[#6b38d4]'
+                                                    ? 'bg-green-100 text-green-700'
+                                                    : 'bg-[#8455ef]/10 text-[#6b38d4]'
                                                     }`}>
                                                     <span className="material-symbols-outlined text-[11px]">
                                                         {isFromData ? 'link' : 'auto_awesome'}

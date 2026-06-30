@@ -74,6 +74,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Source).HasMaxLength(50).HasDefaultValue("manual").HasColumnName("source");
             entity.Property(e => e.StartTime).HasColumnName("start_time");
             entity.Property(e => e.Title).HasMaxLength(500).HasColumnName("title");
+            entity.Property(e => e.Priority).HasDefaultValue(2).HasColumnName("priority");
             entity.Property(e => e.UserId).HasColumnName("user_id");
 
             entity.HasOne(d => d.User).WithMany(p => p.CalendarEvents)

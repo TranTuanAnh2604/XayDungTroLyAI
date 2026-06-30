@@ -49,6 +49,7 @@ namespace Assistant.Controllers
                     Location = e.Location,
                     Source = e.Source,
                     IsAllDay = e.IsAllDay,
+                    Priority = e.Priority,
                 })
                 .ToListAsync();
 
@@ -75,6 +76,7 @@ namespace Assistant.Controllers
                 Location = ev.Location,
                 Source = ev.Source,
                 IsAllDay = ev.IsAllDay,
+                Priority = ev.Priority,
             });
         }
 
@@ -98,6 +100,7 @@ namespace Assistant.Controllers
                 Source = req.Source ?? "manual",
                 IsAllDay = req.IsAllDay,
                 CreatedAt = DateTime.UtcNow,
+                Priority = req.Priority,
             };
 
             _db.CalendarEvents.Add(ev);
@@ -113,6 +116,7 @@ namespace Assistant.Controllers
                 Location = ev.Location,
                 Source = ev.Source,
                 IsAllDay = ev.IsAllDay,
+                Priority = ev.Priority,
             });
         }
 
@@ -134,6 +138,7 @@ namespace Assistant.Controllers
             ev.EndTime = DateTime.SpecifyKind(req.EndTime, DateTimeKind.Utc);
             ev.Location = req.Location;
             ev.IsAllDay = req.IsAllDay;
+            ev.Priority = req.Priority;
 
             await _db.SaveChangesAsync();
             return NoContent();
@@ -317,6 +322,7 @@ namespace Assistant.Controllers
         public string? Location { get; set; }
         public string Source { get; set; } = null!;
         public bool IsAllDay { get; set; }
+        public int Priority { get; set; }
     }
 
     public class CreateCalendarEventRequest
@@ -328,6 +334,7 @@ namespace Assistant.Controllers
         public string? Location { get; set; }
         public string? Source { get; set; }
         public bool IsAllDay { get; set; }
+        public int Priority { get; set; } = 1;
     }
 
     public class UpdateCalendarEventRequest
@@ -338,5 +345,6 @@ namespace Assistant.Controllers
         public DateTime EndTime { get; set; }
         public string? Location { get; set; }
         public bool IsAllDay { get; set; }
+        public int Priority { get; set; } = 1; // 0=Urgent, 1=Normal, 2=Low
     }
 }

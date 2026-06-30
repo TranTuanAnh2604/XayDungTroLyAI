@@ -25,6 +25,8 @@ public partial class CalendarEvent
 
     public bool IsAllDay { get; set; }
 
+    public int Priority { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();

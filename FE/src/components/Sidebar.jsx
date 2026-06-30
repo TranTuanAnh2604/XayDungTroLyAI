@@ -113,8 +113,8 @@ export default function Sidebar({ onNewChat, currentSessionId, onSelectSession }
                     <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>robot_2</span>
                 </div>
                 <div className="flex-1">
-                    <h1 className="text-[24px] font-bold leading-[1.3] text-[#000000]">AI Assistant</h1>
-                    <p className="text-[14px] leading-[1.4] tracking-[0.01em] font-medium text-[#45464d]">Enterprise Edition</p>
+                    <h1 className="text-[20px] font-bold leading-[1.3] text-[#000000]">AI Assistant</h1>
+                    <p className="text-[13px] leading-[1.4] tracking-[0.01em] font-medium text-[#45464d]">Enterprise Edition</p>
                 </div>
                 {/* 🔔 NotificationBell ở header sidebar */}
                 <NotificationBell />
