@@ -160,170 +160,148 @@ namespace Assistant.Controllers
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
 
-            // Lấy events 30 ngày tới để Groq có ngữ cảnh
             var now = DateTime.UtcNow;
             var end = now.AddDays(30);
+
             var existingEvents = await _db.CalendarEvents
-                .Where(e => e.UserId == userId &&
-                            e.StartTime >= now &&
-                            e.StartTime <= end)
+                .Where(e => e.UserId == userId && e.StartTime >= now && e.StartTime <= end)
                 .OrderBy(e => e.StartTime)
                 .Select(e => new
                 {
-                    type = "calendar",
+                    sourceType = "calendar",
                     title = e.Title,
                     description = e.Description,
                     startTime = e.StartTime,
-                    endTime = e.EndTime
+                    endTime = e.EndTime,
+                    sortKey = e.StartTime
                 })
                 .ToListAsync();
+
             var tasks = await _db.Tasks
-                .Where(t => t.UserId == userId &&
-                            t.Status != "completed")
+                .Where(t => t.UserId == userId && t.Status != "completed" && t.DueDate != null && t.DueDate >= now)
                 .OrderBy(t => t.DueDate)
                 .Select(t => new
                 {
-                    type = "task",
+                    sourceType = "task",
                     title = t.Title,
                     description = t.Description,
-                    dueDate = t.DueDate,
-                    priority = t.Priority
+                    startTime = t.DueDate!.Value,
+                    endTime = t.DueDate!.Value.AddHours(1),
+                    sortKey = t.DueDate!.Value
                 })
                 .ToListAsync();
 
-            var calendarJson = JsonSerializer.Serialize(existingEvents);
-            var taskJson = JsonSerializer.Serialize(tasks);
+            // ════════════════════════════════════════════════════════════════════
+            // PHẦN 1: 3 mục gần nhất — LẤY THẲNG TỪ DB, KHÔNG QUA AI (chính xác 100%)
+            // ════════════════════════════════════════════════════════════════════
+            var nearestItems = existingEvents
+                .Concat(tasks)
+                .OrderBy(x => x.sortKey)
+                .Take(3)
+                .Select(x => new
+                {
+                    id = Guid.NewGuid().ToString(),
+                    sourceType = x.sourceType,
+                    title = x.title,
+                    description = x.description,
+                    startTime = x.startTime,
+                    endTime = x.endTime,
+                })
+                .ToList();
 
-            var eventsJson = JsonSerializer.Serialize(existingEvents, new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            });
+            // ════════════════════════════════════════════════════════════════════
+            // PHẦN 2: AI gợi ý hoạt động nên làm hôm nay, TRÁNH giờ đã có lịch/task
+            // ════════════════════════════════════════════════════════════════════
+            var todayStart = now.Date;
+            var todayEnd = todayStart.AddDays(1);
 
+            var busySlotsToday = existingEvents
+                .Where(e => e.startTime >= todayStart && e.startTime < todayEnd)
+                .Select(e => new { e.title, e.startTime, e.endTime })
+                .Concat(tasks
+                    .Where(t => t.startTime >= todayStart && t.startTime < todayEnd)
+                    .Select(t => new { t.title, t.startTime, t.endTime }))
+                .OrderBy(x => x.startTime)
+                .ToList();
+
+            var busyJson = JsonSerializer.Serialize(busySlotsToday);
             var nowVn = now.AddHours(7);
+
             var prompt = $$"""
-            Bạn là AI Scheduling Assistant.
+    Bạn là AI Scheduling Assistant.
 
-            Thời gian hiện tại:
-            {{nowVn:yyyy-MM-dd HH:mm}} (+07:00)
+    Thời gian hiện tại: {{nowVn:yyyy-MM-dd HH:mm}} (+07:00)
 
-            Đây là danh sách Calendar Event:
+    Đây là các khoảng thời gian ĐÃ BỊ CHIẾM trong hôm nay (lịch + task có sẵn):
 
-            {{calendarJson}}
+    {{busyJson}}
 
-            Đây là danh sách Task:
+    Yêu cầu:
+    - Đề xuất TỐI ĐA 3 hoạt động nên làm hôm nay (ví dụ: nghỉ ngơi, chuẩn bị cho việc tiếp theo, tập thể dục, ăn uống, đọc sách...).
+    - Mỗi hoạt động phải xếp vào KHOẢNG TRỐNG còn lại trong ngày, KHÔNG được trùng với các khoảng thời gian đã bị chiếm ở trên.
+    - Đưa ra khung giờ cụ thể (ví dụ: "19:00 - 19:30") cho mỗi hoạt động trong nội dung description.
+    - Không lặp lại các title đã có trong danh sách bị chiếm.
 
-            {{taskJson}}
+    Chỉ trả về đúng JSON, không markdown, không giải thích:
 
-            Yêu cầu:
+    {
+      "aiRecommendations": [
+        "Nội dung gợi ý 1, có kèm khung giờ cụ thể...",
+        "Nội dung gợi ý 2...",
+        "Nội dung gợi ý 3..."
+      ]
+    }
+    """;
 
-            - Chỉ sử dụng dữ liệu đã cung cấp.
-            - Không được tự tạo task hoặc calendar mới.
-            - Chọn tối đa 3 mục gần nhất theo thứ tự:
-                1. Calendar Event gần nhất
-                2. Calendar Event gần kế tiếp
-                3. Calendar Event gần tiếp theo đó
-            - Giữ nguyên title.
-            - Không sửa thời gian.
-            - Nếu là Task:
-                sourceType = "task"
-                startTime = dueDate
-                endTime = dueDate + 1 giờ
-            - Nếu là Calendar:
-                sourceType = "chat"
-                startTime = startTime
-                endTime = endTime
-
-            Sau đó tạo tối đa 3 lời khuyên trong các chủ đề:
-            - Nghỉ ngơi
-            - Chuẩn bị họp
-            - Tập thể dục
-
-            Chỉ trả về đúng JSON:
-
-            {
-              "suggestions":[...],
-              "aiRecommendations":[...]
-            }
-
-            Không markdown.
-            Không giải thích.
-            Không thêm bất kỳ chữ nào ngoài JSON.
-            """;
             try
             {
                 var raw = await _groq.ChatAsync(prompt);
 
-                Console.WriteLine("===== RAW GROQ =====");
-                Console.WriteLine(raw);
-                Console.WriteLine("====================");
-
                 var cleaned = raw.Trim();
-
-                // bỏ markdown
                 if (cleaned.StartsWith("```"))
                 {
-                    cleaned = cleaned
-                        .Replace("```json", "")
-                        .Replace("```", "")
-                        .Trim();
+                    cleaned = cleaned.Replace("```json", "").Replace("```", "").Trim();
                 }
-
-                // nếu Groq nói thêm text trước JSON
                 var first = cleaned.IndexOf('{');
-
-                if (first >= 0)
-                {
-                    cleaned = cleaned.Substring(first);
-                }
-
-                // nếu Groq nói thêm sau JSON
+                if (first >= 0) cleaned = cleaned.Substring(first);
                 var last = cleaned.LastIndexOf('}');
+                if (last >= 0) cleaned = cleaned.Substring(0, last + 1);
 
-                if (last >= 0)
-                {
-                    cleaned = cleaned.Substring(0, last + 1);
-                }
-
-                JsonDocument doc;
-
+                List<string> recommendations = new();
                 try
                 {
-                    doc = JsonDocument.Parse(cleaned);
+                    using var doc = JsonDocument.Parse(cleaned);
+                    if (doc.RootElement.TryGetProperty("aiRecommendations", out var recEl))
+                    {
+                        foreach (var r in recEl.EnumerateArray())
+                        {
+                            if (r.ValueKind == JsonValueKind.String)
+                                recommendations.Add(r.GetString() ?? "");
+                        }
+                    }
                 }
                 catch
                 {
-                    return BadRequest(new
-                    {
-                        error = "Groq không trả JSON",
-                        raw = cleaned
-                    });
+                    // Nếu AI trả JSON lỗi, vẫn trả về phần 1 (nearestItems) cho FE,
+                    // chỉ để recommendations rỗng — không làm hỏng cả request.
                 }
 
-                if (!doc.RootElement.TryGetProperty("suggestions", out var suggestions))
+                return Ok(new
                 {
-                    return BadRequest(new
-                    {
-                        error = "Không tìm thấy suggestions",
-                        raw = cleaned
-                    });
-                }
-
-                // clone trước khi dispose
-                var result = suggestions.Clone();
-
-                doc.Dispose();
-
-                // Trả về ARRAY
-                return Ok(result);
+                    suggestions = nearestItems,
+                    aiRecommendations = recommendations
+                });
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex.ToString());
 
-                return StatusCode(500, new
+                // Lỗi gọi Groq vẫn không nên làm mất phần 1 (data thật từ DB)
+                return Ok(new
                 {
-                    error = ex.Message,
-                    stack = ex.ToString()
+                    suggestions = nearestItems,
+                    aiRecommendations = new List<string>(),
+                    warning = $"Không lấy được gợi ý AI: {ex.Message}"
                 });
             }
         }

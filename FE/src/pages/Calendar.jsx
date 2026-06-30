@@ -44,7 +44,7 @@ function toLocalInput(date) {
 }
 
 function inputToISO(localStr) {
-    return new Date(localStr).toISOString()
+    return localStr;
 }
 
 function formatSuggestedTime(startISO, endISO) {
@@ -66,27 +66,10 @@ const SOURCE_ICON = {
 }
 
 const EVENT_STYLES = [
-    {
-        style: 'bg-red-100 text-red-700 border border-red-200',
-        label: 'Khẩn cấp'
-    },
-    {
-        style: 'bg-orange-100 text-orange-700 border border-orange-200',
-        label: 'Cao'
-    },
-    {
-        style: 'bg-yellow-100 text-yellow-700 border border-yellow-200',
-        label: 'Trung bình'
-    },
-    {
-        style: 'bg-blue-100 text-blue-700 border border-blue-200',
-        label: 'Thấp'
-    },
-    {
-        style: 'bg-green-100 text-green-700 border border-green-200',
-        label: 'Không gấp'
-    },
-];
+    { style: 'bg-white text-red-600 border border-gray-200', dot: 'bg-red-500', label: 'Urgent' },
+    { style: 'bg-white text-yellow-600 border border-gray-200', dot: 'bg-yellow-400', label: 'Normal' },
+    { style: 'bg-white text-green-600 border border-gray-200', dot: 'bg-green-400', label: 'Low' },
+]
 
 const EMPTY_FORM = {
     title: '',
@@ -217,14 +200,15 @@ function EventModal({ mode, initialData, onClose, onSave, onDelete, saving }) {
                     )}
 
                     <div>
-                        <label className="block text-[13px] font-semibold text-[#0b1c30] mb-2">Màu sắc</label>
+                        <label className="block text-[13px] font-semibold text-[#0b1c30] mb-2">Mức độ ưu tiên</label>
                         <div className="flex gap-2">
                             {EVENT_STYLES.map((s, i) => (
                                 <button
                                     key={i}
                                     onClick={() => set('styleIndex', i)}
-                                    className={`px-3 py-1 rounded text-[11px] font-medium ${s.style} ${form.styleIndex === i ? 'ring-2 ring-offset-1 ring-[#6b38d4]' : ''}`}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-all ${s.style} ${form.styleIndex === i ? 'ring-2 ring-offset-1 ring-[#6b38d4]' : ''}`}
                                 >
+                                    <span className={`w-2 h-2 rounded-full ${s.dot}`} />
                                     {s.label}
                                 </button>
                             ))}
@@ -335,7 +319,7 @@ export default function Calendar() {
     const events = eventsState.data
     const loading = eventsState.loading
 
-    const [styleMap, setStyleMap] = useState({})
+    // priority được lưu trong DB qua field `priority` của event
 
     const [modal, setModal] = useState(null)
     const [deleteTarget, setDeleteTarget] = useState(null)
@@ -343,7 +327,8 @@ export default function Calendar() {
     const [toast, setToast] = useState(null)
 
     // ── AI Scheduling state ─────────────────────────────────────────────────
-    const [suggestions, setSuggestions] = useState([])
+    const [suggestions, setSuggestions] = useState([])        // tổng hợp Calendar + Task gần tới ngày nhất
+    const [aiRecommendations, setAiRecommendations] = useState([]) // AI tự gợi ý (nghỉ ngơi, chuẩn bị họp, tập thể dục...)
     const [suggestionsLoading, setSuggestionsLoading] = useState(false)
 
     // ── Toast helper ───────────────────────────────────────────────────────
@@ -381,23 +366,32 @@ export default function Calendar() {
         }
     }
 
-    // ── Fetch AI suggestions (chỉ 1 lần khi vào trang lịch) ─────────────────
-    const fetchSuggestions = async () => {
+    // ── Lấy gợi ý AI (tự động đọc Calendar + Task có sẵn) ────────────────────
+    const fetchAiSuggestions = async () => {
         setSuggestionsLoading(true)
         try {
             const data = await getAiSuggestions()
-            setSuggestions(data)
+            // Luôn ép về array, bất kể backend trả về cấu trúc gì,
+            // để không bao giờ bị crash trắng màn hình do .map() trên non-array.
+            let nextSuggestions = []
+            let nextRecommendations = []
+
+            if (Array.isArray(data)) {
+                nextSuggestions = data
+            } else if (data && typeof data === 'object') {
+                nextSuggestions = Array.isArray(data.suggestions) ? data.suggestions : []
+                nextRecommendations = Array.isArray(data.aiRecommendations) ? data.aiRecommendations : []
+                if (data.warning) showToast(data.warning, 'error')
+            }
+
+            setSuggestions(nextSuggestions)
+            setAiRecommendations(nextRecommendations)
         } catch {
             showToastRef.current('Không tải được gợi ý AI', 'error')
         } finally {
             setSuggestionsLoading(false)
         }
     }
-
-    useEffect(() => {
-        fetchSuggestions()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
 
     // ── Navigation ─────────────────────────────────────────────────────────
     const prevMonth = () => {
@@ -436,7 +430,7 @@ export default function Calendar() {
                 startTime: toLocalInput(ev.startTime),
                 endTime: toLocalInput(ev.endTime),
                 isAllDay: ev.isAllDay,
-                styleIndex: styleMap[ev.id] ?? 0,
+                styleIndex: ev.priority ?? 0,
             },
         })
     }
@@ -452,16 +446,15 @@ export default function Calendar() {
                 startTime: inputToISO(form.startTime),
                 endTime: inputToISO(form.endTime),
                 isAllDay: form.isAllDay,
+                priority: form.styleIndex, // 0=Urgent, 1=Normal, 2=Low — lưu vào DB
                 source: 'manual',
             }
 
             if (modal.mode === 'create') {
-                const created = await createCalendarEvent(payload)
-                setStyleMap(m => ({ ...m, [created.id]: form.styleIndex }))
+                await createCalendarEvent(payload)
                 showToast('Đã thêm sự kiện')
             } else {
                 await updateCalendarEvent(form.id, payload)
-                setStyleMap(m => ({ ...m, [form.id]: form.styleIndex }))
                 showToast('Đã cập nhật sự kiện')
             }
 
@@ -478,7 +471,7 @@ export default function Calendar() {
         setSaving(true)
         try {
             await deleteCalendarEvent(deleteTarget.id)
-            setStyleMap(m => { const n = { ...m }; delete n[deleteTarget.id]; return n })
+            // priority đã được xóa cùng event trong DB, không cần dọn gì thêm ở FE
             setDeleteTarget(null)
             setModal(null)
             showToast('Đã xóa sự kiện')
@@ -490,44 +483,9 @@ export default function Calendar() {
         }
     }
 
-    // ── AI Scheduling handlers ──────────────────────────────────────────────
-    const acceptSuggestion = async (s) => {
-        try {
-            await createCalendarEvent({
-                title: s.title,
-                description: s.description || null,
-                location: s.location || null,
-                startTime: s.startTime,
-                endTime: s.endTime || new Date(new Date(s.startTime).getTime() + 60 * 60 * 1000).toISOString(),
-                isAllDay: s.isAllDay,
-                source: 'ai',
-            })
-            setSuggestions(prev => prev.filter(x => x.id !== s.id))
-            showToast('Đã thêm sự kiện từ gợi ý AI')
-            await fetchEvents()
-        } catch (e) {
-            showToast(e.message, 'error')
-        }
-    }
-
+    // ── AI Scheduling: chỉ hiển thị gợi ý, không tạo/sửa event từ đây ────────
     const dismissSuggestion = (id) => {
         setSuggestions(prev => prev.filter(x => x.id !== id))
-    }
-
-    const editSuggestion = (s) => {
-        setModal({
-            mode: 'create',
-            data: {
-                ...EMPTY_FORM,
-                title: s.title,
-                description: s.description || '',
-                location: s.location || '',
-                startTime: s.startTime ? toLocalInput(s.startTime) : '',
-                endTime: s.endTime ? toLocalInput(s.endTime) : '',
-                isAllDay: s.isAllDay,
-            },
-        })
-        setSuggestions(prev => prev.filter(x => x.id !== s.id))
     }
 
     // ── Map events → by day key ────────────────────────────────────────────
@@ -552,20 +510,24 @@ export default function Calendar() {
                     <div className="flex-1 flex flex-col min-w-0 bg-white rounded-xl border border-[#c6c6cd]/40 shadow-sm overflow-hidden min-h-0">
                         {/* Toolbar */}
                         <div className="px-6 py-4 border-b border-[#c6c6cd]/30 flex items-center justify-between bg-[#f8f9ff]">
-                            <div className="flex items-center gap-4">
-                                <h2 className="text-[32px] font-semibold leading-tight tracking-tight text-[#000000]">
+                            <div className="flex items-center gap-3">
+                                <button onClick={prevMonth} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-[#e5eeff] text-[#45464d] transition-colors">
+                                    <span className="material-symbols-outlined text-base">chevron_left</span>
+                                </button>
+
+                                <h2 className="text-[32px] font-semibold leading-tight tracking-tight text-[#000000] min-w-[220px] text-center">
                                     {MONTH_NAMES[currentMonth]} {currentYear}
                                 </h2>
-                                <div className="flex items-center bg-[#e5eeff] rounded-lg p-0.5 border border-[#c6c6cd]/20">
-                                    <button onClick={prevMonth} className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-[#d3e4fe] text-[#45464d] transition-colors">
-                                        <span className="material-symbols-outlined text-sm">chevron_left</span>
-                                    </button>
-                                    <button onClick={goToday} className="px-3 h-8 flex items-center justify-center rounded-md hover:bg-[#d3e4fe] text-[14px] font-medium text-[#45464d] transition-colors"></button>
-                                    <button onClick={nextMonth} className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-[#d3e4fe] text-[#45464d] transition-colors">
-                                        <span className="material-symbols-outlined text-sm">chevron_right</span>
-                                    </button>
-                                </div>
-                                {loading && <span className="material-symbols-outlined animate-spin text-[#6b38d4] text-[20px]">progress_activity</span>}
+
+                                <button onClick={nextMonth} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-[#e5eeff] text-[#45464d] transition-colors">
+                                    <span className="material-symbols-outlined text-base">chevron_right</span>
+                                </button>
+
+                                <button onClick={goToday} className="ml-2 px-3 h-8 flex items-center justify-center rounded-md bg-[#e5eeff] hover:bg-[#d3e4fe] text-[13px] font-medium text-[#45464d] transition-colors">
+                                    Hôm nay
+                                </button>
+
+                                {loading && <span className="material-symbols-outlined animate-spin text-[#6b38d4] text-[20px] ml-1">progress_activity</span>}
                             </div>
                             <div className="flex items-center gap-2">
                                 <button
@@ -612,14 +574,15 @@ export default function Calendar() {
                                             </div>
 
                                             {dayEvents.map((ev, j) => {
-                                                const style = EVENT_STYLES[styleMap[ev.id] ?? 0]?.style || EVENT_STYLES[0].style
+                                                const priority = EVENT_STYLES[ev.priority ?? 0] || EVENT_STYLES[0]
                                                 return (
                                                     <div
                                                         key={j}
                                                         onClick={(e) => openEdit(ev, e)}
-                                                        className={`px-2 py-1 rounded text-xs font-medium truncate mb-1 cursor-pointer transition-colors flex items-center gap-1 ${style}`}
+                                                        className={`px-2 py-1 rounded text-xs font-medium truncate mb-1 cursor-pointer transition-colors flex items-center gap-1 ${priority.style}`}
                                                         title={ev.title}
                                                     >
+                                                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${priority.dot}`} />
                                                         <span className="truncate">{ev.title}</span>
                                                     </div>
                                                 )
@@ -651,29 +614,66 @@ export default function Calendar() {
                                     <span className="material-symbols-outlined animate-spin text-[#8455ef] text-[18px]">progress_activity</span>
                                 ) : (
                                     <span className="bg-[#8455ef] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                                        {suggestions.length} Pending
+                                        {(Array.isArray(suggestions) ? suggestions.length : 0)} Pending
                                     </span>
                                 )}
                             </div>
-                            <div className="p-4 flex flex-col gap-2 overflow-y-auto max-h-[400px]">
-                                <p className="text-sm text-[#45464d] mb-2">Tôi đã phân tích công việc của bạn. Đây là các sự kiện được đề xuất:</p>
+                            <div className="p-4 flex flex-col gap-2 overflow-y-auto max-h-[500px]">
+                                <button
+                                    onClick={fetchAiSuggestions}
+                                    disabled={suggestionsLoading}
+                                    className="w-full bg-[#6b38d4] text-white text-[13px] font-medium py-2 rounded-lg hover:bg-[#5516be] transition-colors disabled:opacity-60 flex items-center justify-center gap-2 shadow-sm mb-2"
+                                >
+                                    {suggestionsLoading
+                                        ? <span className="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
+                                        : <span className="material-symbols-outlined text-[16px]">auto_awesome</span>}
+                                    Phân tích bằng AI
+                                </button>
 
-                                {!suggestionsLoading && suggestions.length === 0 && (
+                                {/* Thông báo 1: tổng hợp Calendar + Task gần tới ngày nhất */}
+                                <p className="text-sm text-[#45464d] mb-2">Tôi đã tổng hợp lịch và công việc gần tới ngày nhất của bạn:</p>
+
+                                {!suggestionsLoading && (!Array.isArray(suggestions) || suggestions.length === 0) && (
                                     <p className="text-[13px] text-[#45464d]/60 italic py-4 text-center">
-                                        Không có gợi ý mới nào lúc này.
+                                        Không có sự kiện hoặc công việc nào sắp tới.
                                     </p>
                                 )}
 
-                                {suggestions.map((s) => {
+                                {(Array.isArray(suggestions) ? suggestions : []).map((s) => {
                                     const src = SOURCE_ICON[s.sourceType] || SOURCE_ICON.email
+
+                                    // Phân loại: lấy từ dữ liệu có sẵn hay AI tự đề xuất
+                                    const isFromData = ['task', 'calendar'].includes(s.sourceType)
+                                    const sourceLabel = {
+                                        task: 'Từ Task',
+                                        calendar: 'Từ Lịch',
+                                        email: 'Từ Email',
+                                        voice: 'Từ Ghi âm',
+                                        manual: 'AI gợi ý',
+                                    }[s.sourceType] || 'AI gợi ý'
+
                                     return (
-                                        <div key={s.id} className="bg-[#eff4ff] rounded-lg p-2 border border-[#c6c6cd]/30 relative group">
+                                        <div key={s.id} className={`rounded-lg p-2 border relative group ${isFromData ? 'bg-[#f0fdf4] border-green-200' : 'bg-[#eff4ff] border-[#c6c6cd]/30'}`}>
+                                            {/* Badge nguồn gốc */}
+                                            <div className="flex items-center justify-between mb-2 pr-6">
+                                                <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${isFromData
+                                                        ? 'bg-green-100 text-green-700'
+                                                        : 'bg-[#8455ef]/10 text-[#6b38d4]'
+                                                    }`}>
+                                                    <span className="material-symbols-outlined text-[11px]">
+                                                        {isFromData ? 'link' : 'auto_awesome'}
+                                                    </span>
+                                                    {sourceLabel}
+                                                </span>
+                                            </div>
+
                                             <button
                                                 onClick={() => dismissSuggestion(s.id)}
                                                 className="absolute top-2 right-2 text-[#45464d]/50 hover:text-[#000000] cursor-pointer"
                                             >
                                                 <span className="material-symbols-outlined text-sm">close</span>
                                             </button>
+
                                             <div className="flex items-start gap-3 mb-2">
                                                 <div className={`w-8 h-8 rounded-full ${src.iconBg} flex items-center justify-center shrink-0`}>
                                                     <span className={`material-symbols-outlined ${src.iconColor} text-[16px]`}>{src.icon}</span>
@@ -691,60 +691,24 @@ export default function Calendar() {
                                                     {formatSuggestedTime(s.startTime, s.endTime)}
                                                 </span>
                                             </div>
-                                            <div className="flex gap-2 mt-3">
-                                                <button
-                                                    onClick={() => acceptSuggestion(s)}
-                                                    className="flex-1 bg-[#8455ef] text-white text-[13px] font-medium py-1.5 rounded-md hover:bg-[#d0bcff] hover:text-[#5516be] transition-colors shadow-sm"
-                                                >
-                                                    Thêm vào lịch
-                                                </button>
-                                                <button
-                                                    onClick={() => editSuggestion(s)}
-                                                    className="px-3 bg-[#d3e4fe] text-[#45464d] text-[13px] font-medium py-1.5 rounded-md hover:bg-[#c3d8f8] transition-colors"
-                                                >
-                                                    Sửa
-                                                </button>
-                                            </div>
                                         </div>
                                     )
                                 })}
-                            </div>
-                        </div>
 
-                        {/* Mini Calendar */}
-                        <div className="bg-white rounded-xl border border-[#c6c6cd]/40 shadow-sm p-4">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-[14px] font-bold text-[#0b1c30]">{MONTH_NAMES[currentMonth]} {currentYear}</h3>
-                                <div className="flex gap-1">
-                                    <button onClick={prevMonth} className="w-6 h-6 flex items-center justify-center rounded hover:bg-[#dce9ff] text-[#45464d]">
-                                        <span className="material-symbols-outlined text-[16px]">chevron_left</span>
-                                    </button>
-                                    <button onClick={nextMonth} className="w-6 h-6 flex items-center justify-center rounded hover:bg-[#dce9ff] text-[#45464d]">
-                                        <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-7 gap-1 text-center text-[12px] font-medium">
-                                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
-                                    <div key={i} className="text-[#45464d]/60 py-1">{d}</div>
-                                ))}
-                                {grid.map((cell, i) => {
-                                    const isToday = !cell.dim && cell.num === today.getDate() && currentMonth === today.getMonth() && currentYear === today.getFullYear()
-                                    const key = `${cell.year}-${cell.month}-${cell.num}`
-                                    const hasEvent = (eventsByDay[key] || []).length > 0
-                                    return (
-                                        <div key={i} onClick={() => openCreate(cell)}
-                                            className={`relative py-1 rounded cursor-pointer transition-colors text-[12px]
-                                                ${isToday ? 'bg-[#8455ef] text-white font-bold shadow-sm' : ''}
-                                                ${cell.dim ? 'text-[#45464d]/30' : 'text-[#0b1c30] hover:bg-[#e5eeff]'}
-                                            `}>
-                                            {cell.num}
-                                            {hasEvent && !isToday && (
-                                                <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[#8455ef]" />
-                                            )}
-                                        </div>
-                                    )
-                                })}
+                                {/* Thông báo 2: AI gợi ý theo prompt (nghỉ ngơi, chuẩn bị họp, tập thể dục...) */}
+                                {Array.isArray(aiRecommendations) && aiRecommendations.length > 0 && (
+                                    <>
+                                        <p className="text-sm text-[#45464d] mt-4 mb-2">AI gợi ý cho bạn:</p>
+                                        {aiRecommendations.map((rec, i) => (
+                                            <div key={i} className="bg-[#f3eaff] rounded-lg p-3 border border-[#8455ef]/20 flex items-start gap-2">
+                                                <span className="material-symbols-outlined text-[#6b38d4] text-[16px] mt-0.5">tips_and_updates</span>
+                                                <p className="text-[13px] text-[#0b1c30] leading-relaxed">
+                                                    {typeof rec === 'string' ? rec : rec.content || rec.title}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </>
+                                )}
                             </div>
                         </div>
 
