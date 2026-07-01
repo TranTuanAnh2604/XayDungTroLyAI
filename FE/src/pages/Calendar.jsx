@@ -837,7 +837,7 @@ export default function Calendar() {
                                     </span>
                                 )}
                             </div>
-                            <div className="p-4 flex flex-col gap-2 overflow-y-auto max-h-[500px]">
+                            <div className="p-4 flex flex-col gap-2 overflow-y-auto h-screen">
                                 <button
                                     onClick={fetchAiSuggestions}
                                     disabled={suggestionsLoading}
@@ -928,20 +928,6 @@ export default function Calendar() {
                                         ))}
                                     </>
                                 )}
-                            </div>
-                        </div>
-
-                        {/* Protected Time */}
-                        <div className="bg-gradient-to-br from-[#eff4ff] to-white rounded-xl border border-[#c6c6cd]/40 shadow-sm p-4">
-                            <h3 className="text-[14px] font-bold text-[#0b1c30] mb-3 flex items-center gap-2">
-                                <span className="material-symbols-outlined text-[18px] text-[#191c1e]">psychology</span>
-                                Protected Time
-                            </h3>
-                            <div className="bg-[#d3e4fe]/50 rounded-lg p-3 text-sm">
-                                <p className="text-[#45464d] mb-2 leading-relaxed">
-                                    AI đã chặn <strong className="text-[#0b1c30]">2 giờ</strong> làm việc tập trung cho ngày mai dựa trên khối lượng công việc của bạn.
-                                </p>
-                                <button className="text-[#6b38d4] font-medium text-[13px] hover:underline">Xem lịch</button>
                             </div>
                         </div>
                     </div>

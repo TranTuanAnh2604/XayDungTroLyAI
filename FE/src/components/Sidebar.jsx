@@ -80,6 +80,7 @@ export default function Sidebar({ onNewChat, currentSessionId, onSelectSession }
         { icon: "email", label: "Gmail", path: "/gmail" },
         { icon: "mic", label: "Voice", path: "/voice" },
         { icon: "notifications", label: "Reminders", path: "/reminders" },
+        { icon: "insights", label: "Productivity Stats", path: "/productivity-stats" },
     ]
 
     const footerItems = [

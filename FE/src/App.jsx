@@ -11,6 +11,7 @@ import Voice from './pages/Voice'
 import Settings from './pages/Settings'
 import PrivateRoute from './components/PrivateRoute'
 import Reminders from './pages/Reminders'  
+import ProductivityStats from './pages/Productivitystats'
 
 export default function App() {
     useNotificationPolling() 
@@ -27,6 +28,7 @@ export default function App() {
                 <Route path="/gmail" element={<Gmail />} />
                 <Route path="/tasks" element={<PrivateRoute><Tasks /></PrivateRoute>} />
                 <Route path="/voice" element={<Voice />} />
+                <Route path="/productivity-stats" element={<PrivateRoute><ProductivityStats /></PrivateRoute>} />
                 <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
                 <Route path="/reminders" element={<PrivateRoute><Reminders /></PrivateRoute>} />
             </Routes>
