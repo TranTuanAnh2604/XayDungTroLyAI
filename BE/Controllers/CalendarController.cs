@@ -134,8 +134,8 @@ namespace Assistant.Controllers
 
             ev.Title = req.Title;
             ev.Description = req.Description;
-            ev.StartTime = DateTime.SpecifyKind(req.StartTime, DateTimeKind.Utc);
-            ev.EndTime = DateTime.SpecifyKind(req.EndTime, DateTimeKind.Utc);
+            ev.StartTime = req.StartTime;
+            ev.EndTime = req.EndTime;
             ev.Location = req.Location;
             ev.IsAllDay = req.IsAllDay;
             ev.Priority = req.Priority;
