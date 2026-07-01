@@ -342,9 +342,10 @@ namespace Assistant.Controllers
                 new Claim(ClaimTypes.Name, user.Name)
             };
 
+            //Token sống được 30 phút, sau đó cần refresh token để lấy access token mới
             var token = new JwtSecurityToken(
                 claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(15),
+                expires: DateTime.UtcNow.AddMinutes(30),
                 signingCredentials: creds
             );
             return new JwtSecurityTokenHandler().WriteToken(token);
