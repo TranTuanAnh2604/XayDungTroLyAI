@@ -48,17 +48,13 @@ namespace Assistant.Controllers
                 .Select(t => new { t.DueDate, t.EstimatedMinutes, t.Priority, t.Status })
                 .ToListAsync();
 
-            const int TaskUrgentPriority = 3; // Khẩn cấp
-            const int EventUrgentPriority = 0; // Urgent
-
-            // ═══════════════ BIỂU ĐỒ CỘT: gộp giờ Task + Calendar theo từng ngày ═══════════════
+            // ═══════════════ BIỂU ĐỒ CỘT: tổng giờ Task + Calendar theo từng ngày ═══════════════
             var categories = new List<CategoryLegendDto>
             {
-                new CategoryLegendDto { Id = null, Name = "Tổng thời gian", Color = "#6b38d4" },
-                new CategoryLegendDto { Id = null, Name = "Khẩn cấp", Color = "#cbdbf5" }
+                new CategoryLegendDto { Id = null, Name = "Tổng thời gian", Color = "#6b38d4" }
             };
 
-            var rawDays = new List<(string Label, DateTime DateVn, double PrimaryHours, double SecondaryHours)>();
+            var rawDays = new List<(string Label, DateTime DateVn, double TotalHours)>();
             for (int i = 0; i < 7; i++)
             {
                 var dayStartVn = weekStartVn.AddDays(i);
@@ -72,59 +68,63 @@ namespace Assistant.Controllers
                 double taskHours = dayTasks.Sum(t => (t.EstimatedMinutes ?? 30) / 60.0);
                 double totalHours = eventHours + taskHours;
 
-                double eventUrgentHours = dayEvents.Where(e => e.Priority == EventUrgentPriority)
-                    .Sum(e => Math.Max(0, (e.EndTime - e.StartTime).TotalHours));
-                double taskUrgentHours = dayTasks.Where(t => t.Priority == TaskUrgentPriority)
-                    .Sum(t => (t.EstimatedMinutes ?? 30) / 60.0);
-                double urgentHours = eventUrgentHours + taskUrgentHours;
-
-                rawDays.Add((DayLabelsVi[i], dayStartVn, Math.Round(totalHours, 1), Math.Round(urgentHours, 1)));
+                rawDays.Add((DayLabelsVi[i], dayStartVn, Math.Round(totalHours, 1)));
             }
 
-            double maxHours = rawDays.Count == 0 ? 0 : rawDays.Max(d => Math.Max(d.PrimaryHours, d.SecondaryHours));
+            double maxHours = rawDays.Count == 0 ? 0 : rawDays.Max(d => d.TotalHours);
             if (maxHours <= 0) maxHours = 1; // tránh chia 0
 
             var days = rawDays.Select(d => new DailyTimeDto
             {
                 Label = d.Label,
                 Date = d.DateVn,
-                PrimaryMinutes = (int)Math.Round(d.PrimaryHours * 60),
-                SecondaryMinutes = (int)Math.Round(d.SecondaryHours * 60),
-                PrimaryPercent = Math.Round(d.PrimaryHours / maxHours * 100, 0),
-                SecondaryPercent = Math.Round(d.SecondaryHours / maxHours * 100, 0)
+                TotalMinutes = (int)Math.Round(d.TotalHours * 60),
+                TotalPercent = Math.Round(d.TotalHours / maxHours * 100, 0)
             }).ToList();
 
             // ═══════════════ MỤC TIÊU CÁ NHÂN ═══════════════
             var goals = new List<GoalProgressDto>();
 
-            // Mục tiêu 1: gộp cả Task + Calendar trong tuần
-            // Task "hoàn thành" = Status == "done"; Event "hoàn thành" = đã diễn ra xong (EndTime <= hiện tại)
-            int totalCombined = weekTasks.Count + events.Count;
-            int doneCombined = weekTasks.Count(t => t.Status == "done") + events.Count(e => e.EndTime <= nowUtc);
+            // Mục tiêu 1: riêng Task trong tuần
+            int totalTasks = weekTasks.Count;
+            int doneTasks = weekTasks.Count(t => t.Status == "done");
+            int taskPercent = totalTasks > 0 ? (int)Math.Round((double)doneTasks / totalTasks * 100) : 0;
+
+            goals.Add(new GoalProgressDto
+            {
+                Title = "Công việc (Task)",
+                CurrentValue = doneTasks,
+                TargetValue = totalTasks,
+                Unit = "task",
+                PercentComplete = taskPercent
+            });
+
+            // Mục tiêu 2: riêng Lịch (Calendar) trong tuần — "hoàn thành" = đã diễn ra xong (EndTime <= hiện tại)
+            int totalEvents = events.Count;
+            int doneEvents = events.Count(e => e.EndTime <= nowUtc);
+            int eventPercent = totalEvents > 0 ? (int)Math.Round((double)doneEvents / totalEvents * 100) : 0;
+
+            goals.Add(new GoalProgressDto
+            {
+                Title = "Lịch trình (Calendar)",
+                CurrentValue = doneEvents,
+                TargetValue = totalEvents,
+                Unit = "sự kiện",
+                PercentComplete = eventPercent
+            });
+
+            // Mục tiêu 3: tổng hợp cả Task + Calendar
+            int totalCombined = totalTasks + totalEvents;
+            int doneCombined = doneTasks + doneEvents;
             int combinedPercent = totalCombined > 0 ? (int)Math.Round((double)doneCombined / totalCombined * 100) : 0;
 
             goals.Add(new GoalProgressDto
             {
-                Title = "Công việc & lịch trong tuần",
+                Title = "Tổng hợp cả tuần",
                 CurrentValue = doneCombined,
                 TargetValue = totalCombined,
                 Unit = "mục",
                 PercentComplete = combinedPercent
-            });
-
-            // Mục tiêu 2: chỉ Task có Priority = 3 (Khẩn cấp)
-            var urgentTasks = weekTasks.Where(t => t.Priority == TaskUrgentPriority).ToList();
-            int totalUrgent = urgentTasks.Count;
-            int doneUrgent = urgentTasks.Count(t => t.Status == "done");
-            int urgentPercent = totalUrgent > 0 ? (int)Math.Round((double)doneUrgent / totalUrgent * 100) : 0;
-
-            goals.Add(new GoalProgressDto
-            {
-                Title = "Task khẩn cấp",
-                CurrentValue = doneUrgent,
-                TargetValue = totalUrgent,
-                Unit = "task",
-                PercentComplete = urgentPercent
             });
 
             double overallCompletionRate = combinedPercent;
@@ -160,10 +160,8 @@ namespace Assistant.Controllers
     {
         public string Label { get; set; } = null!;
         public DateTime Date { get; set; }
-        public int PrimaryMinutes { get; set; }
-        public int SecondaryMinutes { get; set; }
-        public double PrimaryPercent { get; set; }
-        public double SecondaryPercent { get; set; }
+        public int TotalMinutes { get; set; }
+        public double TotalPercent { get; set; }
     }
 
     public class GoalProgressDto
