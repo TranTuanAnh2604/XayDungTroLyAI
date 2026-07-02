@@ -5,6 +5,7 @@ using Assistant.Models;
 using Assistant.Services;
 using System.Security.Claims;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Assistant.Controllers
 {
@@ -165,11 +166,14 @@ namespace Assistant.Controllers
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
 
-            var now = DateTime.UtcNow;
-            var end = now.AddDays(30);
+            var vnNow = DateTime.UtcNow.AddHours(7);
+
+            var todayStart = vnNow.Date;
+            var todayEnd = todayStart.AddDays(1);
+            var rangeEnd = vnNow.AddDays(30);
 
             var existingEvents = await _db.CalendarEvents
-                .Where(e => e.UserId == userId && e.StartTime >= now && e.StartTime <= end)
+                .Where(e => e.UserId == userId && e.EndTime >= vnNow && e.StartTime <= rangeEnd)
                 .OrderBy(e => e.StartTime)
                 .Select(e => new
                 {
@@ -183,7 +187,7 @@ namespace Assistant.Controllers
                 .ToListAsync();
 
             var tasks = await _db.Tasks
-                .Where(t => t.UserId == userId && t.Status != "completed" && t.DueDate != null && t.DueDate >= now)
+                .Where(t => t.UserId == userId && t.Status != "completed" && t.DueDate != null && t.DueDate >= vnNow)
                 .OrderBy(t => t.DueDate)
                 .Select(t => new
                 {
@@ -196,11 +200,9 @@ namespace Assistant.Controllers
                 })
                 .ToListAsync();
 
-            // ════════════════════════════════════════════════════════════════════
-            // PHẦN 1: 3 mục gần nhất — LẤY THẲNG TỪ DB, KHÔNG QUA AI (chính xác 100%)
-            // ════════════════════════════════════════════════════════════════════
             var nearestItems = existingEvents
                 .Concat(tasks)
+                .Where(x => x.startTime >= vnNow)
                 .OrderBy(x => x.sortKey)
                 .Take(3)
                 .Select(x => new
@@ -214,49 +216,120 @@ namespace Assistant.Controllers
                 })
                 .ToList();
 
-            // ════════════════════════════════════════════════════════════════════
-            // PHẦN 2: AI gợi ý hoạt động nên làm hôm nay, TRÁNH giờ đã có lịch/task
-            // ════════════════════════════════════════════════════════════════════
-            var todayStart = now.Date;
-            var todayEnd = todayStart.AddDays(1);
-
+            // ── Tính khung BẬN hôm nay (để AI biết mà né) ──
             var busySlotsToday = existingEvents
-                .Where(e => e.startTime >= todayStart && e.startTime < todayEnd)
-                .Select(e => new { e.title, e.startTime, e.endTime })
-                .Concat(tasks
-                    .Where(t => t.startTime >= todayStart && t.startTime < todayEnd)
-                    .Select(t => new { t.title, t.startTime, t.endTime }))
+                .Concat(tasks)
+                .Where(x => x.startTime < todayEnd && x.endTime > todayStart && x.endTime > vnNow)
+                .Select(x => new { x.title, x.startTime, x.endTime })
                 .OrderBy(x => x.startTime)
                 .ToList();
 
-            var busyJson = JsonSerializer.Serialize(busySlotsToday);
-            var nowVn = now.AddHours(7);
+            // ── Tính khung RẢNH hôm nay (dạng khoảng, không chia nhỏ 30p) ──
+            var workStart = todayStart.AddHours(6);
+            var workEnd = todayStart.AddHours(22.5);
+            var dayStart = vnNow > workStart ? vnNow : workStart;
+
+            var freeWindows = new List<(DateTime Start, DateTime End)>();
+            var current = dayStart;
+
+            foreach (var slot in busySlotsToday)
+            {
+                var s = slot.startTime < workStart ? workStart : slot.startTime;
+                var e = slot.endTime > workEnd ? workEnd : slot.endTime;
+                if (e <= current) continue; // khung bận đã qua hoặc không giao với vùng đang xét
+
+                if (s > current)
+                    freeWindows.Add((current, s));
+
+                if (e > current)
+                    current = e;
+            }
+            if (current < workEnd)
+                freeWindows.Add((current, workEnd));
+
+            // Bỏ khung rảnh quá ngắn (dưới 15 phút thì không đủ làm gì)
+            freeWindows = freeWindows.Where(w => (w.End - w.Start).TotalMinutes >= 15).ToList();
+
+            if (freeWindows.Count == 0)
+            {
+                return Ok(new { suggestions = nearestItems, aiRecommendations = new List<string>() });
+            }
+
+            var freeWindowsForPrompt = freeWindows
+                .Select(w => $"{w.Start:HH:mm} - {w.End:HH:mm}")
+                .ToList();
+
+            var busyForPrompt = busySlotsToday
+                .Select(b => $"{b.startTime:HH:mm} - {b.endTime:HH:mm}: {b.title}")
+                .ToList();
+
+            // ── Random các mốc giờ bắt đầu thật sự ngẫu nhiên trong khung rảnh ──
+            var rng = Random.Shared;
+            var anchorTimes = new List<DateTime>();
+
+            // Random nhiều mốc ứng viên trong các khung rảnh (mỗi khung rảnh random vài điểm)
+            var candidatePool = new List<DateTime>();
+            foreach (var w in freeWindows)
+            {
+                var totalMinutes = (int)(w.End - w.Start).TotalMinutes;
+                if (totalMinutes < 15) continue;
+
+                // Random 5 điểm trong mỗi khung rảnh (làm tròn về mốc 5 phút cho gọn)
+                for (int i = 0; i < 5; i++)
+                {
+                    var offset = rng.Next(0, totalMinutes - 15 + 1);
+                    offset = (offset / 5) * 5; // làm tròn 5 phút
+                    candidatePool.Add(w.Start.AddMinutes(offset));
+                }
+            }
+
+            // Xáo trộn rồi chọn tối đa 3 mốc, đảm bảo cách nhau tối thiểu ~1.5 tiếng để không dồn cụm
+            var shuffledAnchors = candidatePool.OrderBy(_ => rng.Next()).ToList();
+            foreach (var t in shuffledAnchors)
+            {
+                if (anchorTimes.Count >= 3) break;
+                bool tooClose = anchorTimes.Any(a => Math.Abs((a - t).TotalMinutes) < 90);
+                if (!tooClose) anchorTimes.Add(t);
+            }
+            // Nếu do quá gần nhau mà chưa đủ 3, nới lỏng lấy thêm
+            if (anchorTimes.Count < 3)
+            {
+                foreach (var t in shuffledAnchors)
+                {
+                    if (anchorTimes.Count >= 3) break;
+                    if (!anchorTimes.Contains(t)) anchorTimes.Add(t);
+                }
+            }
+            anchorTimes = anchorTimes.OrderBy(t => t).ToList();
+
+            var anchorsForPrompt = anchorTimes.Select(t => $"{t:HH:mm}").ToList();
+            var nonce = Guid.NewGuid().ToString("N").Substring(0, 8);
 
             var prompt = $$"""
-    Bạn là AI Scheduling Assistant.
+Bạn là AI Scheduling Assistant. (mã phiên: {{nonce}})
 
-    Thời gian hiện tại: {{nowVn:yyyy-MM-dd HH:mm}} (+07:00)
+Giờ hiện tại (VN): {{vnNow:yyyy-MM-dd HH:mm}}
 
-    Đây là các khoảng thời gian ĐÃ BỊ CHIẾM trong hôm nay (lịch + task có sẵn):
+Lịch/công việc ĐÃ CÓ hôm nay (KHÔNG được đề xuất đè lên):
+{{JsonSerializer.Serialize(busyForPrompt)}}
 
-    {{busyJson}}
+Các khoảng RẢNH có thể dùng:
+{{JsonSerializer.Serialize(freeWindowsForPrompt)}}
 
-    Yêu cầu:
-    - Đề xuất TỐI ĐA 3 hoạt động nên làm hôm nay (ví dụ: nghỉ ngơi, chuẩn bị cho việc tiếp theo, tập thể dục, ăn uống, đọc sách...).
-    - Mỗi hoạt động phải xếp vào KHOẢNG TRỐNG còn lại trong ngày, KHÔNG được trùng với các khoảng thời gian đã bị chiếm ở trên.
-    - Đưa ra khung giờ cụ thể (ví dụ: "19:00 - 19:30") cho mỗi hoạt động trong nội dung description.
-    - Không lặp lại các title đã có trong danh sách bị chiếm.
+Đây là các MỐC GIỜ BẮT ĐẦU gợi ý (đã tính sẵn, nằm trong khung rảnh):
+{{JsonSerializer.Serialize(anchorsForPrompt)}}
 
-    Chỉ trả về đúng JSON, không markdown, không giải thích:
-
-    {
-      "aiRecommendations": [
-        "Nội dung gợi ý 1, có kèm khung giờ cụ thể...",
-        "Nội dung gợi ý 2...",
-        "Nội dung gợi ý 3..."
-      ]
-    }
-    """;
+YÊU CẦU:
+1. Với MỖI mốc giờ ở trên, đề xuất 1 hoạt động phù hợp bắt đầu QUANH mốc đó (được phép lùi/đẩy tối đa 10 phút để hợp lý hơn, nhưng vẫn phải nằm trong khung rảnh và không đè lên lịch đã có).
+2. Mỗi hoạt động dài 15-90 phút.
+3. Không được chọn 2 hoạt động chồng giờ nhau.
+4. Chỉ trả JSON, không thêm chữ nào khác:
+{
+    "aiRecommendations": [
+        "09:05 - 09:35: Đi dạo."
+    ]
+}
+""";
 
             try
             {
@@ -264,15 +337,15 @@ namespace Assistant.Controllers
 
                 var cleaned = raw.Trim();
                 if (cleaned.StartsWith("```"))
-                {
                     cleaned = cleaned.Replace("```json", "").Replace("```", "").Trim();
-                }
+
                 var first = cleaned.IndexOf('{');
                 if (first >= 0) cleaned = cleaned.Substring(first);
                 var last = cleaned.LastIndexOf('}');
                 if (last >= 0) cleaned = cleaned.Substring(0, last + 1);
 
-                List<string> recommendations = new();
+                var validated = new List<(DateTime Start, DateTime End, string Text)>();
+
                 try
                 {
                     using var doc = JsonDocument.Parse(cleaned);
@@ -280,28 +353,50 @@ namespace Assistant.Controllers
                     {
                         foreach (var r in recEl.EnumerateArray())
                         {
-                            if (r.ValueKind == JsonValueKind.String)
-                                recommendations.Add(r.GetString() ?? "");
+                            if (r.ValueKind != JsonValueKind.String) continue;
+                            var text = r.GetString() ?? "";
+
+                            var match = Regex.Match(text, @"(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})");
+                            if (!match.Success) continue;
+
+                            if (!TimeSpan.TryParse(match.Groups[1].Value, out var startTod)) continue;
+                            if (!TimeSpan.TryParse(match.Groups[2].Value, out var endTod)) continue;
+
+                            var start = todayStart + startTod;
+                            var end = todayStart + endTod;
+                            if (end <= start) continue;
+
+                            var duration = (end - start).TotalMinutes;
+                            if (duration < 15 || duration > 90) continue;
+
+                            // Phải nằm TRỌN trong 1 khung rảnh
+                            bool insideFreeWindow = freeWindows.Any(w => start >= w.Start && end <= w.End);
+                            if (!insideFreeWindow) continue;
+
+                            // Không được chồng với các đề xuất đã chấp nhận trước đó trong cùng response
+                            bool overlapsPicked = validated.Any(v => start < v.End && end > v.Start);
+                            if (overlapsPicked) continue;
+
+                            validated.Add((start, end, text));
                         }
                     }
                 }
                 catch
                 {
-                    // Nếu AI trả JSON lỗi, vẫn trả về phần 1 (nearestItems) cho FE,
-                    // chỉ để recommendations rỗng — không làm hỏng cả request.
+                    // JSON lỗi -> vẫn trả PHẦN 1, aiRecommendations rỗng
                 }
 
-                return Ok(new
-                {
-                    suggestions = nearestItems,
-                    aiRecommendations = recommendations
-                });
+                var sortedRecommendations = validated
+                    .OrderBy(v => v.Start)
+                    .Take(3)
+                    .Select(v => v.Text)
+                    .ToList();
+
+                return Ok(new { suggestions = nearestItems, aiRecommendations = sortedRecommendations });
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex.ToString());
-
-                // Lỗi gọi Groq vẫn không nên làm mất phần 1 (data thật từ DB)
                 return Ok(new
                 {
                     suggestions = nearestItems,
