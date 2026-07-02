@@ -255,6 +255,88 @@ Yêu cầu:
                 return StatusCode(500, new ApiResponse<string>($"Lỗi: {ex.Message}"));
             }
         }
+
+        // 6. TÓM TẮT TẤT CẢ GMAIL TRONG INBOX (theo thứ tự)
+        [HttpPost("summarize-all")]
+        public async Task<IActionResult> SummarizeAllGmails([FromQuery] int maxResults = 15)
+        {
+            var userId = GetUserId();
+
+            var googleTokenMemory = await _context.UserMemories
+                .FirstOrDefaultAsync(m => m.UserId == userId && m.Category == "OAuth" && m.Key == "Google_RefreshToken");
+
+            if (googleTokenMemory == null)
+                return BadRequest(new ApiResponse<string>("Chưa liên kết Gmail!"));
+
+            try
+            {
+                var accessToken = await _gmailService.GetNewAccessTokenAsync(googleTokenMemory.Value);
+                var gmails = await _gmailService.GetInboxGmailsAsync(accessToken, maxResults);
+
+                if (gmails == null || gmails.Count == 0)
+                    return Ok(new ApiResponse<List<GmailSummaryItemDto>>(new List<GmailSummaryItemDto>(), "Không có email nào."));
+
+                var results = new GmailSummaryItemDto[gmails.Count];
+                var semaphore = new SemaphoreSlim(4); // giới hạn 4 request AI song song để tránh quá tải
+
+                var tasks = gmails.Select(async (gmail, index) =>
+                {
+                    await semaphore.WaitAsync();
+                    try
+                    {
+                        string body = gmail.Snippet;
+                        try
+                        {
+                            var detail = await _gmailService.GetGmailDetailAsync(accessToken, gmail.Id);
+                            body = !string.IsNullOrWhiteSpace(detail.Body) ? detail.Body : detail.Snippet;
+                        }
+                        catch
+                        {
+                            // Nếu lấy chi tiết lỗi thì dùng tạm snippet đã có
+                        }
+
+                        var prompt = $@"
+Tóm tắt email sau bằng tiếng Việt trong TỐI ĐA 2 câu, ngắn gọn, chỉ nêu ý chính và hành động cần làm (nếu có). Không chào hỏi, không giải thích thêm, chỉ trả về đoạn tóm tắt.
+
+Người gửi: {gmail.From}
+Tiêu đề: {gmail.Subject}
+Nội dung: {body}
+";
+                        string summary;
+                        try
+                        {
+                            summary = (await _aiService.ChatAsync(prompt)).Trim();
+                        }
+                        catch
+                        {
+                            summary = "Không thể tóm tắt email này.";
+                        }
+
+                        results[index] = new GmailSummaryItemDto
+                        {
+                            Index = index + 1,
+                            Id = gmail.Id,
+                            From = gmail.From,
+                            Subject = gmail.Subject,
+                            Date = gmail.Date,
+                            Summary = summary
+                        };
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                });
+
+                await System.Threading.Tasks.Task.WhenAll(tasks);
+
+                return Ok(new ApiResponse<List<GmailSummaryItemDto>>(results.ToList(), "Thành công"));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<string>($"Lỗi: {ex.Message}"));
+            }
+        }
     }
 
     // Các DTO nội bộ — KHÔNG trùng với Assistant.DTOs
@@ -268,5 +350,15 @@ Yêu cầu:
         public string Title { get; set; } = null!;
         public int Priority { get; set; }
         public DateTime? DueDate { get; set; }
+    }
+
+    public class GmailSummaryItemDto
+    {
+        public int Index { get; set; }
+        public string Id { get; set; } = null!;
+        public string From { get; set; } = null!;
+        public string Subject { get; set; } = null!;
+        public string Date { get; set; } = null!;
+        public string Summary { get; set; } = null!;
     }
 }

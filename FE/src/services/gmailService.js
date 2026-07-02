@@ -34,3 +34,9 @@ export const summarizeGmail = (messageId) =>
         method: "POST",
         headers: getHeaders(),
     }).then((r) => r.json());
+
+export const summarizeAllGmails = (maxResults = 15) =>
+    fetch(`${BASE_URL}/api/gmail/summarize-all?maxResults=${maxResults}`, {
+        method: "POST",
+        headers: getHeaders(),
+    }).then((r) => r.json());
