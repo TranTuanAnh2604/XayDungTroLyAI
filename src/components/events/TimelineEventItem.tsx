@@ -30,6 +30,9 @@ export default function TimelineEventItem({
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(32)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  
+  // Log component lifecycle for debugging
+  console.log(`[TimelineEventItem-render] id=${event.id}, type=${event.type}, title=${event.title}`);
 
   useEffect(() => {
     Animated.parallel([
@@ -47,6 +50,12 @@ export default function TimelineEventItem({
       }),
     ]).start();
   }, [fadeAnim, index, slideAnim]);
+
+  // Detect event type changes (e.g., from break → meeting) and reset state
+  useEffect(() => {
+    console.log(`[TimelineEventItem-typechange] id=${event.id}, type=${event.type}, resetting expanded state`);
+    setExpanded(false);
+  }, [event.type, event.id]);
 
   useEffect(() => {
     if (event.type !== 'urgent') return;
@@ -109,15 +118,35 @@ export default function TimelineEventItem({
   };
 
   const renderBody = () => {
+    console.log(`[TimelineEventItem-renderbody] type=${event.type}, rendering conditional layout`);
+    
     if (event.type === 'break') {
+      console.log(`[TimelineEventItem-renderbody-break] title=${event.title}`);
       return (
-        <AppGlassCard variant="surface" padding={12} style={styles.breakCard}>
-          <Text style={styles.breakText}>{event.title}</Text>
-        </AppGlassCard>
+        <Pressable
+          onPress={onEdit ? () => setExpanded((v) => !v) : undefined}
+          style={onEdit ? styles.breakPressable : undefined}
+        >
+          <AppGlassCard variant="surface" padding={12} style={styles.breakCard}>
+            <Text style={styles.breakText}>{event.title}</Text>
+            {expanded && onEdit ? (
+              <View style={styles.expanded}>
+                <Pressable
+                  onPress={onEdit}
+                  style={({ pressed }) => [styles.editBtn, pressed && styles.editBtnPressed]}
+                >
+                  <MaterialIcons name="edit" size={16} color={COLORS.primary} />
+                  <Text style={styles.editBtnText}>Chỉnh sửa</Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </AppGlassCard>
+        </Pressable>
       );
     }
 
     if (event.type === 'task') {
+      console.log(`[TimelineEventItem-renderbody-task] title=${event.title}`);
       return (
         <Pressable onPress={() => setExpanded((v) => !v)}>
           <AppGlassCard
@@ -157,6 +186,26 @@ export default function TimelineEventItem({
 
     const isUrgent = event.type === 'urgent';
     const isMeeting = event.type === 'meeting';
+    
+    // Defensive checks for required props
+    if ((isUrgent || isMeeting) && !event.title) {
+      console.warn(`[TimelineEventItem-error] ${event.type} event missing title:`, event);
+      return <View style={styles.errorCard}><Text>Event data missing</Text></View>;
+    }
+    if ((isUrgent || isMeeting) && !event.description) {
+      console.warn(`[TimelineEventItem-error] ${event.type} event missing description:`, event);
+      return <View style={styles.errorCard}><Text>Event data incomplete</Text></View>;
+    }
+    if ((isUrgent || isMeeting) && !event.badge) {
+      console.warn(`[TimelineEventItem-error] ${event.type} event missing badge:`, event);
+      return <View style={styles.errorCard}><Text>Event data incomplete</Text></View>;
+    }
+    if (isMeeting && !event.joinLabel) {
+      console.warn(`[TimelineEventItem-error] meeting event missing joinLabel:`, event);
+      return <View style={styles.errorCard}><Text>Event data incomplete</Text></View>;
+    }
+    
+    console.log(`[TimelineEventItem-renderbody-meeting/urgent] title=${event.title}, description=${event.description}, badge=${event.badge}`);
 
     return (
       <Pressable
@@ -181,13 +230,13 @@ export default function TimelineEventItem({
                 isUrgent ? styles.badgeTextUrgent : styles.badgeTextPrimary,
               ]}
             >
-              {event.badge}
+              {event.badge || 'N/A'}
             </Text>
           </View>
         </View>
 
         {isUrgent || isMeeting ? (
-          <Text style={styles.description}>{event.description}</Text>
+          <Text style={styles.description}>{event.description || 'No description'}</Text>
         ) : null}
 
         {isUrgent && event.avatars ? (
@@ -205,7 +254,7 @@ export default function TimelineEventItem({
         {isMeeting ? (
           <Pressable style={({ pressed }) => [styles.joinBtn, pressed && styles.btnPressed]}>
             <MaterialIcons name="play-circle-filled" size={18} color={COLORS.onPrimary} />
-            <Text style={styles.joinText}>{event.joinLabel}</Text>
+            <Text style={styles.joinText}>{event.joinLabel || 'Join'}</Text>
           </Pressable>
         ) : null}
 
@@ -299,6 +348,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cardInner: {},
+  errorCard: {
+    backgroundColor: COLORS.errorTint,
+    padding: 16,
+    borderRadius: RADIUS.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 60,
+  },
   cardUrgent: {
     borderColor: COLORS.errorCardBorder,
   },
@@ -411,6 +468,9 @@ const styles = StyleSheet.create({
     borderLeftWidth: 2,
     borderLeftColor: `${COLORS.outlineVariant}4D`,
     borderStyle: 'dashed',
+  },
+  breakPressable: {
+    borderRadius: RADIUS.xl,
   },
   breakText: {
     ...typography.bodyMd,

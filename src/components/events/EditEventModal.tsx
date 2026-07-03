@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -21,6 +22,7 @@ type EditEventModalProps = {
   event: CalendarSyncRequest  | null;
   onClose: () => void;
   onEdit: (eventId: string, event: CalendarSyncRequest) => Promise<void>;
+  onDelete?: (eventId: string) => Promise<void>;
 };
 
 function normalizeDateValue(value: Date | number | string | undefined | null): Date | null {
@@ -58,6 +60,7 @@ export default function EditEventModal({
   event,
   onClose,
   onEdit,
+  onDelete,
 }: EditEventModalProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -165,6 +168,39 @@ export default function EditEventModal({
       setSubmitting(false);
     }
   };
+
+  const handleDelete = async () => {
+    console.log('FULL event object:', JSON.stringify(event, null, 2));
+  if (!event?.id || !onDelete) {
+    return;
+  }
+
+  const confirmed = await new Promise<boolean>((resolve) => {
+    Alert.alert(
+      'Xóa sự kiện',
+      'Bạn chắc chắn muốn xóa sự kiện này?',
+      [
+        { text: 'Hủy', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'Xóa', style: 'destructive', onPress: () => resolve(true) },
+      ],
+      { cancelable: true },
+    );
+  });
+
+  if (!confirmed) return;
+
+  setSubmitting(true);
+  setError(null);
+
+  try {
+    await onDelete(event.id);
+    onClose();
+  } catch (deleteError: any) {
+    setError(deleteError?.message || 'Không thể xóa sự kiện.');
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
@@ -316,6 +352,15 @@ export default function EditEventModal({
             >
               <Text style={styles.buttonText}>{submitting ? 'Đang cập nhật...' : 'Cập nhật sự kiện'}</Text>
             </Pressable>
+            {onDelete ? (
+              <Pressable
+                onPress={handleDelete}
+                style={[styles.deleteButton, submitting && styles.buttonDisabled]}
+                disabled={submitting}
+              >
+                <Text style={styles.deleteButtonText}>Xóa sự kiện</Text>
+              </Pressable>
+            ) : null}
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -384,6 +429,18 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     backgroundColor: `${COLORS.primary}88`,
+  },
+  deleteButton: {
+    marginTop: 12,
+    paddingVertical: 14,
+    borderRadius: 16,
+    backgroundColor: COLORS.error,
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 15,
   },
   buttonText: {
     color: COLORS.onPrimary,

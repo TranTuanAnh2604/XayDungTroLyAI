@@ -1,7 +1,7 @@
 import type {
   DaySummary,
   EmailSummary,
-  TaskItem,
+  HomeDailyTask,
   UpcomingMeeting,
 } from '../types/home';
 import { HOME_ASSETS } from '../constants/homeAssets';
@@ -52,7 +52,37 @@ export const UPCOMING_MEETING: UpcomingMeeting = {
   extraAttendees: 2,
 };
 
-export const DAILY_TASKS: TaskItem[] = [
+export const WEEKLY_TIME_CATEGORIES = [
+  {
+    id: 'work',
+    title: 'Công việc chính',
+    subtitle: 'Phát triển và họp',
+    hours: 18,
+    color: '#7C4DFF',
+  },
+  {
+    id: 'learning',
+    title: 'Học tập',
+    subtitle: 'Nghiên cứu và cải tiến',
+    hours: 6,
+    color: '#00BFA6',
+  },
+  {
+    id: 'admin',
+    title: 'Hành chính',
+    subtitle: 'Email và báo cáo',
+    hours: 4,
+    color: '#FFB300',
+  },
+];
+
+export const GOAL_PROGRESS = {
+  completedPercent: 74,
+  subtitle: 'Hoàn thành mục tiêu tuần',
+  detail: 'Hoàn thành 3/4 mục tiêu chính, giữ hiệu suất ổn định.',
+};
+
+export const DAILY_TASKS: HomeDailyTask[] = [
   {
     id: 't1',
     title: 'Review PR: Màn hình Dashboard',

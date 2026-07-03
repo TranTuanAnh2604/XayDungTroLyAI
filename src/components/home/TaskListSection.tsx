@@ -2,10 +2,10 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import TaskListItem from './TaskListItem';
 import { typography } from '../../constants/typography';
-import type { TaskItem } from '../../types/home';
+import type { HomeDailyTask } from '../../types/home';
 
 type TaskListSectionProps = {
-  tasks: TaskItem[];
+  tasks: HomeDailyTask[];
   onToggleTask?: (id: string, completed: boolean) => void;
 };
 

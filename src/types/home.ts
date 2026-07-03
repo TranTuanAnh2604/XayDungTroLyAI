@@ -6,7 +6,7 @@ export type EmailSummary = {
   iconColor: 'primary' | 'secondary';
 };
 
-export type TaskItem = {
+export type HomeDailyTask = {
   id: string;
   title: string;
   meta: string;
@@ -31,4 +31,18 @@ export type DaySummary = {
   priorityTasks: number;
   meetings: number;
   progressStep: number;
+};
+
+export type WeeklyTimeCategory = {
+  id: string;
+  title: string;
+  subtitle: string;
+  hours: number;
+  color: string;
+};
+
+export type GoalProgress = {
+  completedPercent: number;
+  subtitle: string;
+  detail: string;
 };

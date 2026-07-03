@@ -30,7 +30,8 @@
       "expo-font",
       "expo-secure-store",
       "expo-mail-composer",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "@react-native-google-signin/google-signin"
     ],
     "ios": {
       "supportsTablet": true
@@ -39,7 +40,8 @@
       "permissions": [
         "READ_CONTACTS",
         "READ_CALENDAR",
-        "WRITE_CALENDAR"
+        "WRITE_CALENDAR",
+        "POST_NOTIFICATIONS"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",

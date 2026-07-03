@@ -3,14 +3,29 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { COLORS } from '../../constants/theme';
 import { typography } from '../../constants/typography';
 import type { GmailEmail } from '../../services/gmail';
+import MailActionToolbar from './MailActionToolbar';
 
 type MailDetailModalProps = {
   visible: boolean;
   email: GmailEmail | null;
   onClose: () => void;
+  onPinPress?: (emailId: string) => void;
+  onArchivePress?: (emailId: string) => void;
+  isPinned?: boolean;
+  isArchived?: boolean;
+  isBusy?: boolean;
 };
 
-export default function MailDetailModal({ visible, email, onClose }: MailDetailModalProps) {
+export default function MailDetailModal({
+  visible,
+  email,
+  onClose,
+  onPinPress,
+  onArchivePress,
+  isPinned = false,
+  isArchived = false,
+  isBusy = false,
+}: MailDetailModalProps) {
   if (!email) {
     return null;
   }
@@ -27,9 +42,18 @@ export default function MailDetailModal({ visible, email, onClose }: MailDetailM
               <Text style={styles.fromLine}>{email.fromHeader}</Text>
               <Text style={styles.metaText}>{new Date(email.receivedAt).toLocaleString('vi-VN')}</Text>
             </View>
-            <Pressable onPress={onClose} style={styles.closeButton}>
-              <Text style={styles.closeText}>Đóng</Text>
-            </Pressable>
+            <View style={styles.headerActions}>
+              <MailActionToolbar
+                isPinned={isPinned}
+                isArchived={isArchived}
+                disabled={isBusy || !email}
+                onPinPress={() => onPinPress?.(email.id)}
+                onArchivePress={() => onArchivePress?.(email.id)}
+              />
+              <Pressable onPress={onClose} style={styles.closeButton}>
+                <Text style={styles.closeText}>Đóng</Text>
+              </Pressable>
+            </View>
           </View>
           <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
             <View style={styles.aiCard}>
@@ -98,6 +122,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.outline,
     marginTop: 4,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   closeButton: {
     paddingHorizontal: 12,

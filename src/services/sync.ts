@@ -1,7 +1,8 @@
-import { apiPost } from './api';
-import { apiGet, apiPut } from './api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { apiPost, apiGet, apiPut, apiDelete } from './api';
 
 let hasSyncedDeviceDataThisSession = false;
+const PENDING_SERVER_SYNC_EVENTS_KEY = '@app:events:pending_server_sync';
 
 export function shouldSyncDeviceDataThisSession(): boolean {
   return !hasSyncedDeviceDataThisSession;
@@ -9,6 +10,52 @@ export function shouldSyncDeviceDataThisSession(): boolean {
 
 export function markDeviceDataSyncedThisSession(): void {
   hasSyncedDeviceDataThisSession = true;
+}
+
+export async function markCalendarEventPendingServerSync(externalId: string): Promise<void> {
+  if (!externalId) {
+    return;
+  }
+
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_SERVER_SYNC_EVENTS_KEY);
+    const existingIds: string[] = raw ? JSON.parse(raw) : [];
+    if (!existingIds.includes(externalId)) {
+      existingIds.push(externalId);
+      await AsyncStorage.setItem(PENDING_SERVER_SYNC_EVENTS_KEY, JSON.stringify(existingIds));
+    }
+  } catch (error) {
+    console.warn('Failed to remember pending server sync event:', error);
+  }
+}
+
+export async function consumePendingServerSyncEvents(
+  events: CalendarSyncRequest[],
+): Promise<CalendarSyncRequest[]> {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_SERVER_SYNC_EVENTS_KEY);
+    if (!raw) {
+      return events;
+    }
+
+    const pendingExternalIds: string[] = JSON.parse(raw) || [];
+    if (pendingExternalIds.length === 0) {
+      return events;
+    }
+
+    const filteredEvents = events.filter(
+      (event) => !pendingExternalIds.includes(event.externalId),
+    );
+
+    if (filteredEvents.length !== events.length) {
+      await AsyncStorage.removeItem(PENDING_SERVER_SYNC_EVENTS_KEY);
+    }
+
+    return filteredEvents;
+  } catch (error) {
+    console.warn('Failed to consume pending server sync events:', error);
+    return events;
+  }
 }
 
 export type ContactSyncRequest = {
@@ -32,6 +79,7 @@ export type CalendarSyncRequest = {
   source: string;
   externalId: string;
   isAllDay: boolean;
+  notificationId?: string | null;
   fingerprint?: string;
 };
 
@@ -89,6 +137,13 @@ export async function syncCalendars(
   };
 }
 
+function normalizeCalendarEvent(raw: any): CalendarSyncRequest {
+  return {
+    ...raw,
+    externalId: raw.externalId ?? raw.external_id,
+  };
+}
+
 export async function fetchCalendarEvents(
   from?: string,
   to?: string,
@@ -98,63 +153,43 @@ export async function fetchCalendarEvents(
   if (to) query.set('to', to);
 
   const path = `/api/Calendar/events${query.toString() ? `?${query.toString()}` : ''}`;
-  const response = await apiGet<
-    CalendarSyncRequest[] |
-    { events: CalendarSyncRequest[] } |
-    { data: CalendarSyncRequest[] } |
-    { data: { events: CalendarSyncRequest[] } }
-  >(path);
+  const response = await apiGet<any>(path);
+
+  let events: any[] = [];
 
   if (Array.isArray(response)) {
-    return response;
-  }
-
-  if (response && 'events' in response && Array.isArray(response.events)) {
-    return response.events;
-  }
-
-  if (response && 'data' in response) {
+    events = response;
+  } else if (response && 'events' in response && Array.isArray(response.events)) {
+    events = response.events;
+  } else if (response && 'data' in response) {
     if (Array.isArray(response.data)) {
-      return response.data;
-    }
-
-    if (
+      events = response.data;
+    } else if (
       response.data &&
       typeof response.data === 'object' &&
       'events' in response.data &&
       Array.isArray(response.data.events)
     ) {
-      return response.data.events;
+      events = response.data.events;
     }
   }
 
-  return [];
+  return events.map(normalizeCalendarEvent);
 }
 
 export async function createCalendarEvent(
   event: CalendarSyncRequest,
 ): Promise<CalendarSyncRequest> {
-  const response = await apiPost<
-    | CalendarSyncRequest
-    | { data: CalendarSyncRequest }
-    | { data: { event: CalendarSyncRequest } }
-  >('/api/Calendar/events', event);
+  const response = await apiPost<any>('/api/Calendar/events', event);
 
-  if (
-    response &&
-    typeof response === 'object' &&
-    'data' in response &&
-    response.data &&
-    typeof response.data === 'object'
-  ) {
+  if (response && typeof response === 'object' && 'data' in response && response.data) {
     if ('event' in response.data && response.data.event) {
-      return response.data.event;
+      return normalizeCalendarEvent(response.data.event);
     }
-
-    return response.data as CalendarSyncRequest;
+    return normalizeCalendarEvent(response.data);
   }
 
-  return response as CalendarSyncRequest;
+  return normalizeCalendarEvent(response);
 }
 
 export async function updateCalendarEvent(
@@ -175,13 +210,13 @@ export async function updateCalendarEvent(
     typeof response.data === 'object'
   ) {
     if ('event' in response.data && response.data.event) {
-      return response.data.event;
+      return normalizeCalendarEvent(response.data.event);
     }
 
-    return response.data as CalendarSyncRequest;
+    return normalizeCalendarEvent(response.data);
   }
 
-  return response as CalendarSyncRequest;
+  return normalizeCalendarEvent(response);
 }
 
 export async function getCalendarConflicts(): Promise<
@@ -205,6 +240,15 @@ export async function resolveCalendarConflict(
   await apiPut('/api/Calendar/conflicts/' + conflictId + '/resolve', {
     resolution,
   });
+}
+
+export async function deleteCalendarEvent(
+  eventId: string,
+): Promise<void> {
+  await apiDelete<{
+    success?: boolean;
+    message?: string;
+  }>(`/api/Calendar/events/${eventId}`);
 }
 
 export async function syncCalendarsAndResolveConflicts(

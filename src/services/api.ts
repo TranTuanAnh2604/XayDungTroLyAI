@@ -181,3 +181,10 @@ export async function apiPut<T>(
   return makeRequest<T>('PUT', path, body, options?.skipAuth ?? false);
 }
 
+export async function apiDelete<T>(
+  path: string,
+  options?: { skipAuth?: boolean },
+): Promise<T> {
+  return makeRequest<T>('DELETE', path, undefined, options?.skipAuth ?? false);
+}
+

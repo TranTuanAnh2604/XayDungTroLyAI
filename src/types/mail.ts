@@ -1,9 +1,6 @@
-import type { ComponentProps } from 'react';
-import type { MaterialIcons } from '@expo/vector-icons';
+import type { MaterialIconName } from './common';
 
-export type MaterialIconName = ComponentProps<typeof MaterialIcons>['name'];
-
-export type MailFilterId = 'all' | 'unread' | 'recent' | 'important';
+export type MailFilterId = 'all' | 'unread' | 'recent' | 'important' | 'archived';
 
 export type MailCategoryTone = 'emerald' | 'primary' | 'secondary';
 

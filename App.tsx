@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './src/navigation/AppNavigator';
 import { AuthProvider } from './src/context/AuthContext';
 import { COLORS } from './src/constants/theme';
+import { initializeNotifications } from './src/services/notifications';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -15,6 +16,7 @@ export default function App() {
   useEffect(() => {
     (async () => {
       await SystemUI.setBackgroundColorAsync(COLORS.bg);
+      await initializeNotifications();
       setAppIsReady(true);
     })();
   }, []);

@@ -1,5 +1,6 @@
 import * as Calendar from 'expo-calendar';
 import type { CalendarSyncRequest } from './sync';
+import { parseExternalId } from '../utils/calendarUtils';
 const DEFAULT_CALENDAR_SYNC_START = new Date('2026-01-01');
 const DEFAULT_CALENDAR_SYNC_END = new Date('2027-01-01');
 
@@ -24,7 +25,6 @@ export async function fetchDeviceCalendarEvents(
   );
 
   const eventRequests = visibleCalendars.map((calendar) =>
-    // fetchCalendarEventsForCalendar(calendar, startDate, endDate, accountId),
     fetchCalendarEventsForCalendar(calendar, startDate, endDate),
   );
 
@@ -65,5 +65,89 @@ async function fetchCalendarEventsForCalendar(
       error,
     );
     return [];
+  }
+}
+
+
+export async function createDeviceCalendarEvent(
+  event: CalendarSyncRequest,
+): Promise<string> {
+  const { status } = await Calendar.requestCalendarPermissionsAsync();
+  if (status !== 'granted') {
+    throw new Error('Chưa được cấp quyền truy cập Calendar trên thiết bị.');
+  }
+
+  const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+  const writableCalendar = calendars.find(
+    (calendar) =>
+      calendar.allowsModifications === true ||
+      calendar.accessLevel === 'owner',
+  ) ?? calendars[0];
+
+  if (!writableCalendar) {
+    throw new Error('Không tìm thấy lịch phù hợp để thêm sự kiện.');
+  }
+
+  const eventId = await Calendar.createEventAsync(writableCalendar.id, {
+    title: event.title,
+    notes: event.description,
+    startDate: new Date(event.startTime),
+    endDate: new Date(event.endTime),
+    location: event.location,
+    allDay: event.isAllDay,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  });
+
+  return `${writableCalendar.id}_${eventId}`;
+}
+
+
+export async function updateDeviceCalendarEvent(
+  externalId: string,
+  event: CalendarSyncRequest,
+): Promise<void> {
+  const { eventId } = parseExternalId(externalId);
+  if (!eventId) {
+    throw new Error('External ID không hợp lệ để cập nhật sự kiện trên thiết bị.');
+  }
+
+  const { status } = await Calendar.requestCalendarPermissionsAsync();
+  if (status !== 'granted') {
+    throw new Error('Chưa được cấp quyền truy cập Calendar trên thiết bị.');
+  }
+
+  await Calendar.updateEventAsync(eventId, {
+    title: event.title,
+    notes: event.description,
+    startDate: new Date(event.startTime),
+    endDate: new Date(event.endTime),
+    location: event.location,
+    allDay: event.isAllDay,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  });
+}
+
+
+export async function deleteDeviceCalendarEvent(
+  externalId: string,
+  instanceStartDate?: Date
+) {
+  const { eventId } = parseExternalId(externalId);
+  if (!eventId) return;
+
+  const { status } = await Calendar.requestCalendarPermissionsAsync();
+  if (status !== 'granted') {
+    throw new Error('Chưa được cấp quyền truy cập Calendar trên thiết bị.');
+  }
+
+  try {
+    await Calendar.deleteEventAsync(
+      eventId,
+      instanceStartDate ? { instanceStartDate } : {}
+    );
+    console.log('Deleted device event:', eventId);
+  } catch (error) {
+    console.error('Delete failed:', error);
+    throw error;
   }
 }

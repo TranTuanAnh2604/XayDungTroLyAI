@@ -20,12 +20,16 @@ import {
   DAY_SUMMARY,
   DAILY_TASKS,
   EMAIL_SUMMARIES,
+  GOAL_PROGRESS,
   HOME_USER,
   UPCOMING_MEETING,
+  WEEKLY_TIME_CATEGORIES,
 } from '../../data/homeMock';
+import GoalProgressCard from '../../components/home/GoalProgressCard';
+import WeeklyTimeStatsCard from '../../components/home/WeeklyTimeStatsCard';
 import { COLORS } from '../../constants/theme';
 import { typography } from '../../constants/typography';
-import type { TaskItem } from '../../types/home';
+import type { HomeDailyTask } from '../../types/home';
 import { useOpenSettings } from '../../hooks/useOpenSettings';
 import {
   fetchDeviceCalendarEvents,
@@ -40,12 +44,13 @@ import {
   syncContacts,
   markDeviceDataSyncedThisSession,
   shouldSyncDeviceDataThisSession,
+  consumePendingServerSyncEvents,
 } from '../../services/sync';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const openSettings = useOpenSettings();
-  const [tasks, setTasks] = useState<TaskItem[]>(DAILY_TASKS);
+  const [tasks, setTasks] = useState<HomeDailyTask[]>(DAILY_TASKS);
 
   useEffect(() => {
     async function initializeSync() {
@@ -105,7 +110,13 @@ export default function HomeScreen() {
         return;
       }
 
-      const result = await syncCalendarsAndResolveConflicts(events);
+      const eventsToSync = await consumePendingServerSyncEvents(events);
+      if (eventsToSync.length === 0) {
+        console.log('No new device calendar events to sync.');
+        return;
+      }
+
+      const result = await syncCalendarsAndResolveConflicts(eventsToSync);
       console.log('Sync Calendar Result:', result);
     } catch (error) {
       console.error('Calendar Sync Error:', error);
@@ -123,7 +134,7 @@ export default function HomeScreen() {
     <TabScreenLayout
       topBar={<TopAppBar onSettingsPress={openSettings} />}
       bottomExtra={SCROLL_BOTTOM_EXTRA + 32}
-      footer={<HomeFAB bottomOffset={bottomChrome + 16} />}
+      // footer={<HomeFAB bottomOffset={bottomChrome + 16} />}
     >
       <View style={styles.greeting}>
         <Text style={styles.greetingTitle}>
@@ -132,13 +143,10 @@ export default function HomeScreen() {
         <Text style={styles.greetingSubtitle}>{HOME_USER.subtitle}</Text>
       </View>
 
-      <DaySummaryCard summary={DAY_SUMMARY} />
+      <WeeklyTimeStatsCard categories={WEEKLY_TIME_CATEGORIES} />
 
-      <EmailSummarySection items={EMAIL_SUMMARIES} />
+      <GoalProgressCard progress={GOAL_PROGRESS} />
 
-      <UpcomingMeetingCard meeting={UPCOMING_MEETING} />
-
-      <TaskListSection tasks={tasks} onToggleTask={handleToggleTask} />
     </TabScreenLayout>
   );
 }

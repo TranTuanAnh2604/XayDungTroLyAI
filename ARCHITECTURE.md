@@ -2,7 +2,7 @@
 
 > **Canonical reference for the Hivic AI codebase.**
 > Read this document in its entirety before contributing code.
-> Last revised: 2026-06-28.
+> Last revised: 2026-07-03.
 
 ---
 
@@ -96,10 +96,7 @@ d:\AIAssistantApp\
 ├── assets/                        # Root-level Expo assets: icon.png, splash-icon.png, adaptive-icon.png.
 │
 └── src/
-    ├── assets/                    # Application assets.
-    │   ├── fonts/                 #   Custom fonts (placeholder — currently empty).
-    │   ├── icons/                 #   Custom icons (placeholder — currently empty).
-    │   └── images/                #   Feature images (placeholder — currently empty).
+    ├── assets/                    # Application assets (currently only logo.png reference in constants/assets.ts).
     │
     ├── components/                # All presentational and composite UI components.
     │   ├── auth/                  #   Auth-specific: branding hero, OTP modal, password reset modals.
@@ -135,8 +132,6 @@ d:\AIAssistantApp\
     ├── hooks/                     # Custom React hooks.
     │   └── useOpenSettings.ts     #   Returns a callback that navigates to the Settings screen.
     │
-    ├── i18n/                      # Internationalisation (placeholder — currently empty).
-    │
     ├── navigation/                # React Navigation configuration.
     │   ├── AppNavigator.tsx        #   Root stack: Auth | Main | Settings. Guards on auth state.
     │   ├── AuthNavigator.tsx       #   Auth stack: Login → Register.
@@ -152,11 +147,10 @@ d:\AIAssistantApp\
     │   ├── mail/                  #   MailScreen.
     │   ├── settings/              #   SettingsScreen.
     │   ├── tasks/                 #   TasksScreen.
-    │   ├── voice/                 #   VoiceAssistantScreen.
-    │   └── PlaceholderTabScreen.tsx  # Generic placeholder (legacy, not actively used).
+    │   └── voice/                 #   VoiceAssistantScreen.
     │
     ├── services/                  # Business logic, API clients, device integrations.
-    │   ├── api.ts                 #   Generic HTTP client (apiGet, apiPost, apiPut). Token management.
+    │   ├── api.ts                 #   Generic HTTP client (apiGet, apiPost, apiPut, apiDelete). Token management.
     │   ├── auth.ts                #   Auth API functions: login, register, OTP, password reset, refresh.
     │   ├── authFlow.ts            #   Composite auth orchestration (OTP verify → auto-login).
     │   ├── authStorage.ts         #   SecureStore CRUD for tokens and user profile.
@@ -164,18 +158,19 @@ d:\AIAssistantApp\
     │   ├── gmail.ts               #   Gmail connect, sync, fetch, mark-read, response normalisation.
     │   ├── calendar.ts            #   Device calendar: permission request, event fetching.
     │   ├── contacts.ts            #   Device contacts: permission request, contact fetching.
-    │   └── sync.ts                #   Backend sync: contacts, calendar events, conflict resolution.
-    │
-    ├── store/                     # Redux store (placeholder — currently empty and unused).
-    │
-    ├── theme/                     # Theme configuration (placeholder — currently empty).
+    │   ├── notifications.ts       #   Push notification scheduling and management (expo-notifications).
+    │   └── sync.ts                #   Backend sync: contacts, calendar events, delete, conflict resolution.
     │
     ├── types/                     # TypeScript type/interface definitions, one file per feature.
+    │   ├── common.ts              #   Shared cross-feature types: MaterialIconName.
     │   ├── navigation.ts          #   AppTabId union type.
-    │   ├── chat.ts, events.ts, home.ts, mail.ts, settings.ts, tasks.ts, voice.ts
+    │   ├── home.ts                #   EmailSummary, HomeDailyTask, UpcomingMeeting, DaySummary, WeeklyTimeCategory, GoalProgress.
+    │   ├── chat.ts, events.ts, mail.ts, settings.ts, tasks.ts, voice.ts
     │   └──                        #   Feature-specific type definitions.
     │
-    └── utils/                     # Shared utility functions (placeholder — currently empty).
+    └── utils/                     # Shared pure utility functions.
+        ├── calendarUtils.ts       #   parseExternalId() — parses calendarId + eventId from externalId string.
+        └── eventTypeDetection.ts  #   detectEventType(), getReminderOffsetForEventType(), getKeywordsForEventType().
 ```
 
 ### Structural Rules
@@ -331,18 +326,21 @@ If multiple requests receive 401 simultaneously, only the first triggers a refre
 | `/api/Calendar/sync`                   | POST   | Yes  | `sync.ts`     |
 | `/api/Calendar/events`                 | GET    | Yes  | `sync.ts`     |
 | `/api/Calendar/events`                 | POST   | Yes  | `sync.ts`     |
-| `/api/Calendar/events/:id`            | PUT    | Yes  | `sync.ts`     |
+| `/api/Calendar/events/:id`             | PUT    | Yes  | `sync.ts`     |
+| `/api/Calendar/events/:id`             | DELETE | Yes  | `sync.ts`     |
 | `/api/Calendar/conflicts`              | GET    | Yes  | `sync.ts`     |
-| `/api/Calendar/conflicts/:id/resolve` | PUT    | Yes  | `sync.ts`     |
+| `/api/Calendar/conflicts/:id/resolve`  | PUT    | Yes  | `sync.ts`     |
 | `/api/Gmail/connect`                   | POST   | Yes  | `gmail.ts`    |
 | `/api/Gmail/auto-sync`                 | POST   | Yes  | `gmail.ts`    |
 | `/api/Gmail/emails`                    | GET    | Yes  | `gmail.ts`    |
-| `/api/Gmail/emails/:id/read`          | PUT    | Yes  | `gmail.ts`    |
+| `/api/Gmail/emails/:id/read`           | PUT    | Yes  | `gmail.ts`    |
+| `/api/Gmail/emails/:id/pin`            | PUT    | Yes  | `gmail.ts`    |
+| `/api/Gmail/emails/:id/archive`        | PUT    | Yes  | `gmail.ts`    |
 
 ### Adding New Endpoints
 
 1. Add the API function in the appropriate service file (or create a new one in `services/`).
-2. Use the generic `apiGet<T>`, `apiPost<T>`, or `apiPut<T>` — never call `fetch()` directly.
+2. Use the generic `apiGet<T>`, `apiPost<T>`, `apiPut<T>`, or `apiDelete<T>` — never call `fetch()` directly.
 3. Define response types in `types/` or inline with the function.
 4. Normalise the response inside the service if the backend shape is inconsistent.
 5. Authenticated endpoints require no special handling — `api.ts` injects the token automatically.
@@ -587,6 +585,7 @@ The foundational networking layer. All other services depend on this.
 - `apiGet<T>(path, options?)` — HTTP GET.
 - `apiPost<T>(path, body?, options?)` — HTTP POST.
 - `apiPut<T>(path, body, options?)` — HTTP PUT.
+- `apiDelete<T>(path, options?)` — HTTP DELETE.
 - Internal: `makeRequest<T>()` — request construction, auth injection, error handling, 401 refresh.
 - Internal: `refreshAccessToken()` — mutex-protected token refresh.
 
@@ -641,6 +640,8 @@ Gmail backend integration (emails are fetched server-side via Google API).
 - `autoSyncGmail()` — triggers backend-side email sync.
 - `fetchGmailEmails(page, limit)` → `GmailEmail[]` — paginated email fetch with normalisation.
 - `markGmailEmailAsRead(emailId)` — marks email as read.
+- `pinGmailEmail(emailId)` — toggles pin state on an email (`PUT /api/Gmail/emails/:id/pin`).
+- `archiveGmailEmail(emailId)` — toggles archive state on an email (`PUT /api/Gmail/emails/:id/archive`).
 
 Internal: 8 normaliser functions (`getSender`, `getFromHeader`, `getContent`, `getRecipient`, `getReceivedAt`, `cleanSenderName`, `normalizeGmailEmail`).
 
@@ -649,7 +650,10 @@ Internal: 8 normaliser functions (`getSender`, `getFromHeader`, `getContent`, `g
 Local device calendar access via `expo-calendar`.
 
 - `requestCalendarPermission()` → `boolean`
-- `fetchDeviceCalendarEvents(start?, end?)` → `CalendarSyncRequest[]`
+- `fetchDeviceCalendarEvents(start?, end?)` → `CalendarSyncRequest[]` — reads events from all visible device calendars.
+- `createDeviceCalendarEvent(event)` → `string` — creates event on device calendar, returns `calendarId_eventId` externalId.
+- `updateDeviceCalendarEvent(externalId, event)` — updates event on device by externalId.
+- `deleteDeviceCalendarEvent(externalId, instanceStartDate?)` — deletes event from device calendar.
 
 #### `contacts.ts` — Device Contacts
 
@@ -667,15 +671,36 @@ Synchronisation between device data and backend, plus server-side CRUD.
 - `fetchCalendarEvents(from?, to?)` → `CalendarSyncRequest[]` — fetches events from backend.
 - `createCalendarEvent(event)` → `CalendarSyncRequest` — creates event on backend.
 - `updateCalendarEvent(eventId, event)` → `CalendarSyncRequest` — updates event on backend.
+- `deleteCalendarEvent(eventId)` — deletes event from backend (`DELETE /api/Calendar/events/:id`).
 - `getCalendarConflicts()` → `CalendarConflict[]`
 - `resolveCalendarConflict(conflictId, resolution)` — resolves sync conflicts.
 - `syncCalendarsAndResolveConflicts(data)` — composite: sync + auto-resolve conflicts.
 - `shouldSyncDeviceDataThisSession()` / `markDeviceDataSyncedThisSession()` — session-level sync gate.
+- `markCalendarEventPendingServerSync(externalId)` — queues an externalId for deferred server sync (persisted via AsyncStorage).
+- `consumePendingServerSyncEvents(events)` — filters out events that are already pending server-side sync, then clears the queue.
+
+#### `notifications.ts` — Push Notification Service
+
+Local push notification scheduling via `expo-notifications`. Used by `EventsScreen` to remind users before calendar events.
+
+- `initializeNotifications()` → `boolean` — requests permission, ensures Android notification channel exists.
+- `requestNotificationPermission()` → `boolean` — alias of `initializeNotifications()`.
+- `scheduleEventNotification(eventId, title, body, eventStartTime, reminderMinutes?)` → `string | null` — schedules a single time-interval notification.
+- `scheduleEventReminderForEvent(event, previousNotificationId?)` → `string | null` — infers reminder type from event title (via `utils/eventTypeDetection`), cancels old notification, schedules new one.
+- `upsertEventReminder(eventId, title, body, eventStartTime, reminderMinutes?, previousNotificationId?)` → `string | null` — cancel + reschedule helper.
+- `cancelEventReminder(notificationId?)` — cancels a single scheduled notification.
+- `cancelScheduledNotification(notificationId)` — low-level cancel wrapper.
+- `calculateNotificationDelaySeconds(eventStartTime, reminderMinutes, now?)` → `number | null` — pure helper, returns seconds until notification fires (or `null` if in the past).
+- `getReminderOffset(eventType)` → `number` — returns reminder minutes for a given event type string.
+
+Exported type: `ScheduledNotification` (`{ id, notificationId }`), `ReminderEventType` (alias of `EventType`).
+
+---
 
 ### Adding a New Service
 
 1. Create `src/services/featureName.ts`.
-2. Import `apiGet`/`apiPost`/`apiPut` from `./api`.
+2. Import `apiGet`/`apiPost`/`apiPut`/`apiDelete` from `./api`.
 3. Define request/response types at the top of the file or in `types/`.
 4. Export pure async functions. Do not store state unless absolutely necessary.
 5. Normalise any inconsistent backend responses inside the service.
@@ -851,7 +876,6 @@ Structural components that define page layout and navigation chrome. Used by all
 | `TabScreenLayout` | Scroll container with top bar, content, and footer |
 | `TopAppBar`       | Fixed header with logo, title, settings, back      |
 | `BottomNavBar`    | Floating glassmorphic tab bar                      |
-| `AppBottomNav`    | Re-export wrapper (legacy)                         |
 
 ### Tier 3 — Feature Components (`components/{feature}/`)
 

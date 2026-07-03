@@ -1,9 +1,6 @@
 /** Top app bar content row (`h-16` in web design). */
 export const TOP_APP_BAR_HEIGHT = 64;
 
-/** @deprecated Use `TOP_APP_BAR_HEIGHT` */
-export const CHAT_HEADER_BAR_HEIGHT = TOP_APP_BAR_HEIGHT;
-
 export const TOP_APP_BAR_Z_INDEX = 50;
 export const BOTTOM_NAV_Z_INDEX = 50;
 
@@ -38,11 +35,6 @@ export const CHAT_COMPOSER_BOTTOM_GAP = 4;
 
 export function getTopAppBarHeight(insets: { top: number }): number {
   return insets.top + TOP_APP_BAR_HEIGHT;
-}
-
-/** @deprecated Use `getTopAppBarHeight` */
-export function getChatHeaderHeight(insets: { top: number }): number {
-  return getTopAppBarHeight(insets);
 }
 
 export function getBottomNavReservedHeight(insets: { bottom: number }): number {

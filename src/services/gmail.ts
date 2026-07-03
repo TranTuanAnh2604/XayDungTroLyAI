@@ -202,9 +202,21 @@ export async function autoSyncGmail(): Promise<{
 export async function fetchGmailEmails(
   page = 1,
   limit = 20,
+  options?: {
+    includeArchived?: boolean;
+    minImportance?: number;
+    category?: string;
+  },
 ): Promise<GmailEmail[]> {
+  const params = new URLSearchParams();
+  params.set('page', String(page));
+  params.set('limit', String(limit));
+  if (options?.includeArchived !== undefined) params.set('includeArchived', String(Boolean(options.includeArchived)));
+  if (options?.minImportance !== undefined) params.set('minImportance', String(Number(options.minImportance)));
+  if (options?.category) params.set('category', String(options.category));
+
   const response = await apiGet<GmailEmailsResponse>(
-    `/api/Gmail/emails?page=${page}&limit=${limit}`,
+    `/api/Gmail/emails?${params.toString()}`,
   );
 
   console.log('📧 fetchGmailEmails response', JSON.stringify(response, null, 2));
@@ -238,3 +250,32 @@ export async function markGmailEmailAsRead(
     message: response.message,
   };
 }
+
+export async function pinGmailEmail(
+  emailId: string,
+): Promise<{ success: boolean; message?: string }> {
+  const response = await apiPut<{ success?: boolean; message?: string }>(
+    `/api/Gmail/emails/${emailId}/pin`,
+    {},
+  );
+
+  return {
+    success: response.success ?? true,
+    message: response.message,
+  };
+}
+
+export async function archiveGmailEmail(
+  emailId: string,
+): Promise<{ success: boolean; message?: string }> {
+  const response = await apiPut<{ success?: boolean; message?: string }>(
+    `/api/Gmail/emails/${emailId}/archive`,
+    {},
+  );
+
+  return {
+    success: response.success ?? true,
+    message: response.message,
+  };
+}
+// Note: backend toggles archive/pin state when calling the same endpoint twice.

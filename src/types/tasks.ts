@@ -1,7 +1,4 @@
-import type { ComponentProps } from 'react';
-import type { MaterialIcons } from '@expo/vector-icons';
-
-export type MaterialIconName = ComponentProps<typeof MaterialIcons>['name'];
+import type { MaterialIconName } from './common';
 
 export type TaskPriority = 'high' | 'normal' | 'low';
 

@@ -4,10 +4,10 @@ import { MaterialIcons } from '@expo/vector-icons';
 import AppGlassCard from '../ui/AppGlassCard';
 import { COLORS } from '../../constants/theme';
 import { typography } from '../../constants/typography';
-import type { TaskItem } from '../../types/home';
+import type { HomeDailyTask } from '../../types/home';
 
 type TaskListItemProps = {
-  task: TaskItem;
+  task: HomeDailyTask;
   onToggle?: (id: string, completed: boolean) => void;
 };
 

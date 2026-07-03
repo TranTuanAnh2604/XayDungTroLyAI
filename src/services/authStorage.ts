@@ -1,6 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
 import type { AuthResponse, AuthUser } from './auth';
-import { getGoogleIdToken } from './googleAuth';
 
 const AUTH_TOKEN_KEY = 'AUTH_TOKEN';
 const AUTH_USER_KEY = 'AUTH_USER';

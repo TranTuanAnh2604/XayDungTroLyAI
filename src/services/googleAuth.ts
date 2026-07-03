@@ -1,72 +1,3 @@
-// import {
-//   GoogleSignin,
-//   statusCodes,
-// } from '@react-native-google-signin/google-signin';
-
-// export function configureGoogleSignIn(webClientId: string) {
-//   GoogleSignin.configure({
-//     webClientId,
-//     offlineAccess: true,
-//     // FIX: phải khai báo rõ scope 'gmail.readonly', nếu không refresh token
-//     // chỉ có quyền email/profile cơ bản, backend gọi Gmail API sẽ bị từ chối
-//     // (insufficient scope) -> không bao giờ lấy/lưu được email nào vào DB.
-//     scopes: [
-//       'email',
-//       'profile',
-//       'https://www.googleapis.com/auth/gmail.readonly',
-//     ],
-//   });
-// }
-
-// export async function getGoogleIdToken(): Promise<string> {
-//   await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-
-//   try {
-//     await signOutGoogle();
-//   } catch (error) {
-//     console.log('Google sign-out cleanup before signIn failed:', error);
-//   }
-
-//   await GoogleSignin.signIn();
-
-//   const tokens = await GoogleSignin.getTokens();
-//   const idToken = tokens.idToken;
-
-//   if (!idToken) {
-//     throw new Error('Không nhận được ID Token từ Google');
-//   }
-
-//   return idToken;
-// }
-
-// export async function signOutGoogle(): Promise<void> {
-//   try {
-//     const tokens = await GoogleSignin.getTokens();
-//     if (tokens?.accessToken) {
-//       try {
-//         await GoogleSignin.clearCachedAccessToken(tokens.accessToken);
-//       } catch (error) {
-//         console.log('GoogleSignin.clearCachedAccessToken failed:', error);
-//       }
-//     }
-//   } catch (error) {
-//     console.log('GoogleSignin.getTokens failed while signing out:', error);
-//   }
-
-//   try {
-//     await GoogleSignin.revokeAccess();
-//   } catch (error) {
-//     console.log('GoogleSignin.revokeAccess failed:', error);
-//   }
-
-//   try {
-//     await GoogleSignin.signOut();
-//   } catch (error) {
-//     console.log('GoogleSignin.signOut failed:', error);
-//   }
-// }
-
-// export { statusCodes };
 import {
   GoogleSignin,
   statusCodes,
@@ -141,29 +72,6 @@ export async function getGoogleIdToken(): Promise<{
 
   return { idToken, serverAuthCode };
 }
-
-// Giữ lại hàm cũ để không phá vỡ những nơi khác đang gọi getGoogleIdToken(),
-// nhưng khuyến nghị chuyển sang dùng signInWithGoogle() ở trên cho luồng liên kết Gmail.
-// export async function getGoogleIdToken(): Promise<string> {
-//   await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-
-//   try {
-//     await GoogleSignin.signOut();
-//   } catch (error) {
-//     console.log('GoogleSignin.signOut before signIn failed:', error);
-//   }
-
-//   await GoogleSignin.signIn();
-
-//   const tokens = await GoogleSignin.getTokens();
-//   const idToken = tokens.idToken;
-
-//   if (!idToken) {
-//     throw new Error('Không nhận được ID Token từ Google');
-//   }
-
-//   return idToken;
-// }
 
 export async function signOutGoogle(): Promise<void> {
   try {

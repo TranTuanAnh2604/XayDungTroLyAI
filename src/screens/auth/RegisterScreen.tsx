@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -25,8 +25,9 @@ import { typography } from '../../constants/typography';
 import { SPACING } from '../../constants/spacing';
 import type { AuthStackParamList } from '../../navigation/types';
 import { useAuth } from '../../context/AuthContext';
-import { login as loginApi } from '../../services/auth';
 import { completeRegistrationWithOtp } from '../../services/authFlow';
+import { configureGoogleSignIn, getGoogleIdToken, statusCodes } from '../../services/googleAuth';
+import { GOOGLE_WEB_CLIENT_ID } from '../../constants/config';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
@@ -38,7 +39,11 @@ export default function RegisterScreen({ navigation }: Props) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
   const [showOTPModal, setShowOTPModal] = useState(false);
-  const { signUp, setAuthDataFromOTP } = useAuth();
+  const { signUp, signInWithGoogle, setAuthDataFromOTP } = useAuth();
+
+  useEffect(() => {
+    configureGoogleSignIn(GOOGLE_WEB_CLIENT_ID);
+  }, []);
 
   const handleRegister = async () => {
     if (!fullName.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
@@ -103,6 +108,38 @@ export default function RegisterScreen({ navigation }: Props) {
     setEmail('');
     setPassword('');
     setConfirmPassword('');
+  };
+
+  const handleGoogleSignUp = async () => {
+    setIsRegistering(true);
+
+    try {
+      const { idToken, serverAuthCode } = await getGoogleIdToken();
+      console.log('🔑 RegisterScreen: received serverAuthCode length =', serverAuthCode?.length);
+      await signInWithGoogle(idToken, serverAuthCode);
+      navigation.getParent()?.reset({
+        index: 0,
+        routes: [{ name: 'Main' }],
+      });
+    } catch (error) {
+      let errorMessage = 'Đăng ký bằng Google thất bại.';
+      if (error instanceof Error) {
+        const errorCode = (error as any).code;
+        if (errorCode === statusCodes.SIGN_IN_CANCELLED) {
+          errorMessage = 'Bạn đã hủy đăng nhập.';
+        } else if (errorCode === statusCodes.IN_PROGRESS) {
+          errorMessage = 'Đăng nhập đang được xử lý...';
+        } else if (errorCode === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+          errorMessage = 'Google Play Services không có trên thiết bị này.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      console.log('❌ Google Register Error:', errorMessage);
+      Alert.alert('Lỗi đăng ký Google', errorMessage);
+    } finally {
+      setIsRegistering(false);
+    }
   };
 
   return (
@@ -193,7 +230,7 @@ export default function RegisterScreen({ navigation }: Props) {
               <SocialLoginButton
                 label="Đăng ký với Google"
                 variant="register"
-                onPress={() => {}}
+                onPress={handleGoogleSignUp}
               />
 
               <View style={styles.loginPrompt}>
