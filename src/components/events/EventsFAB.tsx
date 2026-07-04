@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { COLORS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 
 type EventsFABProps = {
   onPress?: () => void;
@@ -9,6 +9,8 @@ type EventsFABProps = {
 };
 
 export default function EventsFAB({ onPress, bottomOffset = 112 }: EventsFABProps) {
+  const { colors: COLORS } = useTheme();
+  const styles = React.useMemo(() => createStyles(COLORS), [COLORS]);
   return (
     <Pressable
       onPress={onPress}
@@ -23,7 +25,7 @@ export default function EventsFAB({ onPress, bottomOffset = 112 }: EventsFABProp
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any) => StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 32,

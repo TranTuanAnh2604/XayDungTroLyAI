@@ -13,8 +13,9 @@ export type SettingsListItem = {
   label: string;
   subtitle?: string;
   value?: string;
-  type: 'link' | 'toggle';
+  type: 'link' | 'toggle' | 'segmented';
   toggleDefault?: boolean;
+  segments?: { label: string; value: string }[];
 };
 
 export type SettingsListSection = {
@@ -26,5 +27,5 @@ export type SettingsListSection = {
 export type UserProfile = {
   name: string;
   badge: string;
-  avatarUri: string;
+  avatarUri?: string;
 };

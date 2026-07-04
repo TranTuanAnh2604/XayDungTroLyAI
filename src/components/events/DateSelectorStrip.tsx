@@ -1,3 +1,4 @@
+import { getTypography } from '../../constants/typography';
 import React, { useRef } from 'react';
 import {
   Pressable,
@@ -7,8 +8,9 @@ import {
   View,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { COLORS, RADIUS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { RADIUS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { CalendarDateItem } from '../../types/events';
 
 type DateSelectorStripProps = {
@@ -26,6 +28,9 @@ export default function DateSelectorStrip({
   selectedId,
   onSelect,
 }: DateSelectorStripProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const scrollRef = useRef<ScrollView>(null);
 
   const scrollBy = (offset: number) => {
@@ -85,7 +90,7 @@ export default function DateSelectorStrip({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   section: {
     marginBottom: 32,
   },

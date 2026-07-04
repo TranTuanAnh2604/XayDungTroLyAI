@@ -1,3 +1,4 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import {
   Pressable,
@@ -5,8 +6,9 @@ import {
   StyleSheet,
   Text,
 } from 'react-native';
-import { COLORS, RADIUS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { RADIUS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { TaskFilterId } from '../../types/tasks';
 
 type FilterOption = { id: TaskFilterId; label: string };
@@ -22,6 +24,9 @@ export default function TaskFilterChips({
   activeId,
   onChange,
 }: TaskFilterChipsProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   return (
     <ScrollView
       horizontal
@@ -46,7 +51,7 @@ export default function TaskFilterChips({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   scroll: {
     gap: 8,
     paddingBottom: 8,

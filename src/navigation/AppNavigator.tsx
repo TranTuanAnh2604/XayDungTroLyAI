@@ -4,13 +4,15 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AuthNavigator from './AuthNavigator';
 import MainNavigator from './MainNavigator';
 import SettingsScreen from '../screens/settings/SettingsScreen';
-import { COLORS } from '../constants/theme';
+import EditProfileScreen from '../screens/settings/EditProfileScreen';
+import { useTheme } from '../hooks/useTheme';
 import { useAuth } from '../context/AuthContext';
 import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function AppNavigator() {
+  const { colors: COLORS } = useTheme();
   const { user, initialized } = useAuth();
 
   if (!initialized) {
@@ -35,6 +37,11 @@ export default function AppNavigator() {
         <Stack.Screen
           name="Settings"
           component={SettingsScreen}
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="EditProfile"
+          component={EditProfileScreen}
           options={{ animation: 'slide_from_right' }}
         />
       </Stack.Navigator>

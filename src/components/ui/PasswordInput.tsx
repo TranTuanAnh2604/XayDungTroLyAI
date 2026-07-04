@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import BorderTextInput from './BorderTextInput';
-import { COLORS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 import type { TextInputProps } from 'react-native';
 
 type PasswordInputProps = Omit<TextInputProps, 'secureTextEntry'> & {
@@ -14,6 +14,8 @@ export default function PasswordInput({
   value,
   ...rest
 }: PasswordInputProps) {
+  const { colors: COLORS } = useTheme();
+  const styles = React.useMemo(() => createStyles(COLORS), [COLORS]);
   const [visible, setVisible] = useState(false);
 
   return (
@@ -42,7 +44,7 @@ export default function PasswordInput({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any) => StyleSheet.create({
   wrapper: {
     position: 'relative',
   },

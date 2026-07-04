@@ -1,9 +1,10 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import AppGlassCard from '../ui/AppGlassCard';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { MailItem, MailCategoryTone } from '../../types/mail';
 
 type MailListItemProps = {
@@ -11,7 +12,7 @@ type MailListItemProps = {
   onPress?: () => void;
 };
 
-function toneStyles(tone: MailCategoryTone) {
+function toneStyles(tone: MailCategoryTone, COLORS: any) {
   switch (tone) {
     case 'emerald':
       return {
@@ -32,7 +33,10 @@ function toneStyles(tone: MailCategoryTone) {
 }
 
 export default function MailListItem({ email, onPress }: MailListItemProps) {
-  const tone = toneStyles(email.tone);
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
+  const tone = toneStyles(email.tone, COLORS);
 
   return (
     <Pressable
@@ -43,31 +47,31 @@ export default function MailListItem({ email, onPress }: MailListItemProps) {
       ]}
     >
       <AppGlassCard variant="surface" padding={16} style={styles.card}>
-      <View style={styles.row}>
-      <View style={[styles.iconWrap, { backgroundColor: tone.iconBg }]}>
-        <MaterialIcons name={email.icon} size={22} color={tone.iconColor} />
-      </View>
-      <View style={styles.content}>
-        <View style={styles.topRow}>
-          <Text style={styles.sender} numberOfLines={1}>
-            {email.sender}
-          </Text>
-          <Text style={styles.time}>{email.time}</Text>
+        <View style={styles.row}>
+          <View style={[styles.iconWrap, { backgroundColor: tone.iconBg }]}>
+            <MaterialIcons name={email.icon} size={22} color={tone.iconColor} />
+          </View>
+          <View style={styles.content}>
+            <View style={styles.topRow}>
+              <Text style={styles.sender} numberOfLines={1}>
+                {email.sender}
+              </Text>
+              <Text style={styles.time}>{email.time}</Text>
+            </View>
+            <Text style={styles.subject} numberOfLines={1}>
+              {email.subject}
+            </Text>
+            <Text style={styles.preview} numberOfLines={1}>
+              {email.preview}
+            </Text>
+          </View>
         </View>
-        <Text style={styles.subject} numberOfLines={1}>
-          {email.subject}
-        </Text>
-        <Text style={styles.preview} numberOfLines={1}>
-          {email.preview}
-        </Text>
-      </View>
-      </View>
       </AppGlassCard>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   pressable: {
     marginBottom: 8,
   },
@@ -104,21 +108,21 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.onSurface,
+    color: COLORS.textPrimary,
   },
   time: {
     fontSize: 11,
-    color: COLORS.outline,
+    color: COLORS.textSecondary,
   },
   subject: {
     ...typography.bodyMd,
     fontWeight: '500',
-    color: COLORS.onSurface,
+    color: COLORS.textPrimary,
     marginBottom: 4,
   },
   preview: {
     fontSize: 13,
     lineHeight: 18,
-    color: COLORS.onSurfaceVariant,
+    color: COLORS.textSecondary,
   },
 });

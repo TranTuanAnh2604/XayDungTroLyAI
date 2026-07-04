@@ -8,7 +8,8 @@ import {
   Text,
   View,
 } from 'react-native';
-import { COLORS, RADIUS } from '../../constants/theme';
+import { RADIUS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 import type { MailFilterId } from '../../types/mail';
 
 type FilterOption = { id: MailFilterId; label: string };
@@ -24,6 +25,8 @@ export default function MailFilterBar({
   activeId,
   onChange,
 }: MailFilterBarProps) {
+  const { colors: COLORS } = useTheme();
+  const styles = React.useMemo(() => createStyles(COLORS), [COLORS]);
   const indicatorX = useRef(new Animated.Value(0)).current;
   const indicatorW = useRef(new Animated.Value(72)).current;
   const [layouts, setLayouts] = useState<Record<string, { x: number; width: number }>>({});
@@ -57,7 +60,7 @@ export default function MailFilterBar({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
       >
-        <View style={styles.content}>          
+        <View style={styles.content}>
           <Animated.View
             style={[
               styles.indicator,
@@ -88,7 +91,7 @@ export default function MailFilterBar({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any) => StyleSheet.create({
   container: {
     marginBottom: 32,
     height: 40,
@@ -117,9 +120,9 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '500',
-    color: COLORS.outline,
+    color: COLORS.tabInactive,
   },
   labelActive: {
-    color: COLORS.primary,
+    color: COLORS.tabActive,
   },
 });

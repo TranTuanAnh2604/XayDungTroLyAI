@@ -1,3 +1,4 @@
+import { getTypography } from '../../constants/typography';
 import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
@@ -12,8 +13,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OTPInput from '../ui/OTPInput';
 import PrimaryButton from '../ui/PrimaryButton';
-import { COLORS, RADIUS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { RADIUS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
+
 import { resendOTP } from '../../services/auth';
 import IosGlassView from '../ui/IosGlassView';
 
@@ -30,6 +32,9 @@ export default function OTPVerificationModal({
   onVerify,
   onClose,
 }: OTPVerificationModalProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const insets = useSafeAreaInsets();
   const [otp, setOtp] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
@@ -206,7 +211,7 @@ export default function OTPVerificationModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',

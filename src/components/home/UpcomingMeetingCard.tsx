@@ -1,3 +1,4 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import {
   Image,
@@ -7,8 +8,9 @@ import {
   View,
 } from 'react-native';
 import AppGlassCard from '../ui/AppGlassCard';
-import { COLORS, RADIUS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { RADIUS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { UpcomingMeeting } from '../../types/home';
 
 type UpcomingMeetingCardProps = {
@@ -20,6 +22,9 @@ export default function UpcomingMeetingCard({
   meeting,
   onJoinPress,
 }: UpcomingMeetingCardProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Sắp tới</Text>
@@ -63,7 +68,7 @@ export default function UpcomingMeetingCard({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   section: {},
   sectionTitle: {
     ...typography.headlineMd,

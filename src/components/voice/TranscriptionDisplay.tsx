@@ -1,7 +1,8 @@
+import { getTypography } from '../../constants/typography';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 
 type TranscriptionDisplayProps = {
   phrases: string[];
@@ -14,6 +15,9 @@ export default function TranscriptionDisplay({
   processingHint,
   intervalMs = 6000,
 }: TranscriptionDisplayProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const [index, setIndex] = useState(0);
   const opacity = useRef(new Animated.Value(1)).current;
   const translateY = useRef(new Animated.Value(0)).current;
@@ -69,7 +73,7 @@ export default function TranscriptionDisplay({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   container: {
     width: '100%',
     alignItems: 'center',

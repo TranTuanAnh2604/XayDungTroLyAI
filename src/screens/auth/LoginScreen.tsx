@@ -1,3 +1,4 @@
+import { getTypography } from '../../constants/typography';
 import React, { useState, useEffect } from 'react';
 import {
   Alert,
@@ -22,8 +23,8 @@ import PrimaryButton from '../../components/ui/PrimaryButton';
 import SocialLoginButton from '../../components/ui/SocialLoginButton';
 import UnderlineTextInput from '../../components/ui/UnderlineTextInput';
 import { MaterialIcons } from '@expo/vector-icons';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 import { SPACING } from '../../constants/spacing';
 import type { AuthStackParamList } from '../../navigation/types';
 import { useAuth } from '../../context/AuthContext';
@@ -36,6 +37,9 @@ import ResetPasswordModal from '../../components/auth/ResetPasswordModal';
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
 export default function LoginScreen({ navigation }: Props) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const insets = useSafeAreaInsets();
   const topBarHeight = getTopAppBarHeight(insets);
   const [email, setEmail] = useState('');
@@ -313,7 +317,7 @@ const openForgotPassword = () => {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: COLORS.background,

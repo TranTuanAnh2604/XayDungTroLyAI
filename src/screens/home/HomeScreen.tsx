@@ -1,3 +1,4 @@
+import { getTypography } from '../../constants/typography';
 import React, { useEffect, useCallback, useState } from 'react';
 import {
   StyleSheet,
@@ -27,8 +28,8 @@ import {
 } from '../../data/homeMock';
 import GoalProgressCard from '../../components/home/GoalProgressCard';
 import WeeklyTimeStatsCard from '../../components/home/WeeklyTimeStatsCard';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { HomeDailyTask } from '../../types/home';
 import { useOpenSettings } from '../../hooks/useOpenSettings';
 import {
@@ -48,6 +49,9 @@ import {
 } from '../../services/sync';
 
 export default function HomeScreen() {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const insets = useSafeAreaInsets();
   const openSettings = useOpenSettings();
   const [tasks, setTasks] = useState<HomeDailyTask[]>(DAILY_TASKS);
@@ -151,7 +155,7 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   greeting: {},
   greetingTitle: {
     ...typography.displayLgMobile,

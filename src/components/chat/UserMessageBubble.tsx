@@ -1,15 +1,20 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import MessageLabel from './MessageLabel';
-import { COLORS, RADIUS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { RADIUS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
+
 
 type UserMessageBubbleProps = {
   content: string;
 };
 
 export default function UserMessageBubble({ content }: UserMessageBubbleProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   return (
     <View style={styles.wrapper}>
       <MessageLabel text="Bạn" align="right" />
@@ -27,7 +32,7 @@ export default function UserMessageBubble({ content }: UserMessageBubbleProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   wrapper: {
     maxWidth: '85%',
     alignSelf: 'flex-end',

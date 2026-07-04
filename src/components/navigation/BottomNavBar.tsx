@@ -7,8 +7,8 @@ import {
   BOTTOM_NAV_MIN_INSET,
   BOTTOM_NAV_Z_INDEX,
 } from '../../constants/layout';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { getTypography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
 import type { AppTabId } from '../../types/navigation';
 import IosGlassView from '../ui/IosGlassView';
 
@@ -22,6 +22,9 @@ export default function BottomNavBar({
   onTabPress,
 }: BottomNavBarProps) {
   const insets = useSafeAreaInsets();
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS, typography]);
   const bottomOffset = Math.max(insets.bottom, BOTTOM_NAV_MIN_INSET);
 
   return (
@@ -42,7 +45,7 @@ export default function BottomNavBar({
               <MaterialIcons
                 name={tab.icon}
                 size={22}
-                color={active ? COLORS.primary : COLORS.outline}
+                color={active ? COLORS.tabActive : COLORS.tabInactive}
               />
               <Text style={[styles.label, active && styles.labelActive]}>
                 {tab.label}
@@ -55,7 +58,7 @@ export default function BottomNavBar({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   wrapper: {
     position: 'absolute',
     left: '4%',
@@ -89,7 +92,7 @@ const styles = StyleSheet.create({
     borderRadius: 9999,
   },
   tabActive: {
-    backgroundColor: 'rgba(129, 39, 207, 0.12)',
+    backgroundColor: COLORS.secondaryTint,
     paddingHorizontal: 16,
     transform: [{ scale: 1.08 }],
   },
@@ -101,12 +104,12 @@ const styles = StyleSheet.create({
     ...typography.labelCaps,
     fontSize: 10,
     fontWeight: '600',
-    color: COLORS.outline,
+    color: COLORS.tabInactive,
     marginTop: 4,
     textTransform: 'uppercase',
     letterSpacing: -0.2,
   },
   labelActive: {
-    color: COLORS.primary,
+    color: COLORS.tabActive,
   },
 });

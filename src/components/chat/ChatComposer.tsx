@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -7,18 +7,21 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import QuickActionChips from './QuickActionChips';
-import { COLORS, RADIUS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { RADIUS } from '../../constants/theme';
+import { getTypography } from '../../constants/typography';
 import { SPACING } from '../../constants/spacing';
 import type { QuickAction } from '../../types/chat';
 import IosGlassView from '../ui/IosGlassView';
+import { useTheme } from '../../hooks/useTheme';
 
 type ChatComposerProps = {
   placeholder: string;
-  quickActions?: QuickAction[]; 
+  quickActions?: QuickAction[];
   onSend?: (text: string) => void;
   onQuickAction?: (action: QuickAction) => void;
   onVoicePress?: () => void;
+  onNewChat?: () => void;
+  editable?: boolean;
 };
 
 export default function ChatComposer({
@@ -27,11 +30,18 @@ export default function ChatComposer({
   onSend,
   onQuickAction,
   onVoicePress,
+  onNewChat,
+  editable = true,
 }: ChatComposerProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = useMemo(() => createStyles(COLORS, typography), [COLORS, typography]);
+
   const [text, setText] = useState('');
   const [focused, setFocused] = useState(false);
 
   const handleSend = () => {
+    if (!editable) return;
     const trimmed = text.trim();
     if (!trimmed) return;
     onSend?.(trimmed);
@@ -40,30 +50,32 @@ export default function ChatComposer({
 
   return (
     <View style={styles.wrapper}>
-      {/* <LinearGradient
-        colors={['transparent', COLORS.background, COLORS.background]}
-        style={styles.fade}
-        pointerEvents="none"
-      /> */}
       <View style={styles.inner}>
       <IosGlassView
           variant="regular"
           fillOpacity={0.12}
           style={[styles.inputBar, focused && styles.inputBarFocused]}
         >
-          <Pressable hitSlop={8} style={({ pressed }) => pressed && styles.iconPressed}>
-            <MaterialIcons name="attach-file" size={24} color={COLORS.outline} />
+          <Pressable
+            onPress={onNewChat}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Cuộc trò chuyện mới"
+            style={({ pressed }) => [styles.newChatBtn, pressed && styles.iconPressed]}
+          >
+            <MaterialIcons name="add" size={24} color={COLORS.outline} />
           </Pressable>
           <TextInput
             value={text}
             onChangeText={setText}
             placeholder={placeholder}
             placeholderTextColor={COLORS.outline}
-            style={styles.input}
+            style={[styles.input, !editable && styles.inputDisabled]}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             onSubmitEditing={handleSend}
             returnKeyType="send"
+            editable={editable}
           />
           {onVoicePress ? (
             <Pressable
@@ -81,9 +93,11 @@ export default function ChatComposer({
           ) : null}
           <Pressable
             onPress={handleSend}
+            disabled={!editable}
             style={({ pressed }) => [
               styles.sendBtn,
               pressed && styles.sendPressed,
+              !editable && styles.sendBtnDisabled,
             ]}
           >
             <MaterialIcons name="send" size={22} color={COLORS.onPrimary} />
@@ -97,16 +111,9 @@ export default function ChatComposer({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   wrapper: {
     width: '100%',
-  },
-  fade: {
-    position: 'absolute',
-    top: -32,
-    left: 0,
-    right: 0,
-    height: 32,
   },
   inner: {
     paddingHorizontal: SPACING.containerMobile,
@@ -140,6 +147,13 @@ const styles = StyleSheet.create({
     color: COLORS.onSurface,
     paddingVertical: 8,
   },
+  inputDisabled: {
+    opacity: 0.5,
+  },
+  newChatBtn: {
+    padding: 4,
+    borderRadius: RADIUS.md,
+  },
   voiceBtn: {
     padding: 8,
     borderRadius: RADIUS.md,
@@ -157,6 +171,9 @@ const styles = StyleSheet.create({
   },
   sendPressed: {
     transform: [{ scale: 0.9 }],
+  },
+  sendBtnDisabled: {
+    opacity: 0.5,
   },
   iconPressed: {
     opacity: 0.7,

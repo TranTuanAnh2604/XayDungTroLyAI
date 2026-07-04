@@ -1,13 +1,15 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 
 type MeshBackgroundProps = {
   variant?: 'login' | 'register';
 };
 
 export default function MeshBackground({ variant = 'login' }: MeshBackgroundProps) {
+  const { colors: COLORS } = useTheme();
+  const styles = React.useMemo(() => createStyles(COLORS), [COLORS]);
   const pulse1 = useRef(new Animated.Value(0.6)).current;
   const pulse2 = useRef(new Animated.Value(0.6)).current;
 
@@ -104,7 +106,7 @@ export default function MeshBackground({ variant = 'login' }: MeshBackgroundProp
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any) => StyleSheet.create({
   meshSpot: {
     position: 'absolute',
     borderRadius: 9999,

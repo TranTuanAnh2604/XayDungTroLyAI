@@ -10,6 +10,7 @@ import MailAiSummaryCard from '../../components/mail/MailAiSummaryCard';
 import MailCategorySection from '../../components/mail/MailCategorySection';
 import MailFilterBar from '../../components/mail/MailFilterBar';
 import { TabScreenLayout, TopAppBar } from '../../components/navigation';
+import { useTheme } from '../../hooks/useTheme';
 import {
   getBottomNavReservedHeight,
   SCROLL_BOTTOM_EXTRA,
@@ -29,10 +30,12 @@ import {
   pinGmailEmail,
 } from '../../services/gmail';
 
-  const CACHE_KEY = '@app:mail:cached_emails';
-  const LAST_SYNC_KEY = '@app:mail:last_sync';
+const CACHE_KEY = '@app:mail:cached_emails';
+const LAST_SYNC_KEY = '@app:mail:last_sync';
 
 export default function MailScreen() {
+  const { colors: COLORS } = useTheme();
+  const styles = useMemo(() => createStyles(COLORS), [COLORS]);
   const insets = useSafeAreaInsets();
   const openSettings = useOpenSettings();
   const [activeFilter, setActiveFilter] = useState<MailFilterId>('all');
@@ -277,13 +280,13 @@ export default function MailScreen() {
   // Persist pinned IDs
   useEffect(() => {
     if (!hasLoadedPersistedIds.current) return;
-    AsyncStorage.setItem(PINNED_KEY, JSON.stringify(pinnedEmailIds)).catch(() => {});
+    AsyncStorage.setItem(PINNED_KEY, JSON.stringify(pinnedEmailIds)).catch(() => { });
   }, [pinnedEmailIds]);
 
   // Persist archived IDs
   useEffect(() => {
     if (!hasLoadedPersistedIds.current) return;
-    AsyncStorage.setItem(ARCHIVED_KEY, JSON.stringify(archivedEmailIds)).catch(() => {});
+    AsyncStorage.setItem(ARCHIVED_KEY, JSON.stringify(archivedEmailIds)).catch(() => { });
   }, [archivedEmailIds]);
 
   const handlePinEmail = async (emailId: string) => {
@@ -383,15 +386,15 @@ export default function MailScreen() {
         onScroll: fabAnim.onScroll,
         scrollEventThrottle: 16,
       }}
-      footer={
-        <ComposeFAB
-          bottomOffset={bottomChrome + 32}
-          translateY={fabAnim.translateY}
-          scale={fabAnim.scale}
-          spin={fabAnim.spin}
-          opacity={fabAnim.opacity}
-        />
-      }
+    // footer={
+    //   <ComposeFAB
+    //     bottomOffset={bottomChrome + 32}
+    //     translateY={fabAnim.translateY}
+    //     scale={fabAnim.scale}
+    //     spin={fabAnim.spin}
+    //     opacity={fabAnim.opacity}
+    //   />
+    // }
     >
       <GmailConnectBanner visible={isConnecting} />
 
@@ -438,18 +441,18 @@ export default function MailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any) => StyleSheet.create({
   gmailStatusContainer: {
     marginBottom: 16,
     paddingHorizontal: 4,
   },
   gmailStatusText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: COLORS.textSecondary,
   },
   emptyStateContainer: {
     padding: 20,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: COLORS.surfaceContainerLow,
     borderRadius: 16,
     marginHorizontal: 4,
     marginTop: 16,
@@ -457,12 +460,12 @@ const styles = StyleSheet.create({
   emptyStateTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#111827',
+    color: COLORS.textPrimary,
     marginBottom: 6,
   },
   emptyStateSubtitle: {
     fontSize: 14,
-    color: '#4B5563',
+    color: COLORS.textMuted,
     lineHeight: 20,
   },
 });

@@ -1,7 +1,8 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { GmailEmail } from '../../services/gmail';
 
 type GmailEmailSectionProps = {
@@ -9,6 +10,9 @@ type GmailEmailSectionProps = {
 };
 
 export default function GmailEmailSection({ emails }: GmailEmailSectionProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   return (
     <View style={styles.section}>
       <View style={styles.header}>
@@ -48,7 +52,7 @@ export default function GmailEmailSection({ emails }: GmailEmailSectionProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   section: {
     marginBottom: 24,
   },

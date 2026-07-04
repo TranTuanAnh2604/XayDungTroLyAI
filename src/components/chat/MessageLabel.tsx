@@ -1,10 +1,11 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
 import AppLogo from '../ui/AppLogo';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 
 type MaterialIconName = ComponentProps<typeof MaterialIcons>['name'];
 
@@ -21,6 +22,9 @@ export default function MessageLabel({
   showLogo = false,
   align = 'left',
 }: MessageLabelProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   return (
     <View
       style={[
@@ -37,7 +41,7 @@ export default function MessageLabel({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',

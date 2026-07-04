@@ -188,3 +188,53 @@ export async function apiDelete<T>(
   return makeRequest<T>('DELETE', path, undefined, options?.skipAuth ?? false);
 }
 
+export async function apiUpload<T>(
+  path: string,
+  formData: FormData,
+  options?: { skipAuth?: boolean },
+): Promise<T> {
+  const token = await getAuthToken();
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const requestUrl = `${API_BASE_URL}${normalizedPath}`;
+
+  const headers: Record<string, string> = {};
+
+  if (!options?.skipAuth && token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  // Do NOT set Content-Type to application/json or multipart/form-data manually,
+  // fetch will automatically set the correct boundary for FormData.
+
+  const response = await fetch(requestUrl, {
+    method: 'POST', // standard method for uploads
+    headers,
+    body: formData,
+  });
+
+  if (response.status === 401 && !path.includes('/refresh_token')) {
+    // Basic 401 retry logic
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      return apiUpload<T>(path, formData, options);
+    }
+    await clearAuthData();
+    throw new Error('Phiên đã hết hạn. Vui lòng đăng nhập lại.');
+  }
+
+  if (!response.ok) {
+    const rawResponseBody = await response.json().catch(() => ({}));
+    throw new Error(rawResponseBody?.message || `Server error (${response.status})`);
+  }
+
+  return response.json() as Promise<T>;
+}
+
+export async function apiPatch<T>(
+  path: string,
+  body?: unknown,
+  options?: { skipAuth?: boolean },
+): Promise<T> {
+  return makeRequest<T>('PATCH', path, body, options?.skipAuth ?? false);
+}
+

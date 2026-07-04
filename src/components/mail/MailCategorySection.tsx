@@ -1,8 +1,9 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import MailListItem from './MailListItem';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { MailCategory, MailCategoryTone } from '../../types/mail';
 
 type MailCategorySectionProps = {
@@ -10,7 +11,7 @@ type MailCategorySectionProps = {
   onEmailPress?: (emailId: string) => void;
 };
 
-function barColor(tone: MailCategoryTone) {
+function barColor(tone: MailCategoryTone, COLORS: any) {
   switch (tone) {
     case 'emerald':
       return COLORS.emerald;
@@ -25,10 +26,13 @@ export default function MailCategorySection({
   category,
   onEmailPress,
 }: MailCategorySectionProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   return (
     <View style={styles.section}>
       <View style={styles.header}>
-        <View style={[styles.bar, { backgroundColor: barColor(category.tone) }]} />
+        <View style={[styles.bar, { backgroundColor: barColor(category.tone, COLORS) }]} />
         <Text style={styles.title}>{category.title}</Text>
       </View>
       {category.emails.map((email) => (
@@ -42,7 +46,7 @@ export default function MailCategorySection({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   section: {
     marginBottom: 24,
   },

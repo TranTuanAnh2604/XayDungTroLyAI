@@ -1,9 +1,10 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import HomeGlassCard from './HomeGlassCard';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { DaySummary } from '../../types/home';
 
 type DaySummaryCardProps = {
@@ -11,6 +12,9 @@ type DaySummaryCardProps = {
 };
 
 export default function DaySummaryCard({ summary }: DaySummaryCardProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const steps = [1, 2, 3];
 
   return (
@@ -47,7 +51,7 @@ export default function DaySummaryCard({ summary }: DaySummaryCardProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   sparkle: {
     position: 'absolute',
     top: 16,

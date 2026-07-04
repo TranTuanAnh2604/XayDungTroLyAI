@@ -1,9 +1,10 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import AppGlassCard from '../ui/AppGlassCard';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { HomeDailyTask } from '../../types/home';
 
 type TaskListItemProps = {
@@ -12,6 +13,9 @@ type TaskListItemProps = {
 };
 
 export default function TaskListItem({ task, onToggle }: TaskListItemProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const completed = task.completed ?? false;
 
   return (
@@ -45,7 +49,7 @@ export default function TaskListItem({ task, onToggle }: TaskListItemProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -10,7 +10,6 @@ export const MAIL_FILTERS: { id: MailFilterId; label: string }[] = [
   { id: 'unread', label: 'Chưa đọc' },
   { id: 'recent', label: 'Gần đây' },
   { id: 'important', label: 'Quan trọng' },
-  { id: 'archived', label: 'Lưu trữ' },
 ];
 
 export const MAIL_AI_SUMMARY: MailAiSummary = {

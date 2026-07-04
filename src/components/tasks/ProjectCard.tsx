@@ -1,3 +1,4 @@
+import { getTypography } from '../../constants/typography';
 import React, { useEffect, useRef } from 'react';
 import {
   Animated,
@@ -8,8 +9,9 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import AppGlassCard from '../ui/AppGlassCard';
-import { COLORS, RADIUS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { RADIUS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { ProjectCard as ProjectCardType } from '../../types/tasks';
 
 type ProjectCardProps = {
@@ -18,6 +20,9 @@ type ProjectCardProps = {
 };
 
 export default function ProjectCard({ project, index = 0 }: ProjectCardProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(10)).current;
 
@@ -91,7 +96,7 @@ export default function ProjectCard({ project, index = 0 }: ProjectCardProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   wrapper: {
     width: '48%',
     flexGrow: 1,

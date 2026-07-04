@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { COLORS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 
 type MailActionToolbarProps = {
   isPinned?: boolean;
@@ -18,6 +18,8 @@ export default function MailActionToolbar({
   onArchivePress,
   disabled = false,
 }: MailActionToolbarProps) {
+  const { colors: COLORS } = useTheme();
+  const styles = React.useMemo(() => createStyles(COLORS), [COLORS]);
   // UI reflects parent state (`isPinned` / `isArchived`) and does not maintain local toggle.
   // Parent is responsible for updating state after server confirmation.
 
@@ -61,7 +63,7 @@ export default function MailActionToolbar({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any) => StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',

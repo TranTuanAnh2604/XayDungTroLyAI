@@ -1,7 +1,8 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 
 type SectionHeaderProps = {
   title: string;
@@ -14,6 +15,9 @@ export default function SectionHeader({
   actionLabel,
   onActionPress,
 }: SectionHeaderProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   return (
     <View style={styles.row}>
       <Text style={styles.title}>{title}</Text>
@@ -26,7 +30,7 @@ export default function SectionHeader({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',

@@ -1,3 +1,4 @@
+import { getTypography } from '../../constants/typography';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -7,8 +8,8 @@ import {
   TextInputProps,
   View,
 } from 'react-native';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 
 type UnderlineTextInputProps = TextInputProps & {
   label: string;
@@ -23,6 +24,9 @@ export default function UnderlineTextInput({
   onBlur,
   ...rest
 }: UnderlineTextInputProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const [focused, setFocused] = useState(false);
   const borderWidth = useRef(new Animated.Value(0)).current;
 
@@ -79,7 +83,7 @@ export default function UnderlineTextInput({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   group: {
     marginBottom: 4,
   },

@@ -1,3 +1,4 @@
+import { getTypography } from '../../constants/typography';
 import React, { useEffect, useRef } from 'react';
 import {
   Animated,
@@ -10,8 +11,9 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import AppLogo from '../ui/AppLogo';
 import WaveformBars from './WaveformBars';
-import { COLORS, RADIUS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { RADIUS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
+
 
 type AiCoreVisualizerProps = {
   listeningLabel: string;
@@ -22,6 +24,9 @@ export default function AiCoreVisualizer({
   listeningLabel,
   onPress,
 }: AiCoreVisualizerProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const breath = useRef(new Animated.Value(1)).current;
   const spin = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(1)).current;
@@ -167,7 +172,7 @@ export default function AiCoreVisualizer({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   wrapper: {
     alignItems: 'center',
     justifyContent: 'center',

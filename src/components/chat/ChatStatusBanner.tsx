@@ -1,7 +1,8 @@
+import { getTypography } from '../../constants/typography';
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 
 type ChatStatusBannerProps = {
   label: string;
@@ -12,6 +13,9 @@ export default function ChatStatusBanner({
   label,
   greeting,
 }: ChatStatusBannerProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -44,7 +48,7 @@ export default function ChatStatusBanner({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   container: {
     alignItems: 'center',
     marginBottom: 32,

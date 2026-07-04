@@ -1,3 +1,4 @@
+import { getTypography } from '../../constants/typography';
 import React, { useState } from 'react';
 import {
   StyleSheet,
@@ -6,8 +7,8 @@ import {
   TextInputProps,
   View,
 } from 'react-native';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 
 type BorderTextInputProps = TextInputProps & {
   label: string;
@@ -23,6 +24,9 @@ export default function BorderTextInput({
   style,
   ...rest
 }: BorderTextInputProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const [focused, setFocused] = useState(false);
   const active = focused || Boolean(value);
 
@@ -50,7 +54,7 @@ export default function BorderTextInput({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   group: {
     marginBottom: 0,
   },

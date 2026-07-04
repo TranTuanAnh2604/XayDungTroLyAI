@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import TimelineEventItem from './TimelineEventItem';
-import { COLORS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 import type { TimelineEvent } from '../../types/events';
 
 type EventTimelineProps = {
@@ -10,6 +10,8 @@ type EventTimelineProps = {
 };
 
 export default function EventTimeline({ events, onEdit }: EventTimelineProps) {
+  const { colors: COLORS } = useTheme();
+  const styles = React.useMemo(() => createStyles(COLORS), [COLORS]);
   return (
     <View style={styles.container}>
       <View style={styles.line} />
@@ -26,7 +28,7 @@ export default function EventTimeline({ events, onEdit }: EventTimelineProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any) => StyleSheet.create({
   container: {
     position: 'relative',
     paddingLeft: 0,

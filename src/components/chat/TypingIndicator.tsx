@@ -2,9 +2,12 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { APP_NAME } from '../../constants/brand';
 import MessageLabel from './MessageLabel';
-import { COLORS, RADIUS } from '../../constants/theme';
+import { RADIUS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 
 export default function TypingIndicator() {
+  const { colors: COLORS } = useTheme();
+  const styles = React.useMemo(() => createStyles(COLORS), [COLORS]);
   const dot1 = useRef(new Animated.Value(0)).current;
   const dot2 = useRef(new Animated.Value(0)).current;
   const dot3 = useRef(new Animated.Value(0)).current;
@@ -68,7 +71,7 @@ export default function TypingIndicator() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any) => StyleSheet.create({
   wrapper: {
     maxWidth: '85%',
     alignSelf: 'flex-start',

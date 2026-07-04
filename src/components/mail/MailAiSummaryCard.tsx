@@ -1,3 +1,4 @@
+import { getTypography } from '../../constants/typography';
 import React, { useEffect, useRef } from 'react';
 import {
   Animated,
@@ -8,8 +9,9 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import AppGlassCard from '../ui/AppGlassCard';
-import { COLORS, RADIUS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { RADIUS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { MailAiSummary } from '../../types/mail';
 
 type MailAiSummaryCardProps = {
@@ -23,6 +25,9 @@ export default function MailAiSummaryCard({
   onPrimaryPress,
   onSecondaryPress,
 }: MailAiSummaryCardProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const pulse = useRef(new Animated.Value(1)).current;
   const glow = useRef(new Animated.Value(0)).current;
 
@@ -111,7 +116,7 @@ export default function MailAiSummaryCard({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   wrap: {
     marginBottom: 32,
     shadowColor: COLORS.secondary,
@@ -138,17 +143,17 @@ const styles = StyleSheet.create({
   },
   label: {
     ...typography.labelCaps,
-    color: COLORS.secondary,
+    color: COLORS.textSecondary,
     letterSpacing: 2,
   },
   body: {
     ...typography.bodyMd,
-    color: COLORS.onSurface,
+    color: COLORS.textPrimary,
     lineHeight: 22,
   },
   highlight: {
     fontWeight: '700',
-    color: COLORS.secondary,
+    color: COLORS.textSecondary,
   },
   actions: {
     flexDirection: 'row',
@@ -179,7 +184,7 @@ const styles = StyleSheet.create({
   },
   secondaryText: {
     ...typography.labelCaps,
-    color: COLORS.onSurface,
+    color: COLORS.textPrimary,
     textTransform: 'none',
     letterSpacing: 0,
     fontWeight: '600',

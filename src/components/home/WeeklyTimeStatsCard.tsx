@@ -1,8 +1,9 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import HomeGlassCard from './HomeGlassCard';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { WeeklyTimeCategory } from '../../types/home';
 
 type WeeklyTimeStatsCardProps = {
@@ -10,6 +11,9 @@ type WeeklyTimeStatsCardProps = {
 };
 
 export default function WeeklyTimeStatsCard({ categories }: WeeklyTimeStatsCardProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const totalHours = categories.reduce((sum, category) => sum + category.hours, 0);
 
   return (
@@ -42,7 +46,7 @@ export default function WeeklyTimeStatsCard({ categories }: WeeklyTimeStatsCardP
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   card: {
     marginBottom: 16,
   },

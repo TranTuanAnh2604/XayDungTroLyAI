@@ -1,3 +1,4 @@
+import { getTypography } from '../../constants/typography';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
@@ -12,8 +13,8 @@ import {
   View,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 import BorderTextInput from '../ui/BorderTextInput';
 import type { CalendarSyncRequest } from '../../services/sync';
 
@@ -62,6 +63,13 @@ export default function EditEventModal({
   onEdit,
   onDelete,
 }: EditEventModalProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
+  // Snapshot of the moment the popup was opened. Captured once so the default
+  // displayed for missing/invalid times does not drift while the modal is open.
+  const openedAtRef = React.useRef<Date>(new Date());
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
@@ -77,15 +85,19 @@ export default function EditEventModal({
 
   useEffect(() => {
     if (!visible || !event) return;
-    
+    // Capture the open timestamp once so it stays stable during the session.
+    const now = new Date();
+    openedAtRef.current = now;
+
     const startDateTime = normalizeDateValue(event.startTime);
     const endDateTime = normalizeDateValue(event.endTime);
-    
+
     setTitle(event.title || '');
     setDescription(event.description || '');
     setLocation(event.location || '');
-    setStartDate(startDateTime || new Date());
-    setEndDate(endDateTime || new Date());
+    // Use the event's saved times when valid; fall back to the open timestamp.
+    setStartDate(startDateTime ?? now);
+    setEndDate(endDateTime ?? now);
     setIsAllDay(event.isAllDay || false);
     setShowStartDatePicker(false);
     setShowStartTimePicker(false);
@@ -94,14 +106,15 @@ export default function EditEventModal({
     setError(null);
   }, [visible, event]);
 
-  // Reset state when modal is closed
+  // Reset state when modal is closed so stale values are cleared.
   useEffect(() => {
     if (visible) return;
+    const resetTo = new Date();
     setTitle('');
     setDescription('');
     setLocation('');
-    setStartDate(new Date());
-    setEndDate(new Date());
+    setStartDate(resetTo);
+    setEndDate(resetTo);
     setIsAllDay(false);
     setShowStartDatePicker(false);
     setShowStartTimePicker(false);
@@ -368,7 +381,7 @@ export default function EditEventModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   backdrop: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -438,7 +451,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   deleteButtonText: {
-    color: '#fff',
+    color: COLORS.onPrimary,
     fontWeight: '700',
     fontSize: 15,
   },

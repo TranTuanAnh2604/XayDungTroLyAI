@@ -1,10 +1,12 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { APP_NAME } from '../../constants/brand';
 import MessageLabel from './MessageLabel';
-import { COLORS, RADIUS, SHADOW } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { RADIUS, SHADOW } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
+
 
 type AiMessageBubbleProps = {
   content: string;
@@ -15,6 +17,9 @@ export default function AiMessageBubble({
   content,
   label = APP_NAME,
 }: AiMessageBubbleProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   return (
     <View style={styles.wrapper}>
       <MessageLabel text={label} showLogo />
@@ -32,7 +37,7 @@ export default function AiMessageBubble({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   wrapper: {
     maxWidth: '85%',
     alignSelf: 'flex-start',

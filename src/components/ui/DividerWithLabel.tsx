@@ -1,7 +1,8 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 
 type DividerWithLabelProps = {
   label?: string;
@@ -12,6 +13,9 @@ export default function DividerWithLabel({
   label = 'Hoặc',
   variant = 'badge',
 }: DividerWithLabelProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   if (variant === 'lines') {
     return (
       <View style={styles.linesContainer}>
@@ -32,7 +36,7 @@ export default function DividerWithLabel({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   container: {
     marginVertical: 32,
     justifyContent: 'center',

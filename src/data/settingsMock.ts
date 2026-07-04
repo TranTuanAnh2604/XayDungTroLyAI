@@ -38,13 +38,6 @@ export const ACCOUNT_SECTION: SettingsListSection = {
   title: 'Tài khoản & Bảo mật',
   items: [
     { id: 'password', icon: 'lock', label: 'Mật khẩu', type: 'link' },
-    {
-      id: '2fa',
-      icon: 'verified-user',
-      label: 'Xác thực hai yếu tố (2FA)',
-      subtitle: 'Đang bật',
-      type: 'link',
-    },
   ],
 };
 
@@ -52,19 +45,16 @@ export const PREFERENCES_SECTION: SettingsListSection = {
   id: 'preferences',
   title: 'Tùy chỉnh',
   items: [
-    // {
-    //   id: 'dark',
-    //   icon: 'dark-mode',
-    //   label: 'Chế độ tối',
-    //   type: 'toggle',
-    //   toggleDefault: false,
-    // },
     {
-      id: 'language',
-      icon: 'language',
-      label: 'Ngôn ngữ',
-      value: 'Tiếng Việt',
-      type: 'link',
+      id: 'appearance',
+      icon: 'palette',
+      label: 'Giao diện',
+      type: 'segmented',
+      segments: [
+        { label: 'Hệ thống', value: 'system' },
+        { label: 'Sáng', value: 'light' },
+        { label: 'Tối', value: 'dark' },
+      ],
     },
     {
       id: 'push',

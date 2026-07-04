@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   Modal,
@@ -14,9 +14,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import PasswordInput from '../ui/PasswordInput';
 import PrimaryButton from '../ui/PrimaryButton';
-import { COLORS, RADIUS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { RADIUS } from '../../constants/theme';
+import { getTypography } from '../../constants/typography';
 import IosGlassView from '../ui/IosGlassView';
+import { useTheme } from '../../hooks/useTheme';
 
 type ResetPasswordModalProps = {
   visible: boolean;
@@ -31,6 +32,9 @@ export default function ResetPasswordModal({
   onClose,
   onSubmit,
 }: ResetPasswordModalProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = useMemo(() => createStyles(COLORS, typography), [COLORS, typography]);
   const insets = useSafeAreaInsets();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -81,7 +85,7 @@ export default function ResetPasswordModal({
     onClose?.();
   };
 
-  const passwordStrength = getPasswordStrength(newPassword);
+  const passwordStrength = getPasswordStrength(newPassword, COLORS);
 
   return (
     <Modal
@@ -233,7 +237,7 @@ export default function ResetPasswordModal({
 /**
  * Calculate password strength
  */
-function getPasswordStrength(password: string): {
+function getPasswordStrength(password: string, COLORS: any): {
   label: string;
   percentage: number;
   color: string;
@@ -263,7 +267,7 @@ function getPasswordStrength(password: string): {
   }
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',

@@ -13,8 +13,8 @@ import {
   SCROLL_CONTENT_GAP,
   SCROLL_SECTION_GAP,
 } from '../../constants/layout';
-import { COLORS } from '../../constants/theme';
 import { SPACING } from '../../constants/spacing';
+import { useTheme } from '../../hooks/useTheme';
 
 type TabScreenLayoutProps = {
   topBar: ReactNode;
@@ -39,6 +39,8 @@ export default function TabScreenLayout({
   maxContentWidth = SCREEN_CONTENT_MAX_WIDTH,
 }: TabScreenLayoutProps) {
   const insets = useSafeAreaInsets();
+  const { colors: COLORS } = useTheme();
+  const styles = React.useMemo(() => createStyles(COLORS), [COLORS]);
   const topChrome = getTopAppBarHeight(insets);
   const bottomChrome = getBottomNavReservedHeight(insets);
 
@@ -69,7 +71,7 @@ export default function TabScreenLayout({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any) => StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: COLORS.background,

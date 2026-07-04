@@ -1,3 +1,4 @@
+import { getTypography } from '../../constants/typography';
 import React, { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -11,8 +12,8 @@ import {
   View,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 import BorderTextInput from '../ui/BorderTextInput';
 import type { CalendarSyncRequest } from '../../services/sync';
 
@@ -23,9 +24,9 @@ type CreateEventModalProps = {
   onCreate: (event: CalendarSyncRequest) => Promise<void>;
 };
 
-function defaultDateTime(dateId: string, hour: number): Date {
-  const date = new Date(`${dateId}T${hour.toString().padStart(2, '0')}:00:00`);
-  return Number.isNaN(date.getTime()) ? new Date() : date;
+/** Returns the current date+time, used as the one-time snapshot when the popup opens. */
+function captureNow(): Date {
+  return new Date();
 }
 
 function normalizeDateValue(value: Date | number | string | undefined | null): Date | null {
@@ -64,12 +65,19 @@ export default function CreateEventModal({
   onClose,
   onCreate,
 }: CreateEventModalProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
+  // Snapshot of the moment the popup was opened. Captured once on open so the
+  // displayed default does not tick forward while the modal is visible.
+  const openedAtRef = React.useRef<Date>(captureNow());
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
   const [source, setSource] = useState('app');
-  const [startDate, setStartDate] = useState<Date>(() => defaultDateTime(defaultDateId, 9));
-  const [endDate, setEndDate] = useState<Date>(() => defaultDateTime(defaultDateId, 10));
+  const [startDate, setStartDate] = useState<Date>(() => captureNow());
+  const [endDate, setEndDate] = useState<Date>(() => captureNow());
   const [isAllDay, setIsAllDay] = useState(false);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
@@ -80,19 +88,23 @@ export default function CreateEventModal({
 
   useEffect(() => {
     if (!visible) return;
+    // Capture the open time exactly once per popup open.
+    const now = captureNow();
+    openedAtRef.current = now;
     setTitle('');
     setDescription('');
     setLocation('');
     setSource('app');
-    setStartDate(defaultDateTime(defaultDateId, 9));
-    setEndDate(defaultDateTime(defaultDateId, 10));
+    setStartDate(now);
+    setEndDate(now);
     setIsAllDay(false);
     setShowStartDatePicker(false);
     setShowStartTimePicker(false);
     setShowEndDatePicker(false);
     setShowEndTimePicker(false);
     setError(null);
-  }, [visible, defaultDateId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
 
   const handleCreate = async () => {
     setError(null);
@@ -305,7 +317,7 @@ export default function CreateEventModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   backdrop: {
     flex: 1,
     justifyContent: 'flex-end',

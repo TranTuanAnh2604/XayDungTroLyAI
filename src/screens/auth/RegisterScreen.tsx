@@ -1,3 +1,4 @@
+import { getTypography } from '../../constants/typography';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
@@ -20,8 +21,8 @@ import PasswordInput from '../../components/ui/PasswordInput';
 import PrimaryButton from '../../components/ui/PrimaryButton';
 import SocialLoginButton from '../../components/ui/SocialLoginButton';
 import { APP_COPYRIGHT, APP_EMAIL_PLACEHOLDER } from '../../constants/brand';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 import { SPACING } from '../../constants/spacing';
 import type { AuthStackParamList } from '../../navigation/types';
 import { useAuth } from '../../context/AuthContext';
@@ -32,6 +33,9 @@ import { GOOGLE_WEB_CLIENT_ID } from '../../constants/config';
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
 export default function RegisterScreen({ navigation }: Props) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const insets = useSafeAreaInsets();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -262,7 +266,7 @@ export default function RegisterScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: COLORS.background,

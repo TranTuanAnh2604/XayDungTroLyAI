@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { COLORS, RADIUS } from '../../constants/theme';
+import { RADIUS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 
 type TasksFABProps = {
   onPress?: () => void;
@@ -9,6 +10,8 @@ type TasksFABProps = {
 };
 
 export default function TasksFAB({ onPress, bottomOffset = 96 }: TasksFABProps) {
+  const { colors: COLORS } = useTheme();
+  const styles = React.useMemo(() => createStyles(COLORS), [COLORS]);
   const floatAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -44,7 +47,7 @@ export default function TasksFAB({ onPress, bottomOffset = 96 }: TasksFABProps) 
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any) => StyleSheet.create({
   wrapper: {
     position: 'absolute',
     right: 24,

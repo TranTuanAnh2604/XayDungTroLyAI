@@ -1,32 +1,29 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
-import { COLORS } from '../../constants/theme';
-
-const PARTICLES = [
-  { size: 8, top: '20%' as const, left: '10%' as const, color: `${COLORS.primary}33`, delay: 0, duration: 10000 },
-  { size: 12, top: '60%' as const, left: '80%' as const, color: `${COLORS.secondary}26`, delay: 2000, duration: 12000 },
-  { size: 6, top: '15%' as const, left: '70%' as const, color: `${COLORS.primary}1A`, delay: 5000, duration: 8000 },
-  { size: 16, top: '85%' as const, left: '25%' as const, color: `${COLORS.secondary}1A`, delay: 1000, duration: 15000 },
-];
+import { useTheme } from '../../hooks/useTheme';
 
 export default function AmbientParticles() {
+  const { colors: COLORS } = useTheme();
+  const styles = React.useMemo(() => createStyles(COLORS), [COLORS]);
+
+  const PARTICLES = React.useMemo(() => [
+    { size: 8, top: '20%' as const, left: '10%' as const, color: `${COLORS.primary}33`, delay: 0, duration: 10000 },
+    { size: 12, top: '60%' as const, left: '80%' as const, color: `${COLORS.secondary}26`, delay: 2000, duration: 12000 },
+    { size: 6, top: '15%' as const, left: '70%' as const, color: `${COLORS.primary}1A`, delay: 5000, duration: 8000 },
+    { size: 16, top: '85%' as const, left: '25%' as const, color: `${COLORS.secondary}1A`, delay: 1000, duration: 15000 },
+  ], [COLORS]);
+
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       {PARTICLES.map((p, index) => (
-        <FloatingParticle key={index} {...p} />
+        <FloatingParticle key={index} particle={p} styles={styles} />
       ))}
     </View>
   );
 }
 
-function FloatingParticle({
-  size,
-  top,
-  left,
-  color,
-  delay,
-  duration,
-}: (typeof PARTICLES)[0]) {
+function FloatingParticle({ particle, styles }: { particle: { size: number, top: any, left: any, color: string, delay: number, duration: number }, styles: any }) {
+  const { size, top, left, color, delay, duration } = particle;
   const translateX = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
 
@@ -105,7 +102,7 @@ function FloatingParticle({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any) => StyleSheet.create({
   particle: {
     position: 'absolute',
     borderRadius: 9999,

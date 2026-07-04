@@ -1,13 +1,17 @@
+import { getTypography } from '../../constants/typography';
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 
 type GmailConnectBannerProps = {
   visible: boolean;
 };
 
 export default function GmailConnectBanner({ visible }: GmailConnectBannerProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -48,7 +52,7 @@ export default function GmailConnectBanner({ visible }: GmailConnectBannerProps)
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   container: {
     alignItems: 'center',
     marginBottom: 16,

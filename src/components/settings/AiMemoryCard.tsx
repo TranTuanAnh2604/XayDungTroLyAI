@@ -1,9 +1,11 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import AppGlassCard from '../ui/AppGlassCard';
-import { COLORS, RADIUS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { RADIUS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { AiMemoryItem } from '../../types/settings';
 
 type AiMemoryCardProps = {
@@ -12,6 +14,9 @@ type AiMemoryCardProps = {
 };
 
 export default function AiMemoryCard({ item, onPress }: AiMemoryCardProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   return (
     <Pressable
       onPress={onPress}
@@ -36,7 +41,7 @@ export default function AiMemoryCard({ item, onPress }: AiMemoryCardProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   sparkle: {
     position: 'absolute',
     top: 12,

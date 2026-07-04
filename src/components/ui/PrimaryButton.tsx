@@ -1,3 +1,4 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import {
   ActivityIndicator,
@@ -7,8 +8,9 @@ import {
   ViewStyle,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { COLORS, RADIUS, SHADOW } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { RADIUS, SHADOW } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
+
 
 type PrimaryButtonProps = {
   label: string;
@@ -27,6 +29,9 @@ export default function PrimaryButton({
   glow = false,
   style,
 }: PrimaryButtonProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   return (
     <Pressable
       onPress={onPress}
@@ -57,7 +62,7 @@ export default function PrimaryButton({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   button: {
     width: '100%',
     flexDirection: 'row',

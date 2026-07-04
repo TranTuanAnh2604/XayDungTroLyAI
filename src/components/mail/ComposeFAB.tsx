@@ -7,7 +7,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { COLORS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 
 type ComposeFABProps = {
   bottomOffset?: number;
@@ -68,6 +68,8 @@ export default function ComposeFAB({
   spin: Animated.AnimatedInterpolation<string>;
   opacity: Animated.Value;
 }) {
+  const { colors: COLORS } = useTheme();
+  const styles = React.useMemo(() => createStyles(COLORS), [COLORS]);
   return (
     <Animated.View
       style={[
@@ -89,7 +91,7 @@ export default function ComposeFAB({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any) => StyleSheet.create({
   wrapper: {
     position: 'absolute',
     right: 32,

@@ -1,9 +1,10 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import AppGlassCard from '../ui/AppGlassCard';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { VoiceCommand } from '../../types/voice';
 
 type VoiceCommandGridProps = {
@@ -15,6 +16,9 @@ export default function VoiceCommandGrid({
   commands,
   onPress,
 }: VoiceCommandGridProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   return (
     <View style={styles.grid}>
       {commands.map((command) => (
@@ -46,7 +50,7 @@ export default function VoiceCommandGrid({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

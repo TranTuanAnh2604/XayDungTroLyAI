@@ -1,5 +1,7 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import {
+  ActivityIndicator,
   Image,
   Pressable,
   StyleSheet,
@@ -7,27 +9,41 @@ import {
   View,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { COLORS, RADIUS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { RADIUS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { UserProfile } from '../../types/settings';
 
 type ProfileSectionProps = {
   profile: UserProfile;
   onEditProfile?: () => void;
   onEditAvatar?: () => void;
+  avatarLoading?: boolean;
 };
 
 export default function ProfileSection({
   profile,
   onEditProfile,
   onEditAvatar,
+  avatarLoading,
 }: ProfileSectionProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   return (
     <View style={styles.section}>
       <View style={styles.avatarWrap}>
         <Image source={{ uri: profile.avatarUri }} style={styles.avatar} />
+
+        {avatarLoading && (
+          <View style={styles.avatarOverlay}>
+            <ActivityIndicator size="small" color={COLORS.white} />
+          </View>
+        )}
+
         <Pressable
           onPress={onEditAvatar}
+          disabled={avatarLoading}
           style={({ pressed }) => [
             styles.editBadge,
             pressed && styles.pressed,
@@ -53,7 +69,7 @@ export default function ProfileSection({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   section: {
     alignItems: 'center',
     marginBottom: 32,
@@ -68,6 +84,17 @@ const styles = StyleSheet.create({
     borderRadius: 48,
     borderWidth: 4,
     borderColor: COLORS.white,
+  },
+  avatarOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   editBadge: {
     position: 'absolute',

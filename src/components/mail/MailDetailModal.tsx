@@ -1,7 +1,8 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { GmailEmail } from '../../services/gmail';
 import MailActionToolbar from './MailActionToolbar';
 
@@ -26,6 +27,9 @@ export default function MailDetailModal({
   isArchived = false,
   isBusy = false,
 }: MailDetailModalProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   if (!email) {
     return null;
   }
@@ -79,7 +83,7 @@ export default function MailDetailModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.35)',
@@ -87,10 +91,10 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 0.9,
-  backgroundColor: COLORS.surface,
-  borderTopLeftRadius: 24,
-  borderTopRightRadius: 24,
-  padding: 20,
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
     width: '100%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -8 },
@@ -110,17 +114,17 @@ const styles = StyleSheet.create({
   },
   subject: {
     ...typography.headlineSm,
-    color: COLORS.onSurface,
+    color: COLORS.textPrimary,
     marginBottom: 6,
   },
   fromLine: {
     fontSize: 13,
-    color: COLORS.onSurfaceVariant,
+    color: COLORS.textSecondary,
     marginTop: 4,
   },
   metaText: {
     fontSize: 12,
-    color: COLORS.outline,
+    color: COLORS.textSecondary,
     marginTop: 4,
   },
   headerActions: {
@@ -161,7 +165,7 @@ const styles = StyleSheet.create({
   aiText: {
     fontSize: 15,
     lineHeight: 24,
-    color: COLORS.onSurface,
+    color: COLORS.textPrimary,
   },
   keyPointsBlock: {
     marginTop: 16,
@@ -172,13 +176,13 @@ const styles = StyleSheet.create({
   keyPointsTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: COLORS.onSurface,
+    color: COLORS.textPrimary,
     marginBottom: 8,
   },
   keyPointsText: {
     fontSize: 14,
     lineHeight: 22,
-    color: COLORS.onSurfaceVariant,
+    color: COLORS.textSecondary,
   },
   sectionTitle: {
     ...typography.labelCaps,
@@ -188,6 +192,6 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 14,
     lineHeight: 22,
-    color: COLORS.onSurfaceVariant,
+    color: COLORS.textSecondary,
   },
 });

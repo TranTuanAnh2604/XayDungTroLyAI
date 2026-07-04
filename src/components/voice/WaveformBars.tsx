@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { COLORS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 
 const BAR_COUNT = 7;
 
 export default function WaveformBars() {
+  const { colors: COLORS } = useTheme();
+  const styles = React.useMemo(() => createStyles(COLORS), [COLORS]);
   const [heights, setHeights] = useState<number[]>(() =>
     Array.from({ length: BAR_COUNT }, () => 40),
   );
@@ -47,7 +49,7 @@ export default function WaveformBars() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any) => StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'flex-end',

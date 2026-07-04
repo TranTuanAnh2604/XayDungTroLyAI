@@ -1,3 +1,4 @@
+import { getTypography } from '../../constants/typography';
 import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
@@ -14,8 +15,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import BorderTextInput from '../ui/BorderTextInput';
 import PrimaryButton from '../ui/PrimaryButton';
-import { COLORS, RADIUS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { RADIUS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
+
 import IosGlassView from '../ui/IosGlassView';
 
 type ForgotPasswordModalProps = {
@@ -29,6 +31,9 @@ export default function ForgotPasswordModal({
   onClose,
   onSubmit,
 }: ForgotPasswordModalProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -148,7 +153,7 @@ export default function ForgotPasswordModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'flex-end',

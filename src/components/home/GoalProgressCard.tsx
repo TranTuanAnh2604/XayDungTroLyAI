@@ -1,8 +1,9 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import HomeGlassCard from './HomeGlassCard';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { GoalProgress } from '../../types/home';
 
 type GoalProgressCardProps = {
@@ -10,6 +11,9 @@ type GoalProgressCardProps = {
 };
 
 export default function GoalProgressCard({ progress }: GoalProgressCardProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const percent = Math.round(progress.completedPercent);
 
   return (
@@ -32,7 +36,7 @@ export default function GoalProgressCard({ progress }: GoalProgressCardProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   card: {
     marginBottom: 16,
   },

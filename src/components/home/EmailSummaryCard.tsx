@@ -1,9 +1,10 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import AppGlassCard from '../ui/AppGlassCard';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { EmailSummary } from '../../types/home';
 
 type EmailSummaryCardProps = {
@@ -11,6 +12,9 @@ type EmailSummaryCardProps = {
 };
 
 export default function EmailSummaryCard({ item }: EmailSummaryCardProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const iconColor =
     item.iconColor === 'primary'
       ? COLORS.primaryContainer
@@ -31,7 +35,7 @@ export default function EmailSummaryCard({ item }: EmailSummaryCardProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   card: {
     width: 280,
   },

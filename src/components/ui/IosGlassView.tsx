@@ -7,6 +7,7 @@ import {
   IOS_GLASS_IOS_INTENSITY,
 } from '../../constants/layout';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '../../hooks/useTheme';
 export type IosGlassVariant = 'chrome' | 'thin' | 'regular';
 
 const IOS_TINT: Record<IosGlassVariant, BlurTint> = {
@@ -34,10 +35,20 @@ export default function IosGlassView({
   intensity,
   fillOpacity = IOS_GLASS_FILL_OPACITY,
 }: IosGlassViewProps) {
+  const { isDark } = useTheme();
   const isIos = Platform.OS === 'ios';
   const blurIntensity =
     intensity ?? (isIos ? IOS_GLASS_IOS_INTENSITY : IOS_GLASS_ANDROID_INTENSITY);
-  const tint = isIos ? IOS_TINT[variant] : 'light';
+    
+  const IOS_TINT_DARK: Record<IosGlassVariant, BlurTint> = {
+    chrome: 'systemChromeMaterialDark',
+    thin: 'systemUltraThinMaterialDark',
+    regular: 'systemMaterialDark',
+  };
+  
+  const tint = isIos 
+    ? (isDark ? IOS_TINT_DARK[variant] : IOS_TINT[variant]) 
+    : (isDark ? 'dark' : 'light');
 
   return (
     <View style={[styles.root, style]}>
@@ -53,7 +64,11 @@ export default function IosGlassView({
 
       <LinearGradient
       pointerEvents="none"
-      colors={[
+      colors={isDark ? [
+        'rgba(0,0,0,0.3)',
+        'rgba(0,0,0,0.1)',
+        'rgba(0,0,0,0.02)',
+      ] : [
         'rgba(255,255,255,0.18)',
         'rgba(255,255,255,0.05)',
         'rgba(255,255,255,0.01)',
@@ -70,8 +85,8 @@ export default function IosGlassView({
         left: 0,
         right: 0,
         height: 1,
-        backgroundColor: 'rgba(255,255,255,0.7)',
-      }}
+        backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.7)',
+          }}
         />
       ) : null}
       {children}

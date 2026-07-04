@@ -1,3 +1,4 @@
+import { getTypography } from '../../constants/typography';
 import React, { useEffect, useRef } from 'react';
 import {
   Animated,
@@ -8,8 +9,9 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import AppGlassCard from '../ui/AppGlassCard';
-import { COLORS, RADIUS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { RADIUS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { EventsInsight } from '../../types/events';
 
 type EventsInsightCardProps = {
@@ -23,6 +25,9 @@ export default function EventsInsightCard({
   onPrimaryPress,
   onSecondaryPress,
 }: EventsInsightCardProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const floatAnim = useRef(new Animated.Value(0)).current;
   const borderAnim = useRef(new Animated.Value(0)).current;
 
@@ -124,7 +129,7 @@ export default function EventsInsightCard({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   floatWrap: {
     marginBottom: 40,
   },

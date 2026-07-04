@@ -1,10 +1,12 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import AppGlassCard from '../ui/AppGlassCard';
 import MessageLabel from './MessageLabel';
-import { COLORS, RADIUS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { RADIUS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { ChatSummaryMessage } from '../../types/chat';
 
 type SummaryCardMessageProps = {
@@ -18,6 +20,9 @@ export default function SummaryCardMessage({
   onPrimaryAction,
   onSecondaryAction,
 }: SummaryCardMessageProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   return (
     <View style={styles.wrapper}>
       <MessageLabel text="Tóm tắt thông minh" icon="summarize" />
@@ -69,7 +74,7 @@ export default function SummaryCardMessage({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   wrapper: {
     maxWidth: '100%',
     alignSelf: 'flex-start',

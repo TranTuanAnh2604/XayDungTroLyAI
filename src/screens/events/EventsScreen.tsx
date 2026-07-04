@@ -9,6 +9,7 @@ import EventsInsightCard from '../../components/events/EventsInsightCard';
 import CreateEventModal from '../../components/events/CreateEventModal';
 import EditEventModal from '../../components/events/EditEventModal';
 import { TabScreenLayout, TopAppBar } from '../../components/navigation';
+import { useTheme } from '../../hooks/useTheme';
 import {
   getBottomNavReservedHeight,
   SCROLL_BOTTOM_EXTRA,
@@ -158,6 +159,8 @@ function inferTimelineEventType(title: string, isAllDay: boolean): TimelineEvent
 }
 
 export default function EventsScreen() {
+  const { colors: COLORS } = useTheme();
+  const styles = useMemo(() => createStyles(COLORS), [COLORS]);
   const insets = useSafeAreaInsets();
   const openSettings = useOpenSettings();
   const [todayId, setTodayId] = useState<string>(() => formatLocalDateId(getLocalMidnight()));
@@ -193,16 +196,16 @@ export default function EventsScreen() {
   );
 
   const editingEvent = useMemo(() => {
-  if (!editingEventId) {
-    return null;
-  }
+    if (!editingEventId) {
+      return null;
+    }
 
-  return (
-    rawCalendarEvents.find(
-      (event) => event.id === editingEventId,
-    ) ?? null
-  );
-}, [editingEventId, rawCalendarEvents]);
+    return (
+      rawCalendarEvents.find(
+        (event) => event.id === editingEventId,
+      ) ?? null
+    );
+  }, [editingEventId, rawCalendarEvents]);
 
   const EXTERNAL_ID_MAP_KEY = '@app:events:external_id_map';
 
@@ -226,7 +229,7 @@ export default function EventsScreen() {
       const now = Date.now();
       const isCacheFresh = Boolean(
         cachedState?.lastSyncedAt &&
-          now - cachedState.lastSyncedAt < EVENTS_CACHE_TTL_MS,
+        now - cachedState.lastSyncedAt < EVENTS_CACHE_TTL_MS,
       );
 
       if (!force && isCacheFresh && cachedState?.events?.length) {
@@ -255,7 +258,7 @@ export default function EventsScreen() {
       const sourceList = force ? calendarEvents : mergeCalendarEvents(initialEvents, calendarEvents);
       const sourceLabel = force ? 'server' : 'merged';
       console.log(`[refresh] using ${sourceLabel} events (force=${force}, count=${sourceList.length})`);
-      
+
       const mergedEvents = sourceList.map((event) => {
         if (event.id && !event.externalId && persistedMap[event.id]) {
           return { ...event, externalId: persistedMap[event.id] };
@@ -336,7 +339,7 @@ export default function EventsScreen() {
       setCalendarDates(newCalendarDates);
       setSelectedDateId((prevSelected) =>
         prevSelected === todayId ||
-        !newCalendarDates.some((dateItem) => dateItem.id === prevSelected)
+          !newCalendarDates.some((dateItem) => dateItem.id === prevSelected)
           ? newTodayId
           : prevSelected,
       );
@@ -384,10 +387,10 @@ export default function EventsScreen() {
     const time = event.isAllDay
       ? 'Cả ngày'
       : eventStart.toLocaleTimeString('vi-VN', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        });
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
     const dateString = formatLocalDateId(eventStart);
     const id =
       event.id ??
@@ -459,7 +462,7 @@ export default function EventsScreen() {
   ): CalendarSyncRequest | undefined => {
     const candidateId = candidate.id || candidate.externalId || candidate.title;
     console.log(`[conflict-detect] checking '${candidateId}' against ${sourceEvents.length} events from source='${sourceLabel}'`);
-    
+
     const candidateStart = parseCalendarDate(candidate.startTime);
     const candidateEnd = parseCalendarDate(candidate.endTime);
 
@@ -578,7 +581,7 @@ export default function EventsScreen() {
               if (reminderNotificationId) {
                 nextMap[`notif:${eventWithReminder.id}`] = reminderNotificationId;
               }
-              AsyncStorage.setItem(EXTERNAL_ID_MAP_KEY, JSON.stringify(nextMap)).catch(() => {});
+              AsyncStorage.setItem(EXTERNAL_ID_MAP_KEY, JSON.stringify(nextMap)).catch(() => { });
               void writeEventCache(nextRawEvents, nextMap, Date.now());
               return nextMap;
             });
@@ -606,7 +609,7 @@ export default function EventsScreen() {
           <Text style={styles.messageText}>Không có sự kiện nào.</Text>
         </View>
       ) : (
-        <EventTimeline 
+        <EventTimeline
           events={events}
           onEdit={(eventId) => {
             setEditingEventId(eventId);
@@ -623,106 +626,106 @@ export default function EventsScreen() {
           setEditingEventId(null);
         }}
         onEdit={async (eventId, updatedEvent) => {
-  try {
-    const oldEvent = rawCalendarEvents.find((item) => item.id === eventId);
-    const oldType = inferTimelineEventType(oldEvent?.title || '', oldEvent?.isAllDay || false);
-    const newType = inferTimelineEventType(updatedEvent.title || '', updatedEvent.isAllDay || false);
-    
-    console.log(`[edit-event-start] eventId=${eventId}`);
-    console.log(`[edit-event] type change: "${oldType}" → "${newType}"`);
-    console.log(`[edit-event] oldEvent:`, oldEvent);
-    console.log(`[edit-event] updatedEvent from form:`, updatedEvent);
-    
-    const editedEvent = await updateCalendarEvent(eventId, updatedEvent);
-    console.log(`[edit-event] API response (editedEvent):`, editedEvent);
-    
-    const existingEvent = rawCalendarEvents.find((item) => item.id === eventId);
+          try {
+            const oldEvent = rawCalendarEvents.find((item) => item.id === eventId);
+            const oldType = inferTimelineEventType(oldEvent?.title || '', oldEvent?.isAllDay || false);
+            const newType = inferTimelineEventType(updatedEvent.title || '', updatedEvent.isAllDay || false);
 
-    let reminderNotificationId: string | null = null;
-    try {
-      reminderNotificationId = await scheduleEventReminderForEvent(
-        {
-          ...updatedEvent,
-          ...editedEvent,
-          id: eventId,
-          notificationId: existingEvent?.notificationId ?? undefined,
-        },
-        existingEvent?.notificationId ?? undefined,
-      );
-      console.log(`[edit-event] reminder scheduled:`, reminderNotificationId);
-    } catch (notifErr) {
-      console.warn('[edit-event] failed to reschedule reminder:', notifErr);
-    }
+            console.log(`[edit-event-start] eventId=${eventId}`);
+            console.log(`[edit-event] type change: "${oldType}" → "${newType}"`);
+            console.log(`[edit-event] oldEvent:`, oldEvent);
+            console.log(`[edit-event] updatedEvent from form:`, updatedEvent);
 
-    // Preserve ALL fields from existing event, then apply updates from form, then from API
-    const mergedEvent: CalendarSyncRequest = {
-      ...existingEvent,  // Base: all original fields
-      ...updatedEvent,   // Form: only changed fields
-      ...editedEvent,    // API: final authoritative data
-      id: eventId,       // Ensure ID is set
-      notificationId: reminderNotificationId ?? existingEvent?.notificationId ?? undefined,
-    };
-    
-    console.log(`[edit-event] merged event:`, mergedEvent);
-    console.log(`[edit-event] critical fields for new type "${newType}":`, {
-      title: mergedEvent.title,
-      description: mergedEvent.description,
-      location: mergedEvent.location,
-      source: mergedEvent.source,
-      isAllDay: mergedEvent.isAllDay,
-    });
+            const editedEvent = await updateCalendarEvent(eventId, updatedEvent);
+            console.log(`[edit-event] API response (editedEvent):`, editedEvent);
 
-    const nextRawEvents = rawCalendarEvents.map((item) =>
-      item.id === eventId
-        ? { ...mergedEvent }  // Create new object reference
-        : item,
-    );
+            const existingEvent = rawCalendarEvents.find((item) => item.id === eventId);
 
-    console.log(`[edit-event] updated rawCalendarEvents, count:`, nextRawEvents.length);
-    setRawCalendarEvents(nextRawEvents);
-    rawCalendarEventsRef.current = nextRawEvents;
+            let reminderNotificationId: string | null = null;
+            try {
+              reminderNotificationId = await scheduleEventReminderForEvent(
+                {
+                  ...updatedEvent,
+                  ...editedEvent,
+                  id: eventId,
+                  notificationId: existingEvent?.notificationId ?? undefined,
+                },
+                existingEvent?.notificationId ?? undefined,
+              );
+              console.log(`[edit-event] reminder scheduled:`, reminderNotificationId);
+            } catch (notifErr) {
+              console.warn('[edit-event] failed to reschedule reminder:', notifErr);
+            }
 
-    // Map to TimelineEvent with logging
-    const mappedEvent = mapCalendarEventToTimelineEvent(mergedEvent, 0);
-    console.log(`[edit-event] mapped TimelineEvent:`, mappedEvent);
-    if (oldType !== newType) {
-      console.log(`[edit-event] TYPE CHANGED, old rendering props ≠ new rendering props!`);
-    }
+            // Preserve ALL fields from existing event, then apply updates from form, then from API
+            const mergedEvent: CalendarSyncRequest = {
+              ...existingEvent,  // Base: all original fields
+              ...updatedEvent,   // Form: only changed fields
+              ...editedEvent,    // API: final authoritative data
+              id: eventId,       // Ensure ID is set
+              notificationId: reminderNotificationId ?? existingEvent?.notificationId ?? undefined,
+            };
 
-    setAllEvents((prev) => {
-      const updated = prev.map((item, index) =>
-        item.id === eventId
-          ? mappedEvent
-          : item,
-      );
-      console.log(`[edit-event] allEvents updated, count:`, updated.length);
-      return updated;
-    });
+            console.log(`[edit-event] merged event:`, mergedEvent);
+            console.log(`[edit-event] critical fields for new type "${newType}":`, {
+              title: mergedEvent.title,
+              description: mergedEvent.description,
+              location: mergedEvent.location,
+              source: mergedEvent.source,
+              isAllDay: mergedEvent.isAllDay,
+            });
 
-    const newDateId = formatLocalDateId(
-      parseCalendarDate(mergedEvent.startTime) ?? getLocalMidnight(),
-    );
-    console.log(`[edit-event] updating selectedDateId to:`, newDateId);
-    setSelectedDateId(newDateId);
+            const nextRawEvents = rawCalendarEvents.map((item) =>
+              item.id === eventId
+                ? { ...mergedEvent }  // Create new object reference
+                : item,
+            );
 
-    void writeEventCache(nextRawEvents, loadedExternalIdsRef.current, Date.now());
-    void refreshEvents({ force: true, silent: true });
-    console.log(`[edit-event-end] edit complete`);
+            console.log(`[edit-event] updated rawCalendarEvents, count:`, nextRawEvents.length);
+            setRawCalendarEvents(nextRawEvents);
+            rawCalendarEventsRef.current = nextRawEvents;
 
-    setIsEditModalOpen(false);
-    setEditingEventId(null);
-  } catch (editError: any) {
-    console.error(
-      'Failed to update calendar event:',
-      editError,
-    );
+            // Map to TimelineEvent with logging
+            const mappedEvent = mapCalendarEventToTimelineEvent(mergedEvent, 0);
+            console.log(`[edit-event] mapped TimelineEvent:`, mappedEvent);
+            if (oldType !== newType) {
+              console.log(`[edit-event] TYPE CHANGED, old rendering props ≠ new rendering props!`);
+            }
 
-    setError(
-      editError?.message ||
-        'Không thể cập nhật sự kiện.',
-    );
-  }
-}}
+            setAllEvents((prev) => {
+              const updated = prev.map((item, index) =>
+                item.id === eventId
+                  ? mappedEvent
+                  : item,
+              );
+              console.log(`[edit-event] allEvents updated, count:`, updated.length);
+              return updated;
+            });
+
+            const newDateId = formatLocalDateId(
+              parseCalendarDate(mergedEvent.startTime) ?? getLocalMidnight(),
+            );
+            console.log(`[edit-event] updating selectedDateId to:`, newDateId);
+            setSelectedDateId(newDateId);
+
+            void writeEventCache(nextRawEvents, loadedExternalIdsRef.current, Date.now());
+            void refreshEvents({ force: true, silent: true });
+            console.log(`[edit-event-end] edit complete`);
+
+            setIsEditModalOpen(false);
+            setEditingEventId(null);
+          } catch (editError: any) {
+            console.error(
+              'Failed to update calendar event:',
+              editError,
+            );
+
+            setError(
+              editError?.message ||
+              'Không thể cập nhật sự kiện.',
+            );
+          }
+        }}
         onDelete={async (eventId) => {
           try {
             console.log(`[delete-event] deleting event ${eventId}`);
@@ -766,7 +769,7 @@ export default function EventsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any) => StyleSheet.create({
   messageContainer: {
     justifyContent: 'center',
     alignItems: 'center',
@@ -774,6 +777,6 @@ const styles = StyleSheet.create({
   },
   messageText: {
     fontSize: 16,
-    color: '#777',
+    color: COLORS.textSecondary,
   },
 });

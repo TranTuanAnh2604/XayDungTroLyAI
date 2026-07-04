@@ -5,13 +5,15 @@ import * as SystemUI from 'expo-system-ui';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './src/navigation/AppNavigator';
 import { AuthProvider } from './src/context/AuthContext';
-import { COLORS } from './src/constants/theme';
+import { ThemeProvider } from './src/context/ThemeContext';
+import { useTheme } from './src/hooks/useTheme';
 import { initializeNotifications } from './src/services/notifications';
 
-SplashScreen.preventAutoHideAsync().catch(() => {});
+SplashScreen.preventAutoHideAsync().catch(() => { });
 
-export default function App() {
+function AppContent() {
   const [appIsReady, setAppIsReady] = useState(false);
+  const { colors: COLORS } = useTheme();
 
   useEffect(() => {
     (async () => {
@@ -19,7 +21,7 @@ export default function App() {
       await initializeNotifications();
       setAppIsReady(true);
     })();
-  }, []);
+  }, [COLORS.bg]);
 
   const onLayoutRootView = useCallback(async () => {
     if (appIsReady) {
@@ -39,5 +41,13 @@ export default function App() {
         </AuthProvider>
       </SafeAreaProvider>
     </View>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }

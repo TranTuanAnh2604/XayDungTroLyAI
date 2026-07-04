@@ -1,3 +1,4 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import {
   Image,
@@ -6,8 +7,9 @@ import {
   Text,
   ViewStyle,
 } from 'react-native';
-import { COLORS, RADIUS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { RADIUS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
+
 import { GOOGLE_ICON_URI } from '../../constants/assets';
 
 type SocialLoginButtonProps = {
@@ -23,6 +25,9 @@ export default function SocialLoginButton({
   style,
   variant = 'login',
 }: SocialLoginButtonProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   return (
     <Pressable
       onPress={onPress}
@@ -40,7 +45,7 @@ export default function SocialLoginButton({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   button: {
     flexDirection: 'row',
     alignItems: 'center',

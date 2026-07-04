@@ -12,6 +12,14 @@ export type TaskItem = {
   completed: boolean;
 };
 
+export type ExtendedTaskItem = TaskItem & {
+  itemType: 'task' | 'todo';
+  createdAt?: string;
+  dueDate?: string;
+  completedAt?: string;
+  description?: string;
+};
+
 export type ProjectCard = {
   id: string;
   title: string;
@@ -28,4 +36,24 @@ export type TasksProgress = {
   completed: number;
   total: number;
   subtitle: string;
+};
+
+export type TaskDto = {
+  id: string;
+  title: string;
+  description?: string;
+  priority: 'high' | 'normal' | 'low' | string;
+  status: 'pending' | 'done' | string;
+  dueDate?: string;
+};
+
+export type TodoDto = {
+  id: string;
+  title: string;
+  description?: string;
+  dueDate?: string;
+  completed: boolean;
+  completedAt?: string;
+  source?: string;
+  createdAt?: string;
 };

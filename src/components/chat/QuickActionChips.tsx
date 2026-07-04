@@ -1,3 +1,4 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import {
   Pressable,
@@ -5,8 +6,9 @@ import {
   StyleSheet,
   Text,
 } from 'react-native';
-import { COLORS, RADIUS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { RADIUS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { QuickAction } from '../../types/chat';
 
 type QuickActionChipsProps = {
@@ -18,6 +20,9 @@ export default function QuickActionChips({
   actions,
   onPress,
 }: QuickActionChipsProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   return (
     <ScrollView
       horizontal
@@ -40,7 +45,7 @@ export default function QuickActionChips({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   scroll: {
     gap: 8,
     paddingBottom: 8,

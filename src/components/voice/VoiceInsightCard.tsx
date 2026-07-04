@@ -1,9 +1,11 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import AppGlassCard from '../ui/AppGlassCard';
-import { COLORS, RADIUS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { RADIUS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { VoiceInsight } from '../../types/voice';
 
 type VoiceInsightCardProps = {
@@ -17,6 +19,9 @@ export default function VoiceInsightCard({
   onPrimaryPress,
   onSecondaryPress,
 }: VoiceInsightCardProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   return (
     <AppGlassCard variant="ai" padding={24} style={styles.wrap}>
       <MaterialIcons
@@ -54,7 +59,7 @@ export default function VoiceInsightCard({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   wrap: {
     marginTop: 48,
   },

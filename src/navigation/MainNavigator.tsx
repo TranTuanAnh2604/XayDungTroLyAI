@@ -6,10 +6,12 @@ import HomeScreen from '../screens/home/HomeScreen';
 import TasksScreen from '../screens/tasks/TasksScreen';
 import EventsScreen from '../screens/events/EventsScreen';
 import MailScreen from '../screens/mail/MailScreen';
-import { COLORS } from '../constants/theme';
+import { useTheme } from '../hooks/useTheme';
 import type { AppTabId } from '../types/navigation';
 
 export default function MainNavigator() {
+  const { colors: COLORS } = useTheme();
+  const styles = React.useMemo(() => createStyles(COLORS), [COLORS]);
   const [activeTab, setActiveTab] = useState<AppTabId>('home');
 
   const renderScreen = () => {
@@ -37,7 +39,7 @@ export default function MainNavigator() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any) => StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: COLORS.background,

@@ -1,9 +1,10 @@
+import { getTypography } from '../../constants/typography';
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import HomeGlassCard from '../home/HomeGlassCard';
-import { COLORS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { TasksProgress } from '../../types/tasks';
 
 type TasksProgressCardProps = {
@@ -11,6 +12,9 @@ type TasksProgressCardProps = {
 };
 
 export default function TasksProgressCard({ progress }: TasksProgressCardProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const percent = progress.total > 0 ? progress.completed / progress.total : 0;
   const widthAnim = useRef(new Animated.Value(0)).current;
 
@@ -41,7 +45,7 @@ export default function TasksProgressCard({ progress }: TasksProgressCardProps) 
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   sparkle: {
     position: 'absolute',
     top: 16,

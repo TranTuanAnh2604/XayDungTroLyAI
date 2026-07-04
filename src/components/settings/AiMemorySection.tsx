@@ -1,9 +1,11 @@
+import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import AiMemoryCard from './AiMemoryCard';
-import { COLORS, RADIUS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { RADIUS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { AiMemoryItem } from '../../types/settings';
 
 type AiMemorySectionProps = {
@@ -15,6 +17,9 @@ export default function AiMemorySection({
   items,
   onAddContext,
 }: AiMemorySectionProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   return (
     <View style={styles.section}>
       <View style={styles.header}>
@@ -38,7 +43,7 @@ export default function AiMemorySection({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   section: {
     marginBottom: 32,
     gap: 12,

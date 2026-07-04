@@ -2,7 +2,8 @@ import React, { PropsWithChildren } from 'react';
 import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS, RADIUS, SHADOW } from '../../constants/theme';
+import { RADIUS, SHADOW } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 
 export type AppGlassCardVariant = 'ai' | 'elevated' | 'surface';
 
@@ -24,6 +25,8 @@ export default function AppGlassCard({
   tint = false,
   padding = 20,
 }: AppGlassCardProps) {
+  const { colors: COLORS, isDark } = useTheme();
+  const styles = React.useMemo(() => createStyles(COLORS), [COLORS]);
   const resolved: AppGlassCardVariant =
     variant ?? (glow || tint ? 'ai' : 'surface');
   const isAi = resolved === 'ai';
@@ -58,7 +61,7 @@ export default function AppGlassCard({
 
       <BlurView
         intensity={isAi ? 55 : 40}
-        tint="light"
+        tint={isDark ? 'dark' : 'light'}
         style={[
           StyleSheet.absoluteFill,
           isAi ? styles.blurAi : styles.blurDefault,
@@ -72,7 +75,7 @@ export default function AppGlassCard({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any) => StyleSheet.create({
   wrapper: {
     borderRadius: RADIUS.premium,
     overflow: 'hidden',

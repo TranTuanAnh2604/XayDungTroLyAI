@@ -1,5 +1,5 @@
 /** Material-style palette from Hivic AI design */
-export const COLORS = {
+export const LIGHT_COLORS = {
   primary: '#3525cd',
   onPrimary: '#ffffff',
   primaryContainer: '#4f46e5',
@@ -26,16 +26,16 @@ export const COLORS = {
   surfaceContainerHigh: '#e2e7ff',
   surfaceContainerHighest: '#dae2fd',
   outlineTint10: 'rgba(119, 117, 135, 0.1)',
-  background: '#faf8ff',
-  surface: '#faf8ff',
-  surfaceBright: '#faf8ff',
-  surfaceContainerLow: '#f2f3ff',
+  background: '#ffffff',
+  surface: '#f9f9f9',
+  surfaceBright: '#ffffff',
+  surfaceContainerLow: '#f4f4f5',
   surfaceContainerLowest: '#ffffff',
-  onBackground: '#131b2e',
-  onSurface: '#131b2e',
-  onSurfaceVariant: '#464555',
-  outline: '#777587',
-  outlineVariant: '#c7c4d8',
+  onBackground: '#212121',
+  onSurface: '#212121',
+  onSurfaceVariant: '#52525b',
+  outline: '#e4e4e7',
+  outlineVariant: '#f4f4f5',
   primaryGlow: 'rgba(53, 37, 205, 0.1)',
   secondaryGlow: 'rgba(129, 39, 207, 0.1)',
   primaryShadow: 'rgba(53, 37, 205, 0.2)',
@@ -47,56 +47,116 @@ export const COLORS = {
   meshPrimary: 'rgba(53, 37, 205, 0.08)',
   white: '#ffffff',
   secondaryTint: 'rgba(129, 39, 207, 0.05)',
-  /** AI summary cards — light lavender surface */
   aiCardSurface: '#F5F3FF',
   aiCardBorder: 'rgba(129, 39, 207, 0.12)',
   aiCardGlow: 'rgba(129, 39, 207, 0.2)',
   primaryContainerTint: 'rgba(79, 70, 229, 0.1)',
   primaryContainerBorder: 'rgba(79, 70, 229, 0.2)',
-  navBarBg: 'rgba(250, 248, 255, 0.7)',
-  navBarBorder: 'rgba(255, 255, 255, 0.2)',
+  navBarBg: 'rgba(255, 255, 255, 0.7)',
+  navBarBorder: 'rgba(228, 228, 231, 0.5)',
   primaryFixed: '#e2dfff',
   primaryBorder20: 'rgba(53, 37, 205, 0.2)',
   primaryRing30: 'rgba(53, 37, 205, 0.3)',
   sendGlow: 'rgba(53, 37, 205, 0.3)',
-  chatAiGradientStart: '#f2f3ff',
+  chatAiGradientStart: '#f4f4f5',
   chatAiGradientEnd: '#ffffff',
   chatUserGradientStart: '#3525cd',
   chatUserGradientEnd: '#4f46e5',
   meshGradientStart: 'rgba(53, 37, 205, 0.05)',
   meshGradientMid: 'rgba(129, 39, 207, 0.08)',
-  meshGradientEnd: '#f2f3ff',
-  /** Alias used by root App shell */
-  bg: '#faf8ff',
-} as const;
+  meshGradientEnd: '#f4f4f5',
+  bg: '#ffffff',
+  
+  // --- Semantic Tokens ---
+  card: '#ffffff',
+  textPrimary: '#212121',
+  textSecondary: '#52525b',
+  textMuted: '#a1a1aa',
+  border: '#e4e4e7',
+  divider: '#f4f4f5',
+  primaryText: '#3525cd',
+  tabActive: '#3525cd',
+  tabInactive: '#a1a1aa',
+  danger: '#ba1a1a',
+  success: '#10b981',
+  warning: '#f59e0b',
+};
+
+export const DARK_COLORS: typeof LIGHT_COLORS = {
+  ...LIGHT_COLORS,
+  background: '#212121',
+  surface: '#2f2f2f',
+  surfaceBright: '#3a3a3a',
+  surfaceContainerLow: '#282828',
+  surfaceContainerLowest: '#1c1c1c',
+  surfaceContainer: '#333333',
+  surfaceContainerHigh: '#3a3a3a',
+  surfaceContainerHighest: '#424242',
+  onBackground: '#ececec',
+  onSurface: '#ececec',
+  onSurfaceVariant: '#a1a1aa',
+  outline: '#424242',
+  outlineVariant: '#52525b',
+  navBarBg: 'rgba(33, 33, 33, 0.7)',
+  navBarBorder: 'rgba(255, 255, 255, 0.1)',
+  aiCardSurface: '#2a2a2a',
+  bg: '#212121',
+  chatAiGradientStart: '#282828',
+  chatAiGradientEnd: '#333333',
+  meshGradientStart: 'rgba(53, 37, 205, 0.15)',
+  meshGradientMid: 'rgba(129, 39, 207, 0.15)',
+  meshGradientEnd: '#282828',
+  glassBackground: 'rgba(47, 47, 47, 0.7)',
+  glassBorder: 'rgba(255, 255, 255, 0.1)',
+  
+  // Remap existing hardcoded-like properties
+  white: '#2a2a2a', // Maps to semantic.card
+  
+  // --- Semantic Tokens Override ---
+  card: '#2a2a2a',
+  textPrimary: '#ececec',
+  textSecondary: '#a1a1aa',
+  textMuted: '#71717a',
+  border: '#424242',
+  divider: '#333333',
+  primaryText: '#e2dfff',
+  tabActive: '#e2dfff',
+  tabInactive: '#71717a',
+  danger: '#ffb4ab',
+  success: '#34d399',
+  warning: '#fbbf24',
+};
+
+export type ThemeColors = typeof LIGHT_COLORS;
+
+export const COLORS = LIGHT_COLORS;
 
 export const RADIUS = {
   sm: 8,
   md: 12,
   xl: 16,
   premium: 20,
-  /** AI / day-summary cards */
   aiCard: 24,
   full: 9999,
 } as const;
 
-export const SHADOW = {
+export const getShadows = (colors: ThemeColors) => ({
   card: {
-    shadowColor: COLORS.primary,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.1,
     shadowRadius: 20,
     elevation: 8,
   },
   button: {
-    shadowColor: COLORS.primary,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 4,
   },
   aiGlow: {
-    shadowColor: COLORS.secondary,
+    shadowColor: colors.secondary,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.12,
     shadowRadius: 24,
@@ -109,4 +169,6 @@ export const SHADOW = {
     shadowRadius: 32,
     elevation: 8,
   },
-} as const;
+} as const);
+
+export const SHADOW = getShadows(LIGHT_COLORS);

@@ -1,3 +1,4 @@
+import { getTypography } from '../../constants/typography';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -9,8 +10,9 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import AppGlassCard from '../ui/AppGlassCard';
-import { COLORS, RADIUS } from '../../constants/theme';
-import { typography } from '../../constants/typography';
+import { RADIUS } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
+
 import type { TimelineEvent } from '../../types/events';
 
 type TimelineEventItemProps = {
@@ -26,11 +28,14 @@ export default function TimelineEventItem({
   isLast = false,
   onEdit,
 }: TimelineEventItemProps) {
+  const { colors: COLORS } = useTheme();
+  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const [expanded, setExpanded] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(32)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  
+
   // Log component lifecycle for debugging
   console.log(`[TimelineEventItem-render] id=${event.id}, type=${event.type}, title=${event.title}`);
 
@@ -119,7 +124,7 @@ export default function TimelineEventItem({
 
   const renderBody = () => {
     console.log(`[TimelineEventItem-renderbody] type=${event.type}, rendering conditional layout`);
-    
+
     if (event.type === 'break') {
       console.log(`[TimelineEventItem-renderbody-break] title=${event.title}`);
       return (
@@ -154,31 +159,31 @@ export default function TimelineEventItem({
             padding={20}
             style={styles.cardInner}
           >
-          <View style={styles.taskRow}>
-            <View style={[styles.taskCheck, expanded && styles.taskCheckDone]} />
-            <Text style={styles.cardTitle}>{event.title}</Text>
-          </View>
-          <View style={styles.tags}>
-            {(event.tags ?? []).map((tag, tagIndex) => (
-              <View key={`${tag}-${tagIndex}`} style={styles.tag}>
-                <Text style={styles.tagText}>{tag}</Text>
-              </View>
-            ))}
-          </View>
-          {expanded && event.expandedDetail ? (
-            <View style={styles.expanded}>
-              <Text style={styles.expandedText}>{event.expandedDetail}</Text>
-              {onEdit ? (
-                <Pressable
-                  onPress={onEdit}
-                  style={({ pressed }) => [styles.editBtn, pressed && styles.editBtnPressed]}
-                >
-                  <MaterialIcons name="edit" size={16} color={COLORS.primary} />
-                  <Text style={styles.editBtnText}>Chỉnh sửa</Text>
-                </Pressable>
-              ) : null}
+            <View style={styles.taskRow}>
+              <View style={[styles.taskCheck, expanded && styles.taskCheckDone]} />
+              <Text style={styles.cardTitle}>{event.title}</Text>
             </View>
-          ) : null}
+            <View style={styles.tags}>
+              {(event.tags ?? []).map((tag, tagIndex) => (
+                <View key={`${tag}-${tagIndex}`} style={styles.tag}>
+                  <Text style={styles.tagText}>{tag}</Text>
+                </View>
+              ))}
+            </View>
+            {expanded && event.expandedDetail ? (
+              <View style={styles.expanded}>
+                <Text style={styles.expandedText}>{event.expandedDetail}</Text>
+                {onEdit ? (
+                  <Pressable
+                    onPress={onEdit}
+                    style={({ pressed }) => [styles.editBtn, pressed && styles.editBtnPressed]}
+                  >
+                    <MaterialIcons name="edit" size={16} color={COLORS.primary} />
+                    <Text style={styles.editBtnText}>Chỉnh sửa</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
           </AppGlassCard>
         </Pressable>
       );
@@ -186,7 +191,7 @@ export default function TimelineEventItem({
 
     const isUrgent = event.type === 'urgent';
     const isMeeting = event.type === 'meeting';
-    
+
     // Defensive checks for required props
     if ((isUrgent || isMeeting) && !event.title) {
       console.warn(`[TimelineEventItem-error] ${event.type} event missing title:`, event);
@@ -204,7 +209,7 @@ export default function TimelineEventItem({
       console.warn(`[TimelineEventItem-error] meeting event missing joinLabel:`, event);
       return <View style={styles.errorCard}><Text>Event data incomplete</Text></View>;
     }
-    
+
     console.log(`[TimelineEventItem-renderbody-meeting/urgent] title=${event.title}, description=${event.description}, badge=${event.badge}`);
 
     return (
@@ -216,62 +221,62 @@ export default function TimelineEventItem({
           padding={20}
           style={[styles.cardInner, isUrgent && styles.cardUrgent]}
         >
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>{event.title}</Text>
-          <View
-            style={[
-              styles.badge,
-              isUrgent ? styles.badgeUrgent : styles.badgePrimary,
-            ]}
-          >
-            <Text
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>{event.title}</Text>
+            <View
               style={[
-                styles.badgeText,
-                isUrgent ? styles.badgeTextUrgent : styles.badgeTextPrimary,
+                styles.badge,
+                isUrgent ? styles.badgeUrgent : styles.badgePrimary,
               ]}
             >
-              {event.badge || 'N/A'}
-            </Text>
-          </View>
-        </View>
-
-        {isUrgent || isMeeting ? (
-          <Text style={styles.description}>{event.description || 'No description'}</Text>
-        ) : null}
-
-        {isUrgent && event.avatars ? (
-          <View style={styles.avatars}>
-            {event.avatars.map((uri, i) => (
-              <Image
-                key={uri}
-                source={{ uri }}
-                style={[styles.avatar, i > 0 && styles.avatarOverlap]}
-              />
-            ))}
-          </View>
-        ) : null}
-
-        {isMeeting ? (
-          <Pressable style={({ pressed }) => [styles.joinBtn, pressed && styles.btnPressed]}>
-            <MaterialIcons name="play-circle-filled" size={18} color={COLORS.onPrimary} />
-            <Text style={styles.joinText}>{event.joinLabel || 'Join'}</Text>
-          </Pressable>
-        ) : null}
-
-        {expanded && event.expandedDetail ? (
-          <View style={styles.expanded}>
-            <Text style={styles.expandedText}>{event.expandedDetail}</Text>
-            {onEdit ? (
-              <Pressable
-                onPress={onEdit}
-                style={({ pressed }) => [styles.editBtn, pressed && styles.editBtnPressed]}
+              <Text
+                style={[
+                  styles.badgeText,
+                  isUrgent ? styles.badgeTextUrgent : styles.badgeTextPrimary,
+                ]}
               >
-                <MaterialIcons name="edit" size={16} color={COLORS.primary} />
-                <Text style={styles.editBtnText}>Chỉnh sửa</Text>
-              </Pressable>
-            ) : null}
+                {event.badge || 'N/A'}
+              </Text>
+            </View>
           </View>
-        ) : null}
+
+          {isUrgent || isMeeting ? (
+            <Text style={styles.description}>{event.description || 'No description'}</Text>
+          ) : null}
+
+          {isUrgent && event.avatars ? (
+            <View style={styles.avatars}>
+              {event.avatars.map((uri, i) => (
+                <Image
+                  key={uri}
+                  source={{ uri }}
+                  style={[styles.avatar, i > 0 && styles.avatarOverlap]}
+                />
+              ))}
+            </View>
+          ) : null}
+
+          {isMeeting ? (
+            <Pressable style={({ pressed }) => [styles.joinBtn, pressed && styles.btnPressed]}>
+              <MaterialIcons name="play-circle-filled" size={18} color={COLORS.onPrimary} />
+              <Text style={styles.joinText}>{event.joinLabel || 'Join'}</Text>
+            </Pressable>
+          ) : null}
+
+          {expanded && event.expandedDetail ? (
+            <View style={styles.expanded}>
+              <Text style={styles.expandedText}>{event.expandedDetail}</Text>
+              {onEdit ? (
+                <Pressable
+                  onPress={onEdit}
+                  style={({ pressed }) => [styles.editBtn, pressed && styles.editBtnPressed]}
+                >
+                  <MaterialIcons name="edit" size={16} color={COLORS.primary} />
+                  <Text style={styles.editBtnText}>Chỉnh sửa</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
         </AppGlassCard>
       </Pressable>
     );
@@ -296,7 +301,7 @@ export default function TimelineEventItem({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   row: {
     flexDirection: 'row',
     gap: 24,
@@ -341,7 +346,7 @@ const styles = StyleSheet.create({
   time: {
     fontSize: 10,
     fontWeight: '700',
-    color: COLORS.outline,
+    color: COLORS.textSecondary,
     marginTop: 8,
   },
   bodyCol: {
@@ -475,7 +480,7 @@ const styles = StyleSheet.create({
   breakText: {
     ...typography.bodyMd,
     fontStyle: 'italic',
-    color: `${COLORS.onSurfaceVariant}B3`,
+    color: COLORS.textMuted,
   },
   taskRow: {
     flexDirection: 'row',
