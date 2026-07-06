@@ -1,17 +1,102 @@
-import { useRef } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useNavigate } from 'react-router-dom';
 import Sidebar from "../components/Sidebar";
+import { getTasks } from "../services/taskService";
+import { getNotifications } from "../services/notificationService";
+
 export default function Dashboard() {
     const searchWrapperRef = useRef(null);
     const navigate = useNavigate();
     const userName = localStorage.getItem('userName') || 'Alex';
+
+    // ── State động từ API ──────────────────────────────────────────
+    const [tasks, setTasks] = useState([]);
+    const [notifications, setNotifications] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchAll = async () => {
+            try {
+                const [taskData, notifData] = await Promise.all([
+                    getTasks(),
+                    getNotifications(),
+                ]);
+                setTasks(Array.isArray(taskData) ? taskData : []);
+                setNotifications(Array.isArray(notifData) ? notifData : []);
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchAll();
+    }, []);
+
+    // ── Tính toán từ data thực ──────────────────────────────────────
+    const todayTasks = tasks.filter(t => t.status !== 'done').length;
+    const highPriorityTasks = tasks.filter(t => t.priority === 3 && t.status !== 'done').length;
+    const pendingNotifs = notifications.filter(n => n.status === 'pending').length;
+    const overdueTasks = tasks.filter(t => {
+        if (!t.dueDate || t.status === 'done') return false;
+        return new Date(t.dueDate) < new Date();
+    }).length;
+
+    const tasksByStatus = {
+        pending: tasks.filter(t => t.status === 'pending').length,
+        in_progress: tasks.filter(t => t.status === 'in_progress').length,
+        in_review: tasks.filter(t => t.status === 'in_review').length,
+        done: tasks.filter(t => t.status === 'done').length,
+    };
+    const totalTasks = tasks.length;
+    const donePercent = totalTasks > 0 ? Math.round((tasksByStatus.done / totalTasks) * 100) : 0;
+
+    // ── AI Recommendations dựa trên data thực ──────────────────────
+    const aiRecommendations = [
+        highPriorityTasks > 0
+            ? `Bạn có ${highPriorityTasks} task khẩn cấp cần xử lý ngay`
+            : 'Không có task khẩn cấp, tốt lắm!',
+        overdueTasks > 0
+            ? `${overdueTasks} task đã quá hạn, cần xử lý gấp`
+            : 'Tất cả task đều trong hạn',
+        pendingNotifs > 0
+            ? `${pendingNotifs} nhắc nhở đang chờ`
+            : 'Không có nhắc nhở nào đang chờ',
+        tasksByStatus.in_progress > 0
+            ? `${tasksByStatus.in_progress} task đang thực hiện`
+            : 'Chưa có task nào đang thực hiện',
+    ];
+
+    // ── Data giả (thay bằng API sau khi pull) ──────────────────────
+    const stats = [
+        { icon: "task_alt", title: "Hoàn thành", value: String(tasksByStatus.done), color: "bg-green-100", iconColor: "text-green-600" },
+        { icon: "pending_actions", title: "Đang làm", value: String(tasksByStatus.in_progress), color: "bg-blue-100", iconColor: "text-blue-600" },
+        { icon: "notifications_active", title: "Nhắc nhở", value: String(pendingNotifs), color: "bg-purple-100", iconColor: "text-purple-600" },
+        { icon: "warning", title: "Quá hạn", value: String(overdueTasks), color: "bg-red-100", iconColor: "text-red-600" },
+    ];
+
+    const quickActions = [
+        { icon: "chat", title: "AI Chat", path: "/chat", color: "from-violet-500 to-purple-500" },
+        { icon: "mail", title: "Gmail", path: "/gmail", color: "from-blue-500 to-cyan-500" },
+        { icon: "task_alt", title: "Tasks", path: "/tasks", color: "from-green-500 to-emerald-500" },
+        { icon: "calendar_month", title: "Calendar", path: "/calendar", color: "from-orange-500 to-red-500" },
+        { icon: "mic", title: "Voice", path: "/voice", color: "from-pink-500 to-rose-500" },
+        { icon: "notifications", title: "Reminders", path: "/reminders", color: "from-indigo-500 to-blue-600" },
+        { icon: "insights", title: "Productivity Stats", path: "/productivity-stats", color: "from-amber-500 to-orange-500" },
+        { icon: "settings", title: "Settings", path: "/settings", color: "from-slate-500 to-gray-600" },
+    ];
+
+    // Task gần deadline nhất (5 task)
+    const upcomingTasks = [...tasks]
+        .filter(t => t.dueDate && t.status !== 'done')
+        .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
+        .slice(0, 5);
+
     const handleSearchFocus = () => {
         if (searchWrapperRef.current) {
             searchWrapperRef.current.classList.add("shadow-md");
             searchWrapperRef.current.style.transform = "translateY(-1px)";
         }
     };
-
     const handleSearchBlur = () => {
         if (searchWrapperRef.current) {
             searchWrapperRef.current.classList.remove("shadow-md");
@@ -19,264 +104,271 @@ export default function Dashboard() {
         }
     };
 
+    const priorityLabel = { 1: 'Low', 2: 'Normal', 3: 'Urgent' };
+    const priorityColor = { 1: 'text-green-600 bg-green-100', 2: 'text-blue-600 bg-blue-100', 3: 'text-red-600 bg-red-100' };
+
     return (
-        <>
-            {/* Tailwind custom config via CDN — only works if using CDN in index.html */}
-            {/* If using Vite + Tailwind installed, configure tailwind.config.js instead */}
+        <div className="bg-[#f8f9ff] text-[#0b1c30] min-h-screen flex antialiased" style={{ fontFamily: "Inter, sans-serif" }}>
+            <Sidebar />
 
-            <body
-                className="bg-[#f8f9ff] text-[#0b1c30] min-h-screen flex antialiased"
-                style={{ fontFamily: "Inter, sans-serif" }}
-            >
-                {/* SideNavBar */}
-                < Sidebar />
-
-                {/* Main Content Area */}
-                <main className="flex-1 flex flex-col min-w-0 md:ml-[280px]">
-                    {/* TopAppBar */}
-                    <header className="flex justify-between items-center w-full px-[24px] py-[8px] sticky top-0 z-30 bg-[#f8f9ff]/70 backdrop-blur-xl border-b border-[#c6c6cd] shadow-sm">
-                        <div className="flex items-center gap-[16px] flex-1">
-                            {/* Mobile Menu Toggle */}
-                            <button className="md:hidden text-[#45464d] hover:text-[#000000] transition-colors p-[4px] rounded-full hover:bg-[#dce9ff]">
-                                <span className="material-symbols-outlined">menu</span>
-                            </button>
-                            <div className="text-[24px] font-extrabold leading-[1.3] text-[#000000] hidden md:block">
-                                Dashboard
-                            </div>
-                            {/* Search Bar */}
-                            <div
-                                ref={searchWrapperRef}
-                                className="relative w-full max-w-md ml-auto md:ml-[24px] mr-[24px] group"
-                            >
-                                <span className="material-symbols-outlined absolute left-[8px] top-1/2 -translate-y-1/2 text-[#45464d] group-focus-within:text-[#6b38d4] transition-colors">
-                                    search
+            <main className="flex-1 flex flex-col min-w-0 md:ml-[280px]">
+                {/* Header */}
+                <header className="flex justify-between items-center w-full px-6 py-3 sticky top-0 z-30 bg-[#f8f9ff]/70 backdrop-blur-xl border-b border-[#c6c6cd] shadow-sm">
+                    <div className="flex items-center gap-4 flex-1">
+                        <button className="md:hidden text-[#45464d] hover:text-black p-2 rounded-full hover:bg-[#dce9ff]">
+                            <span className="material-symbols-outlined">menu</span>
+                        </button>
+                        <div className="text-2xl font-extrabold text-black hidden md:block">Dashboard</div>
+                        <div ref={searchWrapperRef} className="relative w-full max-w-md ml-auto md:ml-6 group">
+                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#45464d] group-focus-within:text-[#6b38d4]">search</span>
+                            <input className="w-full bg-white border border-[#c6c6cd] rounded-full py-2.5 pl-11 pr-4 text-base focus:outline-none focus:ring-2 focus:ring-[#6b38d4] transition-all shadow-sm"
+                                placeholder="Ask AI or search..." type="text" onFocus={handleSearchFocus} onBlur={handleSearchBlur} />
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <button onClick={() => navigate('/reminders')} className="text-[#45464d] hover:text-black p-2 rounded-full hover:bg-[#d3e4fe] relative">
+                            <span className="material-symbols-outlined">notifications</span>
+                            {pendingNotifs > 0 && (
+                                <span className="absolute top-1 right-1 min-w-[16px] h-[16px] bg-red-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-[2px]">
+                                    {pendingNotifs}
                                 </span>
-                                <input
-                                    className="w-full bg-white border border-[#c6c6cd] rounded-full py-2 pl-[40px] pr-[16px] text-[16px] text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#6b38d4] focus:border-transparent transition-all shadow-sm"
-                                    placeholder="Ask AI or search..."
-                                    type="text"
-                                    onFocus={handleSearchFocus}
-                                    onBlur={handleSearchBlur}
-                                />
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-[16px]">
-                            <button className="text-[#45464d] hover:text-[#000000] transition-colors p-[4px] rounded-full hover:bg-[#d3e4fe] relative">
-                                <span className="material-symbols-outlined">notifications</span>
-                                <span className="absolute top-1 right-1 w-2 h-2 bg-[#ba1a1a] rounded-full"></span>
-                            </button>
-                            <button className="text-[#45464d] hover:text-[#000000] transition-colors p-[4px] rounded-full hover:bg-[#d3e4fe]">
-                                <span className="material-symbols-outlined">history</span>
-                            </button>
-                            <div className="w-8 h-8 rounded-full overflow-hidden border border-[#c6c6cd] cursor-pointer hover:ring-2 hover:ring-[#6b38d4] transition-all">
-                                <img
-                                    alt="User Profile"
-                                    className="w-full h-full object-cover"
-                                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuDalTmS4lP-znYQVVwIfhlq3ARxhy15ES8PiwoVB3RiPnPv29H7FKppFiOYX8jKXjUIISJRJuUbqu9GBmKqltt35L2l_6tlMXNHQXcoBOX364FUqu92Rht4KwajGiTUNWSpurJT-XS4IcshO6-ZHqHPIni8bJFvHaEAKnFPiIyNWtMST_PF2qdO6TEPKXvJWXHjrcGApRjQ99dFl_MDp5Nl77BRZqOfkP5hfFNJ5XiMo3wuD7iEGLZQ829mSQ1QwRvRunSHqsItxOQ"
-                                />
-                            </div>
-                        </div>
-                    </header>
+                            )}
+                        </button>
+                        
+                    </div>
+                </header>
 
-                    {/* Dashboard Canvas */}
-                    <div className="p-[16px] md:p-[24px] lg:p-[40px] max-w-[1440px] mx-auto w-full flex flex-col gap-[24px] md:gap-[40px] overflow-y-auto">
-                        {/* Welcome Header */}
-                        <section className="flex flex-col md:flex-row justify-between items-start md:items-center gap-[16px]">
-                            <div>
-                                <h2
-                                    className="text-[28px] md:text-[48px] font-bold leading-[1.1] tracking-[-0.02em] mb-[4px]"
-                                    style={{
-                                        background: "linear-gradient(135deg, #000000 0%, #6b38d4 100%)",
-                                        WebkitBackgroundClip: "text",
-                                        WebkitTextFillColor: "transparent",
-                                        backgroundClip: "text",
-                                    }}
-                                >
-                                    Good morning, {userName}.
-                                </h2>
-                                <p className="text-[18px] leading-[1.6] text-[#45464d]">
-                                    Here is your productivity overview for today.
-                                </p>
-                            </div>
-                            <div className="flex gap-[8px]">
-                                <button className="px-[16px] py-[8px] bg-white border border-[#c6c6cd] rounded-full text-[14px] font-medium hover:bg-[#eff4ff] transition-colors shadow-sm flex items-center gap-[4px]">
-                                    <span className="material-symbols-outlined text-[18px]">calendar_month</span> Today
-                                </button>
-                            </div>
-                        </section>
+                <div className="p-4 md:p-6 lg:p-10 max-w-[1440px] mx-auto w-full flex flex-col gap-8 overflow-y-auto">
 
-                        {/* Bento Grid Layout */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-[16px] md:gap-[24px]">
-                            {/* AI Suggestions Card */}
-                            <div
-                                className="col-span-1 md:col-span-2 lg:col-span-2 rounded-xl p-[24px] border border-[#dce9ff] relative overflow-hidden group"
-                                style={{
-                                    background: "rgba(255, 255, 255, 0.7)",
-                                    backdropFilter: "blur(12px)",
-                                    WebkitBackdropFilter: "blur(12px)",
-                                    boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
-                                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.transform = "translateY(-2px)";
-                                    e.currentTarget.style.boxShadow = "0 12px 30px -5px rgba(0,0,0,0.1)";
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.transform = "none";
-                                    e.currentTarget.style.boxShadow = "0 10px 25px -5px rgba(0,0,0,0.05)";
-                                }}
-                            >
-                                <div className="absolute -right-10 -top-10 w-40 h-40 bg-[#d0bcff]/20 rounded-full blur-3xl group-hover:bg-[#d0bcff]/30 transition-colors"></div>
-                                <div className="flex items-center gap-[8px] mb-[16px] relative z-10">
-                                    <span
-                                        className="material-symbols-outlined text-[#6b38d4]"
-                                        style={{ fontVariationSettings: "'FILL' 1" }}
-                                    >
-                                        auto_awesome
-                                    </span>
-                                    <h3 className="text-[24px] font-semibold leading-[1.3] text-[#0b1c30]">
-                                        AI Suggestions
-                                    </h3>
+                    {/* Hero */}
+                    <section className="relative overflow-hidden rounded-3xl p-8 bg-gradient-to-br from-[#6b38d4] via-[#8b5cf6] to-[#c084fc]">
+                        <div className="absolute -top-20 -right-20 w-72 h-72 rounded-full bg-white/10 blur-3xl"></div>
+                        <div className="absolute bottom-0 left-0 w-60 h-60 rounded-full bg-white/10 blur-3xl"></div>
+                        <div className="relative z-10 flex flex-col lg:flex-row justify-between gap-8">
+                            <div className="max-w-2xl">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-lg flex items-center justify-center">
+                                        <span className="material-symbols-outlined text-white text-4xl">smart_toy</span>
+                                    </div>
+                                    <div>
+                                        <p className="text-white/80">Welcome back</p>
+                                        <h2 className="text-5xl font-bold text-white">{userName}</h2>
+                                    </div>
                                 </div>
-                                <div className="space-y-[8px] relative z-10">
+                                <h3 className="text-3xl text-white font-semibold mb-4">Your Personal AI Assistant</h3>
+                                <p className="text-white/90 leading-8 text-lg">AI has analyzed your schedule and prepared today's overview.</p>
+                                <div className="mt-8 flex gap-4">
+                                    <button onClick={() => navigate("/chat")} className="px-8 py-3 rounded-xl bg-white text-[#6b38d4] font-semibold hover:scale-105 transition-all">
+                                        Chat with AI
+                                    </button>
+                                    <button onClick={() => navigate("/tasks")} className="px-8 py-3 rounded-xl border border-white/40 text-white hover:bg-white/10 transition-all">
+                                        View Tasks
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Stats động */}
+                            <div className="grid grid-cols-2 gap-4 min-w-[320px]">
+                                {loading ? (
+                                    <div className="col-span-2 flex items-center justify-center py-8">
+                                        <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="rounded-2xl bg-white/15 backdrop-blur-lg p-5">
+                                            <p className="text-white/80 text-sm">Tasks đang làm</p>
+                                            <h1 className="text-white text-5xl font-bold mt-3">{todayTasks}</h1>
+                                            <p className="text-white/70 mt-2">{highPriorityTasks} Khẩn cấp</p>
+                                        </div>
+                                        <div className="rounded-2xl bg-white/15 backdrop-blur-lg p-5">
+                                            <p className="text-white/80 text-sm">Hoàn thành</p>
+                                            <h1 className="text-white text-5xl font-bold mt-3">{tasksByStatus.done}</h1>
+                                            <p className="text-white/70 mt-2">{donePercent}% tổng tasks</p>
+                                        </div>
+                                        <div className="rounded-2xl bg-white/15 backdrop-blur-lg p-5">
+                                            <p className="text-white/80 text-sm">Nhắc nhở</p>
+                                            <h1 className="text-white text-5xl font-bold mt-3">{pendingNotifs}</h1>
+                                            <p className="text-white/70 mt-2">Đang chờ</p>
+                                        </div>
+                                        <div className="rounded-2xl bg-white/15 backdrop-blur-lg p-5">
+                                            <p className="text-white/80 text-sm">Quá hạn</p>
+                                            <h1 className="text-white text-5xl font-bold mt-3">{overdueTasks}</h1>
+                                            <p className="text-white/70 mt-2">Cần xử lý</p>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* AI Recommendation */}
+                    <div className="rounded-3xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 p-8 text-white shadow-xl">
+                        <div className="flex items-center justify-between mb-6">
+                            <div>
+                                <h2 className="text-3xl font-bold">AI Recommendation</h2>
+                                <p className="text-white/80 mt-1">Dựa trên dữ liệu thực tế của bạn</p>
+                            </div>
+                            <span className="material-symbols-outlined text-6xl">psychology</span>
+                        </div>
+                        <div className="grid md:grid-cols-2 gap-4">
+                            {aiRecommendations.map((item, index) => (
+                                <div key={index} className="bg-white/10 rounded-2xl p-4 backdrop-blur-lg hover:bg-white/20 transition">
+                                    ✨ {item}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                        {stats.map((item) => (
+                            <div key={item.title} className="bg-white rounded-3xl p-6 shadow hover:shadow-2xl transition hover:-translate-y-1">
+                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${item.color}`}>
+                                    <span className={`material-symbols-outlined text-3xl ${item.iconColor}`}>{item.icon}</span>
+                                </div>
+                                <h3 className="mt-5 text-gray-500 text-sm">{item.title}</h3>
+                                <div className="text-4xl font-bold mt-2">
+                                    {loading ? <div className="w-8 h-8 border-4 border-gray-200 border-t-[#6b38d4] rounded-full animate-spin"></div> : item.value}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Task Progress + Upcoming Tasks */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Task Progress */}
+                        <div className="bg-white rounded-3xl p-6 shadow">
+                            <h3 className="text-xl font-bold mb-6">Tiến độ Tasks</h3>
+                            {loading ? (
+                                <div className="flex justify-center py-8">
+                                    <div className="w-8 h-8 border-4 border-[#6b38d4] border-t-transparent rounded-full animate-spin"></div>
+                                </div>
+                            ) : totalTasks === 0 ? (
+                                <div className="text-center py-8 text-gray-400">Chưa có task nào</div>
+                            ) : (
+                                <div className="flex flex-col gap-5">
                                     {[
-                                        {
-                                            icon: "drafts",
-                                            title: "Draft reply to Marketing Team",
-                                            desc: "Based on recent thread about Q3 campaign launch...",
-                                        },
-                                        {
-                                            icon: "summarize",
-                                            title: "Summarize 'Project Phoenix' docs",
-                                            desc: "3 new documents uploaded by Sarah yesterday.",
-                                        },
-                                    ].map(({ icon, title, desc }) => (
-                                        <div
-                                            key={title}
-                                            className="flex items-start gap-[16px] p-[8px] rounded-lg bg-white/50 border border-[#c6c6cd]/30 hover:bg-white transition-colors cursor-pointer"
-                                        >
-                                            <span className="material-symbols-outlined text-[#191c1e] mt-1">{icon}</span>
-                                            <div>
-                                                <p className="text-[14px] font-semibold text-[#0b1c30]">{title}</p>
-                                                <p className="text-[16px] text-[#45464d] text-sm line-clamp-1">{desc}</p>
+                                        { label: 'To Do', value: tasksByStatus.pending, color: 'bg-gray-400' },
+                                        { label: 'In Progress', value: tasksByStatus.in_progress, color: 'bg-[#6b38d4]' },
+                                        { label: 'In Review', value: tasksByStatus.in_review, color: 'bg-amber-500' },
+                                        { label: 'Done', value: tasksByStatus.done, color: 'bg-green-500' },
+                                    ].map(({ label, value, color }) => (
+                                        <div key={label}>
+                                            <div className="flex justify-between text-sm mb-1">
+                                                <span className="font-medium text-gray-600">{label}</span>
+                                                <span className="font-bold">{value} / {totalTasks}</span>
+                                            </div>
+                                            <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                                <div className={`h-full ${color} rounded-full transition-all duration-500`}
+                                                    style={{ width: `${totalTasks > 0 ? (value / totalTasks) * 100 : 0}%` }}>
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
+                                    <div className="mt-2 pt-4 border-t border-gray-100 flex justify-between items-center">
+                                        <span className="text-gray-500 text-sm">Tổng hoàn thành</span>
+                                        <span className="text-2xl font-bold text-[#6b38d4]">{donePercent}%</span>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
+                        </div>
 
-                            {/* Daily Summary Widget */}
-                            <div
-                                className="col-span-1 md:col-span-1 lg:col-span-1 bg-white rounded-xl p-[24px] border border-[#c6c6cd]/50 shadow-sm flex flex-col justify-between"
-                                style={{ transition: "transform 0.2s ease, box-shadow 0.2s ease" }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.transform = "translateY(-2px)";
-                                    e.currentTarget.style.boxShadow = "0 12px 30px -5px rgba(0,0,0,0.1)";
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.transform = "none";
-                                    e.currentTarget.style.boxShadow = "";
-                                }}
-                            >
-                                <div>
-                                    <h3 className="text-[18px] font-semibold text-[#0b1c30] mb-[8px]">Tasks Today</h3>
-                                    <div className="text-[48px] font-bold leading-none text-[#000000]">12</div>
-                                    <p className="text-[16px] text-[#45464d] mt-[4px]">4 high priority</p>
-                                </div>
-                                <div className="mt-[16px] w-full bg-[#e5eeff] h-2 rounded-full overflow-hidden">
-                                    <div className="bg-[#6b38d4] h-full rounded-full" style={{ width: "65%" }}></div>
-                                </div>
+                        {/* Upcoming Tasks */}
+                        <div className="bg-white rounded-3xl p-6 shadow">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-xl font-bold">Deadline gần nhất</h3>
+                                <button onClick={() => navigate('/tasks')} className="text-sm text-[#6b38d4] font-medium hover:underline">
+                                    Xem tất cả
+                                </button>
                             </div>
-
-                            {/* Quick Actions Widget */}
-                            <div className="col-span-1 md:col-span-3 lg:col-span-1 bg-white rounded-xl p-[24px] border border-[#c6c6cd]/50 shadow-sm flex flex-col justify-center gap-[16px]">
-                                <h3 className="text-[18px] font-semibold text-[#0b1c30]">Quick Access</h3>
-                                <div className="grid grid-cols-2 gap-[8px]">
-                                    {[
-                                        { icon: "chat_bubble", label: "Chat", path: "/chat" },
-                                        { icon: "mail", label: "Email", path: "/gmail" },
-                                        { icon: "mic", label: "Voice", path: "/voice" },
-                                        { icon: "note_add", label: "Task", path: "/tasks" },
-                                    ].map(({ icon, label, path }) => (
-                                        <button
-                                            key={label}
-                                            onClick={() => navigate(path)}
-                                            className="flex flex-col items-center justify-center p-[16px] rounded-lg bg-[#eff4ff] hover:bg-[#d3e4fe] transition-colors border border-transparent hover:border-[#d0bcff]"
-                                        >
-                                            <span
-                                                className="material-symbols-outlined text-[#000000] mb-[4px]"
-                                                style={{ fontVariationSettings: "'FILL' 1" }}
-                                            >
-                                                {icon}
-                                            </span>
-                                            <span className="text-[12px] font-medium">{label}</span>
-                                        </button>
-                                    ))}
+                            {loading ? (
+                                <div className="flex justify-center py-8">
+                                    <div className="w-8 h-8 border-4 border-[#6b38d4] border-t-transparent rounded-full animate-spin"></div>
                                 </div>
-                            </div>
-
-                            {/* Recent Activity */}
-                            <div className="col-span-1 md:col-span-3 lg:col-span-4 bg-white rounded-xl border border-[#c6c6cd]/50 shadow-sm overflow-hidden">
-                                <div className="p-[24px] border-b border-[#c6c6cd]/30 flex justify-between items-center">
-                                    <h3 className="text-[24px] font-semibold leading-[1.3] text-[#0b1c30]">
-                                        Recent Activity
-                                    </h3>
-                                    <button className="text-[14px] font-medium text-[#6b38d4] hover:text-[#000000] transition-colors">
-                                        View All
-                                    </button>
+                            ) : upcomingTasks.length === 0 ? (
+                                <div className="text-center py-8 text-gray-400">
+                                    <span className="material-symbols-outlined text-4xl mb-2 block">task_alt</span>
+                                    Không có task nào sắp đến hạn
                                 </div>
-                                <div>
-                                    <ul className="divide-y divide-[#c6c6cd]/20">
-                                        {[
-                                            {
-                                                icon: "description",
-                                                title: "Q2 Financial Report Analysis",
-                                                sub: "Generated by AI • 2 hours ago",
-                                                tag: null,
-                                            },
-                                            {
-                                                icon: "group",
-                                                title: "Meeting Transcript: Product Sync",
-                                                sub: "Voice recorded • Yesterday",
-                                                tag: "Action Items",
-                                            },
-                                            {
-                                                icon: "mail",
-                                                title: "Drafted gmail to Client Services",
-                                                sub: "Draft saved • Yesterday",
-                                                tag: null,
-                                            },
-                                        ].map(({ icon, title, sub, tag }) => (
-                                            <li
-                                                key={title}
-                                                className="p-[16px] hover:bg-[#eff4ff] transition-colors flex items-center gap-[16px] cursor-pointer"
-                                            >
-                                                <div className="w-10 h-10 rounded-full bg-[#dce9ff] flex items-center justify-center text-[#000000]">
-                                                    <span className="material-symbols-outlined">{icon}</span>
+                            ) : (
+                                <div className="flex flex-col gap-3">
+                                    {upcomingTasks.map(task => {
+                                        const due = new Date(task.dueDate);
+                                        const isOverdue = due < new Date();
+                                        return (
+                                            <div key={task.id}
+                                                onClick={() => navigate('/tasks')}
+                                                className="flex items-center gap-3 p-3 rounded-2xl hover:bg-[#f8f9ff] cursor-pointer transition-colors border border-transparent hover:border-[#e0e0e0]">
+                                                <div className={`w-2 h-2 rounded-full shrink-0 ${task.priority === 3 ? 'bg-red-500' : task.priority === 1 ? 'bg-green-500' : 'bg-blue-500'}`}></div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium truncate">{task.title}</p>
+                                                    <p className={`text-xs mt-0.5 ${isOverdue ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
+                                                        {isOverdue ? '⚠️ Quá hạn · ' : ''}
+                                                        {due.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                                    </p>
                                                 </div>
-                                                <div className="flex-1">
-                                                    <p className="text-[16px] font-medium text-[#0b1c30]">{title}</p>
-                                                    <p className="text-[16px] text-[#45464d] text-sm">{sub}</p>
-                                                </div>
-                                                {tag && (
-                                                    <div className="hidden md:flex gap-[4px]">
-                                                        <span className="px-2 py-1 rounded-full bg-[#d0bcff]/30 text-[#8455ef] text-[10px] font-medium">
-                                                            {tag}
-                                                        </span>
-                                                    </div>
-                                                )}
-                                                <span className="material-symbols-outlined text-[#45464d] hidden md:block ml-[8px]">
-                                                    chevron_right
+                                                <span className={`text-[10px] px-2 py-1 rounded-full font-medium shrink-0 ${priorityColor[task.priority]}`}>
+                                                    {priorityLabel[task.priority]}
                                                 </span>
-                                            </li>
-                                        ))}
-                                    </ul>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
-                            </div>
+                            )}
                         </div>
                     </div>
-                </main>
-            </body>
-        </>
+
+                    {/* Quick Access */}
+                    <div>
+                        <h3 className="text-xl font-bold mb-4">Truy cập nhanh</h3>
+                        <div className="grid grid-cols-4 md:grid-cols-8 gap-4">
+                            {quickActions.map(item => (
+                                <button key={item.title} onClick={() => navigate(item.path)}
+                                    className="rounded-3xl bg-white shadow hover:shadow-xl hover:-translate-y-1 transition-all p-5 flex flex-col items-center">
+                                    <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${item.color} flex items-center justify-center`}>
+                                        <span className="material-symbols-outlined text-white text-2xl">{item.icon}</span>
+                                    </div>
+                                    <h3 className="mt-3 font-medium text-xs text-center">{item.title}</h3>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Notifications preview */}
+                    {!loading && notifications.filter(n => n.status === 'pending').length > 0 && (
+                        <div className="bg-white rounded-3xl p-6 shadow">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-xl font-bold">Nhắc nhở đang chờ</h3>
+                                <button onClick={() => navigate('/reminders')} className="text-sm text-[#6b38d4] font-medium hover:underline">
+                                    Xem tất cả
+                                </button>
+                            </div>
+                            <div className="flex flex-col gap-3">
+                                {notifications.filter(n => n.status === 'pending').slice(0, 3).map(n => (
+                                    <div key={n.id} className="flex items-center gap-3 p-3 rounded-2xl bg-[#f0ebff] border border-[#d0bcff]">
+                                        <div className="w-9 h-9 rounded-full bg-[#e9ddff] flex items-center justify-center shrink-0">
+                                            <span className="material-symbols-outlined text-[#6b38d4] text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>notifications</span>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-semibold truncate">{n.title}</p>
+                                            <p className="text-xs text-[#6b38d4] mt-0.5">
+                                                {new Date(n.scheduledAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                            </p>
+                                        </div>
+                                        <div className="w-2 h-2 rounded-full bg-[#6b38d4] shrink-0"></div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Floating Button */}
+                <button onClick={() => navigate("/chat")}
+                    className="fixed bottom-8 right-8 z-50 w-16 h-16 rounded-full bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-2xl hover:scale-110 transition-all flex items-center justify-center">
+                    <span className="material-symbols-outlined text-3xl">smart_toy</span>
+                </button>
+            </main>
+        </div>
     );
 }
