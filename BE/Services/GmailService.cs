@@ -21,7 +21,7 @@ namespace Assistant.Services
         // 1. Đổi Refresh Token lấy Access Token
         public async Task<string> GetNewAccessTokenAsync(string googleRefreshToken)
         {
-            // ✅ Dùng HttpClient mới để tránh conflict header Authorization
+            // Dùng HttpClient mới để tránh conflict header Authorization
             using var client = new HttpClient();
             var requestValues = new Dictionary<string, string>
             {

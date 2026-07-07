@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { getSessions, deleteSession } from '../services/chatService'
 import NotificationBell from './NotificationBell'
+import { logout } from '../services/authService'
 
 export default function Sidebar({ onNewChat, currentSessionId, onSelectSession }) {
     const navigate = useNavigate()
@@ -64,12 +65,18 @@ export default function Sidebar({ onNewChat, currentSessionId, onSelectSession }
         }
     }
 
-    const handleLogout = () => {
-        localStorage.removeItem('accessToken')
-        localStorage.removeItem('refreshToken')
-        localStorage.removeItem('userName')
-        localStorage.removeItem('googleAccessToken')
-        navigate('/login')
+    const handleLogout = async () => {
+        try {
+            await logout()
+        } catch (e) {
+            console.error('Lỗi khi đăng xuất phiên', e)
+        } finally {
+            localStorage.removeItem('accessToken')
+            localStorage.removeItem('refreshToken')
+            localStorage.removeItem('userName')
+            localStorage.removeItem('googleAccessToken')
+            navigate('/login')
+        }
     }
 
     const navItems = [

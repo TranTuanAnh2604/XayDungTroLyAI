@@ -22,3 +22,6 @@ export const sendOtp = (gmail) =>
 // Xác thực OTP + đăng ký tài khoản mới
 export const verifyOtp = (gmail, otp) =>
     api.post('/auth/verify-otp', { gmail, otp })
+
+// Đăng xuất - đóng phiên time tracking ở BE
+export const logout = () => api.post('/auth/logout')

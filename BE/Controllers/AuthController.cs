@@ -21,17 +21,20 @@ namespace Assistant.Controllers
         private readonly IConfiguration _config;
         private readonly HttpClient _httpClient;
         private readonly GmailService _gmailService;
+        private readonly ITimeTrackingService _timeTrackingService;
 
         public AuthController(
             AppDbContext context,
             IConfiguration config,
             IHttpClientFactory httpClientFactory,
-            GmailService gmailService)          // ← inject đúng
+            GmailService gmailService,
+            ITimeTrackingService timeTrackingService)
         {
             _context = context;
             _config = config;
             _httpClient = httpClientFactory.CreateClient();
-            _gmailService = gmailService;       // ← gán đúng
+            _gmailService = gmailService;
+            _timeTrackingService = timeTrackingService;
         }
 
         [HttpPost("register")]
@@ -68,6 +71,7 @@ namespace Assistant.Controllers
             user.RefreshToken = refreshToken;
             user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
             await _context.SaveChangesAsync();
+            await _timeTrackingService.StartSessionAsync(user.Id);
 
             return Ok(new ApiResponse<AuthResponseDto>(new AuthResponseDto
             {
@@ -181,6 +185,7 @@ namespace Assistant.Controllers
                     });
                 }
                 await _context.SaveChangesAsync();
+                await _timeTrackingService.StartSessionAsync(user.Id);
             }
 
             return Ok(new ApiResponse<AuthResponseDto>(new AuthResponseDto
@@ -228,6 +233,7 @@ namespace Assistant.Controllers
                 user.RefreshToken = refreshToken;
                 user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
                 await _context.SaveChangesAsync();
+                await _timeTrackingService.StartSessionAsync(user.Id);
 
                 return Ok(new ApiResponse<AuthResponseDto>(new AuthResponseDto
                 {
@@ -298,6 +304,7 @@ namespace Assistant.Controllers
             user.RefreshToken = refreshToken;
             user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
             await _context.SaveChangesAsync();
+            await _timeTrackingService.StartSessionAsync(user.Id);
 
             return Ok(new ApiResponse<AuthResponseDto>(new AuthResponseDto
             {
@@ -306,6 +313,25 @@ namespace Assistant.Controllers
                 UserId = user.Id,
                 Name = user.Name
             }, "Xác thực thành công!"));
+        }
+
+        [HttpPost("logout")]
+        [Microsoft.AspNetCore.Authorization.Authorize]
+        public async System.Threading.Tasks.Task<IActionResult> Logout()
+        {
+            var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+            var user = await _context.Users.FindAsync(userId);
+            if (user != null)
+            {
+                user.RefreshToken = null;
+                user.RefreshTokenExpiryTime = null;
+                await _context.SaveChangesAsync();
+            }
+
+            await _timeTrackingService.EndSessionAsync(userId);
+
+            return Ok(new ApiResponse<string>("Đăng xuất thành công!"));
         }
 
         private string GenerateOtp()
@@ -342,10 +368,10 @@ namespace Assistant.Controllers
                 new Claim(ClaimTypes.Name, user.Name)
             };
 
-            //Token sống được 30 phút, sau đó cần refresh token để lấy access token mới
+            //Token sống được 7 ngày, sau đó cần refresh token để lấy access token mới
             var token = new JwtSecurityToken(
                 claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(30),
+                expires: DateTime.UtcNow.AddDays(7),
                 signingCredentials: creds
             );
             return new JwtSecurityTokenHandler().WriteToken(token);

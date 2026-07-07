@@ -45,6 +45,7 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddHttpClient<GmailService>();
 builder.Services.AddScoped<GmailService>();
+builder.Services.AddScoped<ITimeTrackingService, TimeTrackingService>();
 builder.Services.AddHttpClient<GroqService>();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
