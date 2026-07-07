@@ -120,13 +120,9 @@ namespace Assistant.Controllers
                 .OrderBy(m => m.CreatedAt)
                 .ToListAsync();
 
-            // 2. Nếu đây là tin nhắn ĐẦU TIÊN của session → nạp context dữ liệu user
+            // 2. Nạp context dữ liệu user
             //    (task, lịch, ghi nhớ) để AI trả lời được câu như "hôm nay tôi có việc gì"
-            string? userDataContext = null;
-            if (recentMessages.Count == 0)
-            {
-                userDataContext = await BuildUserDataContextAsync(userId);
-            }
+            var userDataContext = await BuildUserDataContextAsync(userId);
 
             // 3. Build prompt (context + lịch sử + câu hỏi mới)
             var prompt = BuildPrompt(recentMessages, request.Content, userDataContext);

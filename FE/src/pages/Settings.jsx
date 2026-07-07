@@ -21,6 +21,13 @@ export default function Settings() {
     const [saveError, setSaveError] = useState('')
 
     const fileInputRef = useRef(null)
+    const memoryFileInputRef = useRef(null)
+
+    // ─── Personalization / Memory ──────────────────────────────────────────────
+    const [memories, setMemories] = useState([])
+    const [memoryUploading, setMemoryUploading] = useState(false)
+    const [memoryMsg, setMemoryMsg] = useState('')
+    const [memoryError, setMemoryError] = useState('')
 
     // ─── Load profile ─────────────────────────────────────────────────────────
     useEffect(() => {
@@ -89,6 +96,55 @@ export default function Settings() {
             setSaveError(err.response?.data?.messenger || 'Cập nhật thất bại!')
         } finally {
             setSaving(false)
+        }
+    }
+
+    // ─── Load personalization data (UserMemory) ─────────────────────────────
+    const loadMemories = async () => {
+        try {
+            const res = await api.get('/memory')
+            setMemories(res.data.data ?? res.data ?? [])
+        } catch (err) {
+            console.error('Lấy dữ liệu cá nhân hóa thất bại', err)
+        }
+    }
+
+    useEffect(() => {
+        loadMemories()
+    }, [])
+
+    // ─── Upload file thông tin cá nhân hóa (AI tự tách thành UserMemory) ────
+    const handleMemoryFileChange = async (e) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        setMemoryMsg('')
+        setMemoryError('')
+        setMemoryUploading(true)
+
+        const formData = new FormData()
+        formData.append('file', file)
+
+        try {
+            const res = await api.post('/memory/upload', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            })
+            setMemoryMsg(res.data.messenger || 'Xử lý file thành công!')
+            await loadMemories()
+        } catch (err) {
+            setMemoryError(err.response?.data?.messenger || 'Upload file thất bại!')
+        } finally {
+            setMemoryUploading(false)
+            e.target.value = ''
+        }
+    }
+
+    const handleDeleteMemory = async (id) => {
+        try {
+            await api.delete(`/memory/${id}`)
+            setMemories((prev) => prev.filter((m) => m.id !== id))
+        } catch (err) {
+            console.error('Xóa thất bại', err)
         }
     }
 
@@ -226,6 +282,76 @@ export default function Settings() {
                                 </div>
                             </div>
                         </div>
+                    </section>
+
+                    {/* Personalization Section */}
+                    <section className="glass-card rounded-xl p-[40px]">
+                        <div className="flex items-center gap-[16px] mb-[24px]">
+                            <div className="w-12 h-12 rounded-lg bg-[#131b2e] flex items-center justify-center text-[#7c839b]">
+                                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>psychology</span>
+                            </div>
+                            <div>
+                                <h3 className="text-[24px] font-semibold text-[#000000]">Cá nhân hóa AI</h3>
+                                <p className="text-[14px] text-[#45464d]">Upload file mô tả sở thích, thói quen của bạn hoặc người liên quan để AI trả lời chính xác hơn.</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-[16px] mb-[24px]">
+                            <input
+                                ref={memoryFileInputRef}
+                                type="file"
+                                accept=".txt"
+                                className="hidden"
+                                onChange={handleMemoryFileChange}
+                            />
+                            <button
+                                onClick={() => memoryFileInputRef.current?.click()}
+                                disabled={memoryUploading}
+                                className="px-[24px] py-[8px] bg-[#6b38d4] text-white rounded-lg text-[14px] font-medium hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-[8px]"
+                            >
+                                {memoryUploading ? (
+                                    <>
+                                        <svg className="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                                        </svg>
+                                        Đang xử lý...
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="material-symbols-outlined text-[18px]">upload_file</span>
+                                        Upload file (.txt)
+                                    </>
+                                )}
+                            </button>
+                        </div>
+
+                        {memoryMsg && <p className="text-green-600 text-sm flex items-center gap-1 mb-[16px]"><span className="material-symbols-outlined text-[16px]">check_circle</span>{memoryMsg}</p>}
+                        {memoryError && <p className="text-[#ba1a1a] text-sm flex items-center gap-1 mb-[16px]"><span className="material-symbols-outlined text-[16px]">error</span>{memoryError}</p>}
+
+                        {memories.length > 0 && (
+                            <div className="flex flex-col gap-[8px] max-h-[320px] overflow-y-auto pr-[4px]">
+                                {memories.map((m) => (
+                                    <div key={m.id} className="flex justify-between items-start gap-[16px] p-[12px] bg-white border border-[#c6c6cd]/50 rounded-lg">
+                                        <div className="min-w-0">
+                                            <p className="text-[13px] font-semibold text-[#000000] truncate">{m.category} — {m.key}</p>
+                                            <p className="text-[13px] text-[#45464d] break-words">{m.value}</p>
+                                        </div>
+                                        <button
+                                            onClick={() => handleDeleteMemory(m.id)}
+                                            title="Xóa"
+                                            className="p-[4px] text-[#ba1a1a] hover:bg-[#ffdad6] rounded transition-colors shrink-0"
+                                        >
+                                            <span className="material-symbols-outlined text-[18px]">delete</span>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {memories.length === 0 && (
+                            <p className="text-[13px] text-[#45464d]/60 text-center py-[16px]">Chưa có dữ liệu cá nhân hóa nào.</p>
+                        )}
                     </section>
 
                     {/* Toggle Cards */}

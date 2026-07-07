@@ -404,8 +404,8 @@ export default function Chat() {
                             ))}
                         </div>
 
-                        {/* Input Box */}
-                        <div className="rounded-xl border border-[#c6c6cd]/50 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05)] flex flex-col focus-within:ring-2 focus-within:ring-[#6b38d4]/50 focus-within:border-[#6b38d4] transition-all bg-white"
+                        {/* Input Box — giờ là 1 hàng ngang: textarea + nút gửi */}
+                        <div className="rounded-xl border border-[#c6c6cd]/50 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05)] flex items-end gap-[8px] p-[8px] focus-within:ring-2 focus-within:ring-[#6b38d4]/50 focus-within:border-[#6b38d4] transition-all bg-white"
                             style={{ background: "rgba(255,255,255,0.7)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
                         >
                             <textarea
@@ -413,42 +413,22 @@ export default function Chat() {
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
                                 onKeyDown={handleKeyDown}
-                                className="w-full bg-transparent border-none focus:ring-0 resize-none p-[16px] text-[16px] text-[#0b1c30] placeholder:text-[#c6c6cd] focus:outline-none"
-                                style={{ maxHeight: "150px", minHeight: "56px" }}
+                                className="flex-1 bg-transparent border-none focus:ring-0 resize-none p-[8px] text-[16px] text-[#0b1c30] placeholder:text-[#c6c6cd] focus:outline-none"
+                                style={{ maxHeight: "150px", minHeight: "40px" }}
                                 placeholder="Message AI Assistant..."
                                 rows={1}
                                 onInput={handleInput}
                                 disabled={isSending || isLoading}
                             />
-                            <div className="flex justify-between items-center p-[8px] bg-[#eff4ff]/50 rounded-b-xl border-t border-[#c6c6cd]/20">
-                                <div className="flex items-center gap-[4px]">
-                                    {[
-                                        { icon: "attach_file", title: "Attach file" },
-                                        { icon: "mic", title: "Voice input" },
-                                    ].map(({ icon, title }) => (
-                                        <button
-                                            key={icon}
-                                            title={title}
-                                            className="p-[8px] rounded-lg text-[#45464d] hover:bg-[#dce9ff] hover:text-[#000000] transition-colors"
-                                        >
-                                            <span className="material-symbols-outlined text-[20px]">{icon}</span>
-                                        </button>
-                                    ))}
-                                    <button className="flex items-center gap-[4px] px-[8px] py-[4px] ml-[8px] rounded-md border border-[#c6c6cd]/50 text-[#45464d] hover:bg-[#dce9ff] transition-colors">
-                                        <span className="material-symbols-outlined text-[16px]">add_circle</span>
-                                        <span className="text-[12px] font-medium">Project Context</span>
-                                    </button>
-                                </div>
-                                <button
-                                    onClick={handleSend}
-                                    disabled={isSending || isLoading || !input.trim()}
-                                    className="p-[8px] rounded-lg bg-[#000000] text-white hover:bg-[#000000]/90 transition-all shadow-sm active:scale-95 flex items-center justify-center h-10 w-10 disabled:opacity-50"
-                                >
-                                    <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                                        send
-                                    </span>
-                                </button>
-                            </div>
+                            <button
+                                onClick={handleSend}
+                                disabled={isSending || isLoading || !input.trim()}
+                                className="p-[8px] rounded-lg bg-[#000000] text-white hover:bg-[#000000]/90 transition-all shadow-sm active:scale-95 flex items-center justify-center h-10 w-10 shrink-0 disabled:opacity-50"
+                            >
+                                <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                                    send
+                                </span>
+                            </button>
                         </div>
 
                         <div className="text-center mt-[4px]">
