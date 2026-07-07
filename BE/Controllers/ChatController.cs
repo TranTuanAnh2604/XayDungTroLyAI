@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
 using Assistant.Models;
 using Assistant.Services;
 using Assistant.Wrappers;
@@ -97,7 +98,7 @@ namespace Assistant.Controllers
             return Ok(new ApiResponse<List<ChatMessageDto>>(messages, "Lấy tin nhắn thành công!"));
         }
 
-        // ============ SEND MESSAGE (đã sửa) ============
+        // ============ SEND MESSAGE (đã thêm khả năng tạo Task/Event) ============
 
         [HttpPost("sessions/{sessionId}/messages")]
         public async Task<IActionResult> SendMessage(Guid sessionId, [FromBody] SendMessageDto request)
@@ -120,25 +121,52 @@ namespace Assistant.Controllers
                 .OrderBy(m => m.CreatedAt)
                 .ToListAsync();
 
-            // 2. Nạp context dữ liệu user
-            //    (task, lịch, ghi nhớ) để AI trả lời được câu như "hôm nay tôi có việc gì"
+            // 2. Nạp context dữ liệu user (task, lịch, ghi nhớ)
             var userDataContext = await BuildUserDataContextAsync(userId);
+            var vnNow = GetVietnamNow();
 
-            // 3. Build prompt (context + lịch sử + câu hỏi mới)
-            var prompt = BuildPrompt(recentMessages, request.Content, userDataContext);
+            // 3. Build prompt yêu cầu AI trả JSON gồm reply + actions (task/event)
+            var prompt = BuildPromptWithAction(recentMessages, request.Content, userDataContext, vnNow);
 
             // 4. Gọi AI TRƯỚC — nếu lỗi thì KHÔNG đụng gì tới DB
-            string aiReply;
+            string rawAiResponse;
             try
             {
-                aiReply = await _groqService.ChatAsync(prompt);
+                rawAiResponse = await _groqService.ChatAsync(prompt);
             }
             catch (Exception ex)
             {
                 return StatusCode(500, new ApiResponse<string>($"Lỗi gọi AI: {ex.Message}"));
             }
 
-            // 5. AI trả lời thành công → lưu cả 2 tin nhắn cùng lúc
+            // 5. Parse JSON trả về: lấy câu trả lời + danh sách hành động (nếu có)
+            var (aiReply, actions) = ParseAiActionResponse(rawAiResponse);
+
+            var newTasks = new List<Assistant.Models.Task>();
+            var newEvents = new List<CalendarEvent>();
+
+            foreach (var action in actions)
+            {
+                try
+                {
+                    if (string.Equals(action.Type, "task", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var task = BuildTaskFromAction(action, userId);
+                        if (task != null) newTasks.Add(task);
+                    }
+                    else if (string.Equals(action.Type, "event", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var evt = BuildEventFromAction(action, userId);
+                        if (evt != null) newEvents.Add(evt);
+                    }
+                }
+                catch
+                {
+                    // Bỏ qua action lỗi (thiếu dữ liệu, sai định dạng...) — không làm hỏng phản hồi chat
+                }
+            }
+
+            // 6. Lưu tin nhắn + task/event mới cùng lúc
             var now = DateTime.UtcNow;
 
             var userMessage = new ChatMessage
@@ -160,6 +188,12 @@ namespace Assistant.Controllers
             };
 
             _context.ChatMessages.AddRange(userMessage, aiMessage);
+
+            if (newTasks.Count > 0)
+                _context.Tasks.AddRange(newTasks);
+
+            if (newEvents.Count > 0)
+                _context.CalendarEvents.AddRange(newEvents);
 
             if (string.IsNullOrWhiteSpace(session.Title))
             {
@@ -183,7 +217,9 @@ namespace Assistant.Controllers
                 Id = aiMessage.Id,
                 Role = aiMessage.Role,
                 Content = aiMessage.Content,
-                CreatedAt = aiMessage.CreatedAt
+                CreatedAt = aiMessage.CreatedAt,
+                CreatedTaskCount = newTasks.Count,
+                CreatedEventCount = newEvents.Count
             }, "AI đã phản hồi!"));
         }
 
@@ -227,14 +263,8 @@ namespace Assistant.Controllers
 
         // ============ HELPER: BUILD CONTEXT DỮ LIỆU USER ============
 
-        /// <summary>
-        /// Đọc Task chưa hoàn thành, CalendarEvent trong 7 ngày tới, và UserMemory
-        /// để AI có ngữ cảnh trả lời các câu hỏi như "hôm nay tôi có việc gì".
-        /// </summary>
         private async Task<string> BuildUserDataContextAsync(Guid userId)
         {
-            // Dữ liệu StartTime/DueDate đang được lưu dạng "giờ VN không kèm timezone"
-            // (bug đã biết trong dự án), nên ta so sánh bằng giờ VN thay vì UTC.
             var vnNow = GetVietnamNow();
             var todayStart = vnNow.Date;
             var weekEnd = todayStart.AddDays(7);
@@ -312,7 +342,7 @@ namespace Assistant.Controllers
             }
             catch
             {
-                return DateTime.UtcNow.AddHours(7); // fallback nếu không tìm thấy timezone trên OS
+                return DateTime.UtcNow.AddHours(7);
             }
         }
 
@@ -344,10 +374,39 @@ namespace Assistant.Controllers
             _ => ""
         };
 
-        // Helper: build prompt kết hợp Context dữ liệu (nếu có) + lịch sử chat + câu hỏi mới
-        private string BuildPrompt(List<ChatMessage> history, string newMessage, string? userDataContext = null)
+        // ============ HELPER MỚI: PROMPT YÊU CẦU AI TRẢ JSON (reply + actions) ============
+
+        private string BuildPromptWithAction(List<ChatMessage> history, string newMessage, string? userDataContext, DateTime vnNow)
         {
             var sb = new StringBuilder();
+
+            sb.AppendLine("Bạn là trợ lý AI cá nhân, trò chuyện bằng tiếng Việt tự nhiên.");
+            sb.AppendLine("Ngoài trả lời bình thường, bạn có thể NHẬN DIỆN khi người dùng muốn:");
+            sb.AppendLine("- Thêm một CÔNG VIỆC cần làm (task), HOẶC");
+            sb.AppendLine("- Thêm một SỰ KIỆN vào lịch (event), HOẶC");
+            sb.AppendLine("- Cả hai cùng lúc.");
+            sb.AppendLine("Ví dụ: \"tôi họp lúc 2h chiều nay\" => tạo 1 event \"Họp\" lúc 14:00 hôm nay.");
+            sb.AppendLine("Ví dụ: \"nhắc tôi nộp báo cáo trước thứ 6\" => tạo 1 task \"Nộp báo cáo\", hạn là thứ 6 tuần này.");
+            sb.AppendLine();
+            sb.AppendLine("QUAN TRỌNG: CHỈ trả lời bằng một JSON hợp lệ DUY NHẤT, không thêm chữ nào khác, không dùng markdown code fence (```), đúng cấu trúc sau:");
+            sb.AppendLine(@"{
+  ""reply"": ""câu trả lời tự nhiên bằng tiếng Việt cho người dùng, xác nhận rõ nếu đã thêm task/lịch"",
+  ""actions"": [
+    {
+      ""type"": ""task hoặc event"",
+      ""title"": ""tiêu đề ngắn gọn"",
+      ""date"": ""yyyy-MM-dd"",
+      ""time"": ""HH:mm hoặc null"",
+      ""endTime"": ""HH:mm hoặc null (chỉ dùng cho event, nếu không rõ thì lấy time cộng 1 giờ)"",
+      ""isAllDay"": false,
+      ""priority"": ""urgent | normal | low"",
+      ""location"": ""địa điểm hoặc null""
+    }
+  ]
+}");
+            sb.AppendLine("Nếu người dùng KHÔNG có ý định thêm task/lịch, trả về \"actions\": [].");
+            sb.AppendLine($"Hôm nay là {vnNow:dd/MM/yyyy} ({GetVietnameseDayOfWeek(vnNow.DayOfWeek)}), giờ hiện tại {vnNow:HH:mm}. Hãy tính ngày cụ thể (yyyy-MM-dd) dựa trên mốc này khi người dùng nói \"hôm nay\", \"ngày mai\", \"thứ 6 tuần này\"...");
+            sb.AppendLine();
 
             if (!string.IsNullOrEmpty(userDataContext))
             {
@@ -366,9 +425,133 @@ namespace Assistant.Controllers
             }
 
             sb.AppendLine($"Người dùng: {newMessage}");
-            sb.AppendLine("Trợ lý:");
+            sb.AppendLine("Trợ lý (chỉ JSON):");
 
             return sb.ToString();
+        }
+
+        private (string reply, List<AiAction> actions) ParseAiActionResponse(string raw)
+        {
+            var cleaned = raw.Trim();
+
+            // Lỡ AI vẫn bọc ```json ... ``` thì bóc ra
+            if (cleaned.StartsWith("```"))
+            {
+                var firstNewline = cleaned.IndexOf('\n');
+                if (firstNewline >= 0) cleaned = cleaned[(firstNewline + 1)..];
+                var lastFence = cleaned.LastIndexOf("```");
+                if (lastFence >= 0) cleaned = cleaned[..lastFence];
+                cleaned = cleaned.Trim();
+            }
+
+            try
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var parsed = JsonSerializer.Deserialize<AiActionResponse>(cleaned, options);
+                if (parsed != null && !string.IsNullOrWhiteSpace(parsed.Reply))
+                {
+                    return (parsed.Reply, parsed.Actions ?? new List<AiAction>());
+                }
+            }
+            catch
+            {
+                // AI không trả JSON hợp lệ -> coi toàn bộ nội dung là câu trả lời thường
+            }
+
+            return (raw, new List<AiAction>());
+        }
+
+        private static DateTime? ParseDateTimeVn(string? date, string? time, bool isAllDay)
+        {
+            if (string.IsNullOrWhiteSpace(date)) return null;
+            if (!DateTime.TryParseExact(date, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out var d))
+                return null;
+
+            if (isAllDay || string.IsNullOrWhiteSpace(time))
+                return d.Date;
+
+            if (TimeSpan.TryParse(time, out var t))
+                return d.Date.Add(t);
+
+            return d.Date;
+        }
+
+        private static byte MapTaskPriority(string? priority) => priority?.Trim().ToLowerInvariant() switch
+        {
+            "urgent" => 3,
+            "low" => 1,
+            _ => 2
+        };
+
+        private static int MapEventPriority(string? priority) => priority?.Trim().ToLowerInvariant() switch
+        {
+            "urgent" => 0,
+            "low" => 2,
+            _ => 1
+        };
+
+        private Assistant.Models.Task? BuildTaskFromAction(AiAction action, Guid userId)
+        {
+            if (string.IsNullOrWhiteSpace(action.Title)) return null;
+
+            var due = ParseDateTimeVn(action.Date, action.Time, action.IsAllDay);
+
+            return new Assistant.Models.Task
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                Title = action.Title.Trim(),
+                Description = null,
+                DueDate = due,
+                Priority = MapTaskPriority(action.Priority),
+                Status = "pending",
+                InputMethod = "ai_chat",   // bắt buộc, không null
+                EstimatedMinutes = null,
+                CreatedAt = DateTime.UtcNow,
+                CompletedAt = null
+            };
+        }
+
+        private CalendarEvent? BuildEventFromAction(AiAction action, Guid userId)
+        {
+            if (string.IsNullOrWhiteSpace(action.Title)) return null;
+
+            var start = ParseDateTimeVn(action.Date, action.Time, action.IsAllDay);
+            if (start == null) return null;
+
+            DateTime end;
+            if (action.IsAllDay)
+            {
+                end = start.Value.Date;
+            }
+            else if (!string.IsNullOrWhiteSpace(action.EndTime))
+            {
+                end = ParseDateTimeVn(action.Date, action.EndTime, false) ?? start.Value.AddHours(1);
+            }
+            else
+            {
+                end = start.Value.AddHours(1);
+            }
+
+            // Đảm bảo EndTime luôn sau StartTime (tránh lỗi logic nếu AI đưa giờ kết thúc sai)
+            if (end <= start.Value)
+                end = start.Value.AddHours(1);
+
+            return new CalendarEvent
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                Title = action.Title.Trim(),
+                Description = null,
+                StartTime = start.Value,
+                EndTime = end,
+                Location = action.Location,
+                Source = "ai_chat",       // bắt buộc, không null
+                ExternalId = null,
+                IsAllDay = action.IsAllDay,
+                Priority = MapEventPriority(action.Priority),
+                CreatedAt = DateTime.UtcNow
+            };
         }
     }
 
@@ -387,10 +570,31 @@ namespace Assistant.Controllers
         public string Role { get; set; } = null!;
         public string Content { get; set; } = null!;
         public DateTime CreatedAt { get; set; }
+        public int CreatedTaskCount { get; set; }
+        public int CreatedEventCount { get; set; }
     }
 
     public class SendMessageDto
     {
         public string Content { get; set; } = null!;
+    }
+
+    // ===== DTO cho JSON mà AI trả về =====
+    public class AiActionResponse
+    {
+        public string Reply { get; set; } = string.Empty;
+        public List<AiAction>? Actions { get; set; }
+    }
+
+    public class AiAction
+    {
+        public string Type { get; set; } = string.Empty;      // "task" | "event"
+        public string Title { get; set; } = string.Empty;
+        public string? Date { get; set; }                     // "yyyy-MM-dd"
+        public string? Time { get; set; }                      // "HH:mm"
+        public string? EndTime { get; set; }                   // "HH:mm" (event)
+        public bool IsAllDay { get; set; }
+        public string Priority { get; set; } = "normal";       // urgent | normal | low
+        public string? Location { get; set; }
     }
 }
