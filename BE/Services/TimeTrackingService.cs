@@ -15,13 +15,15 @@ public class TimeTrackingService : ITimeTrackingService
 
     public async System.Threading.Tasks.Task StartSessionAsync(Guid userId)
     {
+        var nowVn = DateTime.UtcNow.AddHours(7);
+
         var session = new TimeTrackingModel
         {
             Id = Guid.NewGuid(),
             UserId = userId,
-            StartTime = DateTime.UtcNow,
+            StartTime = nowVn,
             EndTime = null,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = nowVn
         };
 
         _context.TimeTrackings.Add(session);
@@ -35,9 +37,11 @@ public class TimeTrackingService : ITimeTrackingService
             .OrderByDescending(t => t.StartTime)
             .FirstOrDefaultAsync();
 
-        if (openSession == null) return; // không có phiên nào đang mở, bỏ qua
+        if (openSession == null) return;
 
-        openSession.EndTime = DateTime.UtcNow;
+        var nowVn = DateTime.UtcNow.AddHours(7);
+
+        openSession.EndTime = nowVn;
         openSession.DurationMinutes = (int)(openSession.EndTime.Value - openSession.StartTime).TotalMinutes;
 
         await _context.SaveChangesAsync();
