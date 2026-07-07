@@ -3,8 +3,21 @@ import type { ChatOrActionResult, ChatSessionDto, ActionResult, ChatResult } fro
 
 // Khớp với Object nặc danh trả về từ BE (chat thường)
 type ChatRawDto = {
+  // camelCase variants (ASP.NET Core System.Text.Json default)
+  content?: string;
   answer?: string;
+  message?: string;
+  reply?: string;
+  text?: string;
+  response?: string;
+  // PascalCase variants (Newtonsoft.Json / explicit [JsonPropertyName])
+  Content?: string;
   Answer?: string;
+  Message?: string;
+  Reply?: string;
+  Text?: string;
+  Response?: string;
+  // Other fields
   taskCreated?: boolean;
   TaskCreated?: boolean;
   memorySaved?: boolean;
@@ -31,8 +44,20 @@ type ChatRawDto = {
 type ActionRawDto = {
   type?: string;
   Type?: string;
+  // camelCase variants
+  content?: string;
   answer?: string;
+  message?: string;
+  reply?: string;
+  text?: string;
+  response?: string;
+  // PascalCase variants
+  Content?: string;
   Answer?: string;
+  Message?: string;
+  Reply?: string;
+  Text?: string;
+  Response?: string;
   actionId?: string;
   ActionId?: string;
   appName?: string;
@@ -57,10 +82,21 @@ export async function chat(message: string, sessionId?: string): Promise<ChatOrA
 
   const type = data?.type ?? data?.Type;
 
+  // Resolve the AI text from all possible field name variants the backend may use.
+  // Priority mirrors the session messages mapper in ChatScreen to stay consistent.
+  const resolveText = (d: typeof data): string =>
+    d?.content ?? d?.Content ??
+    d?.answer ?? d?.Answer ??
+    d?.message ?? d?.Message ??
+    d?.reply ?? d?.Reply ??
+    d?.text ?? d?.Text ??
+    d?.response ?? d?.Response ??
+    '';
+
   if (type === 'action') {
     return {
       kind: 'action',
-      answer: data?.answer ?? data?.Answer ?? '',
+      answer: resolveText(data),
       actionId: data?.actionId ?? data?.ActionId ?? '',
       appName: data?.appName ?? data?.AppName ?? '',
       deepLink: data?.deepLink ?? data?.DeepLink,
@@ -72,7 +108,7 @@ export async function chat(message: string, sessionId?: string): Promise<ChatOrA
   const intent = data?.intent || data?.Intent || {};
   return {
     kind: 'chat',
-    answer: data?.answer ?? data?.Answer ?? '',
+    answer: resolveText(data),
     taskCreated: data?.taskCreated ?? data?.TaskCreated ?? false,
     memorySaved: data?.memorySaved ?? data?.MemorySaved ?? false,
     ragUsed: data?.ragUsed ?? data?.RagUsed ?? false,

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { AuthResponse, AuthUser } from '../services/auth';
 import { login as loginApi, register as registerApi, loginWithGoogle as loginWithGoogleApi } from '../services/auth';
-import { getSavedAuth, saveAuthData, clearAuthData, saveGoogleRefreshToken, getGmailConnectSent, saveGmailConnectSent } from '../services/authStorage';
+import { getSavedAuth, saveAuthData, clearAuthData, saveGoogleRefreshToken, getGmailConnectSent, saveGmailConnectSent, clearGmailConnectSent } from '../services/authStorage';
 import { signOutGoogle } from '../services/googleAuth';
 import { connectGmail } from '../services/gmail';
 
@@ -64,11 +64,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (serverAuthCode && userId) {
       const hasSentGmailConnect = await getGmailConnectSent(userId);
       if (!hasSentGmailConnect) {
-        const connectResult = await connectGmail(serverAuthCode);
-        if (connectResult.success) {
-          await saveGmailConnectSent(userId);
-        } else {
-          console.warn('⚠️ AuthContext: Gmail connect failed on first login', connectResult.message);
+        try {
+          const connectResult = await connectGmail(serverAuthCode);
+          if (connectResult.success) {
+            await saveGmailConnectSent(userId);
+            // connectGmail updates the user's Google token on the backend, which may change their SecurityStamp
+            // and invalidate the JWT we just received. We must re-authenticate to get a fresh, valid JWT.
+            const freshResponse = await loginWithGoogleApi(idToken);
+            await saveAuthData(freshResponse);
+            setToken(freshResponse.token);
+            setUser(freshResponse.user);
+            return;
+          } else {
+            console.warn('⚠️ AuthContext: Gmail connect failed on first login', connectResult.message);
+          }
+        } catch (connectError: any) {
+          console.warn('⚠️ AuthContext: connectGmail API threw an error', connectError?.message);
         }
       }
     }
@@ -84,6 +95,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    if (user?.id) {
+      await clearGmailConnectSent(user.id);
+    }
     await signOutGoogle();
     await clearAuthData();
     setToken(null);

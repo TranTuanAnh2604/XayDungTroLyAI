@@ -69,63 +69,63 @@ async function fetchCalendarEventsForCalendar(
 }
 
 
-export async function createDeviceCalendarEvent(
-  event: CalendarSyncRequest,
-): Promise<string> {
-  const { status } = await Calendar.requestCalendarPermissionsAsync();
-  if (status !== 'granted') {
-    throw new Error('Chưa được cấp quyền truy cập Calendar trên thiết bị.');
-  }
+// export async function createDeviceCalendarEvent(
+//   event: CalendarSyncRequest,
+// ): Promise<string> {
+//   const { status } = await Calendar.requestCalendarPermissionsAsync();
+//   if (status !== 'granted') {
+//     throw new Error('Chưa được cấp quyền truy cập Calendar trên thiết bị.');
+//   }
 
-  const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
-  const writableCalendar = calendars.find(
-    (calendar) =>
-      calendar.allowsModifications === true ||
-      calendar.accessLevel === 'owner',
-  ) ?? calendars[0];
+//   const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+//   const writableCalendar = calendars.find(
+//     (calendar) =>
+//       calendar.allowsModifications === true ||
+//       calendar.accessLevel === 'owner',
+//   ) ?? calendars[0];
 
-  if (!writableCalendar) {
-    throw new Error('Không tìm thấy lịch phù hợp để thêm sự kiện.');
-  }
+//   if (!writableCalendar) {
+//     throw new Error('Không tìm thấy lịch phù hợp để thêm sự kiện.');
+//   }
 
-  const eventId = await Calendar.createEventAsync(writableCalendar.id, {
-    title: event.title,
-    notes: event.description,
-    startDate: new Date(event.startTime),
-    endDate: new Date(event.endTime),
-    location: event.location,
-    allDay: event.isAllDay,
-    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-  });
+//   const eventId = await Calendar.createEventAsync(writableCalendar.id, {
+//     title: event.title,
+//     notes: event.description,
+//     startDate: new Date(event.startTime),
+//     endDate: new Date(event.endTime),
+//     location: event.location,
+//     allDay: event.isAllDay,
+//     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+//   });
 
-  return `${writableCalendar.id}_${eventId}`;
-}
+//   return `${writableCalendar.id}_${eventId}`;
+// }
 
 
-export async function updateDeviceCalendarEvent(
-  externalId: string,
-  event: CalendarSyncRequest,
-): Promise<void> {
-  const { eventId } = parseExternalId(externalId);
-  if (!eventId) {
-    throw new Error('External ID không hợp lệ để cập nhật sự kiện trên thiết bị.');
-  }
+// export async function updateDeviceCalendarEvent(
+//   externalId: string,
+//   event: CalendarSyncRequest,
+// ): Promise<void> {
+//   const { eventId } = parseExternalId(externalId);
+//   if (!eventId) {
+//     throw new Error('External ID không hợp lệ để cập nhật sự kiện trên thiết bị.');
+//   }
 
-  const { status } = await Calendar.requestCalendarPermissionsAsync();
-  if (status !== 'granted') {
-    throw new Error('Chưa được cấp quyền truy cập Calendar trên thiết bị.');
-  }
+//   const { status } = await Calendar.requestCalendarPermissionsAsync();
+//   if (status !== 'granted') {
+//     throw new Error('Chưa được cấp quyền truy cập Calendar trên thiết bị.');
+//   }
 
-  await Calendar.updateEventAsync(eventId, {
-    title: event.title,
-    notes: event.description,
-    startDate: new Date(event.startTime),
-    endDate: new Date(event.endTime),
-    location: event.location,
-    allDay: event.isAllDay,
-    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-  });
-}
+//   await Calendar.updateEventAsync(eventId, {
+//     title: event.title,
+//     notes: event.description,
+//     startDate: new Date(event.startTime),
+//     endDate: new Date(event.endTime),
+//     location: event.location,
+//     allDay: event.isAllDay,
+//     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+//   });
+// }
 
 
 export async function deleteDeviceCalendarEvent(

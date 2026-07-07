@@ -72,10 +72,10 @@ export type ContactSyncResponse = {
 export type CalendarSyncRequest = {
   id?: string;
   title: string;
-  description: string;
+  description?: string;
   startTime: string;
   endTime: string;
-  location: string;
+  location?: string;
   source: string;
   externalId: string;
   isAllDay: boolean;
@@ -138,6 +138,7 @@ export async function syncCalendars(
 }
 
 function normalizeCalendarEvent(raw: any): CalendarSyncRequest {
+  if (!raw) return {} as CalendarSyncRequest;
   return {
     ...raw,
     externalId: raw.externalId ?? raw.external_id,
@@ -180,16 +181,43 @@ export async function fetchCalendarEvents(
 export async function createCalendarEvent(
   event: CalendarSyncRequest,
 ): Promise<CalendarSyncRequest> {
-  const response = await apiPost<any>('/api/Calendar/events', event);
+  console.log('Create Event Request:', {
+    url: '/api/Calendar/events',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: event,
+  });
 
-  if (response && typeof response === 'object' && 'data' in response && response.data) {
-    if ('event' in response.data && response.data.event) {
-      return normalizeCalendarEvent(response.data.event);
+  try {
+    const response = await apiPost<any>('/api/Calendar/events', event);
+
+    if (response && typeof response === 'object') {
+      if ('data' in response && response.data) {
+        if ('event' in response.data && response.data.event) {
+          return normalizeCalendarEvent(response.data.event);
+        }
+        return normalizeCalendarEvent(response.data);
+      }
+      
+      if ('title' in response || 'startTime' in response) {
+        return normalizeCalendarEvent(response);
+      }
     }
-    return normalizeCalendarEvent(response.data);
-  }
 
-  return normalizeCalendarEvent(response);
+    return normalizeCalendarEvent({ ...event, id: event.id || `temp-${Date.now()}` });
+  } catch (error: any) {
+    if (error.response) {
+      console.log('Create Event Error Response:', {
+        status: error.response.status,
+        headers: error.response.headers,
+        data: error.response.data,
+        message: error.message,
+      });
+    } else {
+      console.log('Create Event Error:', error.message);
+    }
+    throw error;
+  }
 }
 
 export async function updateCalendarEvent(
@@ -223,10 +251,20 @@ export async function getCalendarConflicts(): Promise<
   CalendarConflict[]
 > {
   try {
-    const response = await apiGet<{ conflicts: CalendarConflict[] }>(
+    const response = await apiGet<any>(
       '/api/Calendar/conflicts',
     );
-    return response.conflicts || [];
+    // Flexible parsing in case the backend returns an array or an object
+    if (Array.isArray(response)) {
+      return response;
+    }
+    if (response && response.conflicts) {
+      return response.conflicts;
+    }
+    if (response && response.data) {
+      return Array.isArray(response.data) ? response.data : (response.data.conflicts || []);
+    }
+    return [];
   } catch (error) {
     console.error('Failed to fetch calendar conflicts:', error);
     return [];
@@ -242,6 +280,10 @@ export async function resolveCalendarConflict(
   });
 }
 
+export async function aiSuggestConflict(id: string | number, body?: any): Promise<any> {
+  return apiPost(`/api/Calendar/conflicts/${id}/ai-suggest`, body || null);
+}
+
 export async function deleteCalendarEvent(
   eventId: string,
 ): Promise<void> {
@@ -251,25 +293,30 @@ export async function deleteCalendarEvent(
   }>(`/api/Calendar/events/${eventId}`);
 }
 
-export async function syncCalendarsAndResolveConflicts(
-  data: CalendarSyncRequest[],
-): Promise<CalendarSyncResponse> {
-  // First sync the calendars
-  const syncResponse = await syncCalendars(data);
+// export async function syncCalendarsAndResolveConflicts(
+//   data: CalendarSyncRequest[],
+// ): Promise<CalendarSyncResponse> {
+//   // First sync the calendars
+//   const syncResponse = await syncCalendars(data);
 
-  // Then fetch any conflicts that were created
-  const conflicts = await getCalendarConflicts();
+//   // Then fetch any conflicts that were created
+//   const conflicts = await getCalendarConflicts();
 
-  // Auto-resolve conflicts by keeping device version
-  // (can be customized later to use AI suggestion or user choice)
-  for (const conflict of conflicts) {
-    try {
-      await resolveCalendarConflict(conflict.id, 'keep_device');
-    } catch (error) {
-      console.error('Failed to resolve conflict:', conflict.id, error);
-    }
-  }
+//   // Auto-resolve conflicts by keeping device version
+//   // (can be customized later to use AI suggestion or user choice)
+//   for (const conflict of conflicts) {
+//     try {
+//       await resolveCalendarConflict(conflict.id, 'keep_device');
+//     } catch (error) {
+//       console.error('Failed to resolve conflict:', conflict.id, error);
+//     }
+//   }
 
-  return syncResponse;
-}
+//   return syncResponse;
+// }
+// export async function syncCalendarsAndResolveConflicts(
+//   data: CalendarSyncRequest[],
+// ): Promise<CalendarSyncResponse> {
+//   return syncCalendars(data);
+// }
 

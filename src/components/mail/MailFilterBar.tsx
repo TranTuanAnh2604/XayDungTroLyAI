@@ -30,11 +30,19 @@ export default function MailFilterBar({
   const indicatorX = useRef(new Animated.Value(0)).current;
   const indicatorW = useRef(new Animated.Value(72)).current;
   const [layouts, setLayouts] = useState<Record<string, { x: number; width: number }>>({});
+  // Stop the previous spring before starting the next one. Without this,
+  // tapping filter chips quickly queues concurrent animations on the same
+  // native nodes and causes the NativeAnimatedModule frame-index crash.
+  const runningAnim = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
     const layout = layouts[activeId];
     if (!layout) return;
-    Animated.parallel([
+
+    // Cancel any in-flight indicator animation.
+    runningAnim.current?.stop();
+
+    const anim = Animated.parallel([
       Animated.spring(indicatorX, {
         toValue: layout.x,
         useNativeDriver: false,
@@ -45,7 +53,13 @@ export default function MailFilterBar({
         useNativeDriver: false,
         friction: 8,
       }),
-    ]).start();
+    ]);
+    runningAnim.current = anim;
+    anim.start(({ finished }) => {
+      if (finished) {
+        runningAnim.current = null;
+      }
+    });
   }, [activeId, indicatorW, indicatorX, layouts]);
 
   const onLayoutItem = (id: string) => (e: LayoutChangeEvent) => {

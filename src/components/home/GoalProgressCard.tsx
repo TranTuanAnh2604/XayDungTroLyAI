@@ -2,18 +2,34 @@ import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import HomeGlassCard from './HomeGlassCard';
+import SkeletonBlock from './SkeletonBlock';
 import { useTheme } from '../../hooks/useTheme';
-
 import type { GoalProgress } from '../../types/home';
 
 type GoalProgressCardProps = {
   progress: GoalProgress;
+  skeleton?: boolean;
 };
 
-export default function GoalProgressCard({ progress }: GoalProgressCardProps) {
+export default function GoalProgressCard({
+  progress,
+  skeleton = false,
+}: GoalProgressCardProps) {
   const { colors: COLORS } = useTheme();
   const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
   const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
+
+  if (skeleton) {
+    return (
+      <HomeGlassCard variant="surface" padding={20} style={styles.card}>
+        <SkeletonBlock height={14} width={140} borderRadius={7} style={{ marginBottom: 8 }} />
+        <SkeletonBlock height={11} width="70%" borderRadius={5} style={{ marginBottom: 20 }} />
+        <SkeletonBlock height={10} borderRadius={5} style={{ marginBottom: 10 }} />
+        <SkeletonBlock height={12} width="55%" borderRadius={6} />
+      </HomeGlassCard>
+    );
+  }
+
   const percent = Math.round(progress.completedPercent);
 
   return (
@@ -31,6 +47,7 @@ export default function GoalProgressCard({ progress }: GoalProgressCardProps) {
       <View style={styles.progressBar}>
         <View style={[styles.progressFill, { width: `${percent}%` }]} />
       </View>
+
       <Text style={styles.detail}>{progress.detail}</Text>
     </HomeGlassCard>
   );

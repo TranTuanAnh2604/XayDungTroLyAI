@@ -132,14 +132,16 @@ export default function TaskFormFields({
                   : styles.prioTextHigh
               }
             >
-              Cao 🚀
+              Cao
             </Text>
           </TouchableOpacity>
         </View>
       )}
 
       <View style={styles.datePickerRow}>
-        <Text style={styles.priorityLabel}>Đến hạn:</Text>
+        <Text style={styles.priorityLabel}>
+          Đến hạn: <Text style={{ color: COLORS.error }}>*</Text>
+        </Text>
         <TouchableOpacity
           style={styles.dateBtn}
           onPress={() => setShowDatePicker(true)}

@@ -1,5 +1,6 @@
 // Thêm chữ apiPatch vào hàng import
 import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from './api'; 
+import { DeviceEventEmitter } from 'react-native';
 
 // --- DTOs ---
 export type TaskDto = {
@@ -22,22 +23,6 @@ export type TodoDto = {
   createdAt?: string;
 };
 
-// --- MOCK NOTIFICATION HELPERS ---
-// Trích xuất các hàm này từ doan/service/task.ts, vì chúng chưa được định nghĩa
-async function getNotificationIdsBySource(source: { taskId?: string; todoId?: string }): Promise<string[]> {
-  // Placeholder: In a real app, we'd query local storage or the OS for notification IDs tied to this task/todo
-  return [];
-}
-
-async function cancelLocalNotifications(ids: string[]): Promise<void> {
-  // Placeholder: loop through ids and cancel
-  // for (const id of ids) { await Notifications.cancelScheduledNotificationAsync(id); }
-}
-
-async function syncAndScheduleReminders(): Promise<void> {
-  // Placeholder: sync tasks and schedule new reminders
-}
-
 
 // --- XUẤT API ---
 export const tasksApi = {
@@ -47,9 +32,7 @@ export const tasksApi = {
 
   async toggleTaskComplete(id: string): Promise<boolean> {
     const result = await apiPut<boolean>(`/api/tasks/${id}/complete`, {});
-    // Task done thì BE đã xóa notification pending trong DB, giờ hủy local theo
-    const ids = await getNotificationIdsBySource({ taskId: id });
-    if (ids.length > 0) await cancelLocalNotifications(ids);
+    DeviceEventEmitter.emit('tasks_changed');
     return result;
   },
 
@@ -66,15 +49,11 @@ export const tasksApi = {
     if (dueDate) payload.DueDate = dueDate;
 
     const result = await apiPost<string>('/api/tasks', payload);
-    await syncAndScheduleReminders(); // lên lịch reminder ngay nếu có dueDate
+    DeviceEventEmitter.emit('tasks_changed');
     return result;
   },
 
   async updateTask(id: string, data: { title?: string; description?: string; priority?: string; dueDate?: string }): Promise<string> {
-    // Hủy local trước khi BE tạo lại reminder mới
-    const oldIds = await getNotificationIdsBySource({ taskId: id });
-    if (oldIds.length > 0) await cancelLocalNotifications(oldIds);
-
     let priorityLevel: number | undefined;
     if (data.priority === 'high') priorityLevel = 3;
     if (data.priority === 'normal') priorityLevel = 2;
@@ -88,14 +67,14 @@ export const tasksApi = {
     };
 
     const result = await apiPut<string>(`/api/tasks/${id}`, payload);
-    await syncAndScheduleReminders(); // lên lịch lại reminder mới nếu còn dueDate
+    DeviceEventEmitter.emit('tasks_changed');
     return result;
   },
 
   async deleteTask(id: string): Promise<string> {
-    const ids = await getNotificationIdsBySource({ taskId: id });
-    if (ids.length > 0) await cancelLocalNotifications(ids);
-    return apiDelete<string>(`/api/tasks/${id}`);
+    const result = await apiDelete<string>(`/api/tasks/${id}`);
+    DeviceEventEmitter.emit('tasks_changed');
+    return result;
   },
 
   // TODOS
@@ -107,8 +86,7 @@ export const tasksApi = {
 
   async toggleTodoComplete(id: string): Promise<any> {
     const result = await apiPatch<any>(`/api/todos/${id}/complete`);
-    const ids = await getNotificationIdsBySource({ todoId: id });
-    if (ids.length > 0) await cancelLocalNotifications(ids);
+    DeviceEventEmitter.emit('tasks_changed');
     return result;
   },
 
@@ -120,14 +98,11 @@ export const tasksApi = {
       Completed: false,
       Source: 'manual',
     });
-    await syncAndScheduleReminders();
+    DeviceEventEmitter.emit('tasks_changed');
     return result;
   },
 
   async updateTodo(id: string, data: { title?: string; description?: string; dueDate?: string; completed?: boolean; source?: string }): Promise<string> {
-    const oldIds = await getNotificationIdsBySource({ todoId: id });
-    if (oldIds.length > 0) await cancelLocalNotifications(oldIds);
-
     const result = await apiPut<string>(`/api/todos/${id}`, {
       Title: data.title,
       Description: data.description,
@@ -135,14 +110,13 @@ export const tasksApi = {
       Completed: data.completed ?? false,
       Source: data.source,
     });
-
-    await syncAndScheduleReminders();
+    DeviceEventEmitter.emit('tasks_changed');
     return result;
   },
 
   async deleteTodo(id: string): Promise<string> {
-    const ids = await getNotificationIdsBySource({ todoId: id });
-    if (ids.length > 0) await cancelLocalNotifications(ids);
-    return apiDelete<string>(`/api/todos/${id}`);
+    const result = await apiDelete<string>(`/api/todos/${id}`);
+    DeviceEventEmitter.emit('tasks_changed');
+    return result;
   },
 };

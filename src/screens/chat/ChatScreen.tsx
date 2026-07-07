@@ -38,7 +38,6 @@ import {
   chat as chatService, 
   getSessions, 
   getSessionMessages, 
-  createNewSession, 
   deleteSession 
 } from '../../services/chat';
 
@@ -58,7 +57,16 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
   const openSettings = useOpenSettings();
   
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  // ─── Hai session ID với vai trò KHÁC NHAU ─────────────────────────────────
+  // 1. currentChatSessionRef: sessionId thực sự đang dùng để gửi/nhận tin nhắn.
+  //    Là REF để tránh trigger useEffect — chỉ cập nhật khi BE assign sessionId mới.
+  const currentChatSessionRef = useRef<string | undefined>(undefined);
+  // 2. activeSessionId: sessionId dùng ĐỂ LOAD TỪ API — chỉ set khi user
+  //    chủ động chọn session từ sidebar. Không bao giờ set từ AI response.
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>(undefined);
+
+  // Timer tự động reset sau action
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // -- Sidebar State --
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -71,7 +79,15 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
   const composerBottom = bottomNavReserved + CHAT_COMPOSER_BOTTOM_GAP;
   const keyboardOffset = useRef(new Animated.Value(composerBottom)).current;
 
-  // -- Load tin nhắn khi đổi session --
+  // -- Cleanup timer khi unmount --
+  useEffect(() => {
+    return () => {
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+    };
+  }, []);
+
+  // -- Load tin nhắn KHI USER CHỌN SESSION TỪ SIDEBAR --
+  // useEffect này KHÔNG bao giờ chạy sau AI response bình thường
   useEffect(() => {
     if (!activeSessionId) {
       setMessages([]);
@@ -79,6 +95,7 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
     }
     getSessionMessages(activeSessionId)
       .then(msgs => {
+        // Guard: đảm bảo activeSessionId chưa thay đổi trong lúc fetch
         const mapped = msgs.map((m: any) => {
           if (m.type === 'action' || m.Type === 'action') {
             return {
@@ -98,6 +115,8 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
           } as ChatMessage;
         });
         setMessages(mapped);
+        // Đồng bộ currentChatSessionRef với session đang được xem
+        currentChatSessionRef.current = activeSessionId;
       })
       .catch(console.error);
   }, [activeSessionId]);
@@ -127,7 +146,15 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
   }, [composerBottom, insets.bottom, keyboardOffset]);
 
   // -- Gửi tin nhắn --
+  // Dùng currentChatSessionRef (ref) — không bao giờ set activeSessionId (state) tại đây
+  // để tránh trigger useEffect và gây fetch messages cũ
   const handleSend = useCallback(async (text: string) => {
+    // Hủy timer reset nếu user đang gửi tin mới
+    if (resetTimerRef.current) {
+      clearTimeout(resetTimerRef.current);
+      resetTimerRef.current = null;
+    }
+
     const tempId = `u-${Date.now()}`;
     setMessages(prev => [
       ...prev,
@@ -136,57 +163,64 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
     ]);
 
     try {
-      const result = await chatService(text, activeSessionId);
+      // Gọi API với currentChatSessionRef.current (không phải activeSessionId state)
+      const result = await chatService(text, currentChatSessionRef.current);
       
-      if (result.sessionId && result.sessionId !== activeSessionId) {
-        setActiveSessionId(result.sessionId);
+      // Cập nhật sessionId vào REF — không set state — không trigger useEffect
+      if (result.sessionId) {
+        currentChatSessionRef.current = result.sessionId;
       }
 
-      setMessages(prev => {
-        const withoutTyping = prev.filter(m => m.role !== 'typing');
-        if (result.kind === 'action') {
-          return [
-            ...withoutTyping,
-            {
-              id: `a-${Date.now()}`,
-              role: 'action',
-              content: result.answer,
-              actionId: result.actionId,
-              appName: result.appName,
-              deepLink: result.deepLink,
-              fallbackUrl: result.fallbackUrl
-            }
-          ];
-        } else {
-          return [
-            ...withoutTyping,
-            { id: `ai-${Date.now()}`, role: 'ai', content: result.answer }
-          ];
-        }
-      });
+      if (result.kind === 'action') {
+        // 1. Hiển thị tin nhắn action thành công
+        setMessages(prev => [
+          ...prev.filter(m => m.role !== 'typing'),
+          {
+            id: `a-${Date.now()}`,
+            role: 'action',
+            content: result.answer,
+            actionId: result.actionId,
+            appName: result.appName,
+            deepLink: result.deepLink,
+            fallbackUrl: result.fallbackUrl
+          }
+        ]);
+        // 2. Sau 2 giây: reset ref và messages về trạng thái trống
+        //    activeSessionId (state) không được đụng tới — không trigger useEffect
+        resetTimerRef.current = setTimeout(() => {
+          resetTimerRef.current = null;
+          currentChatSessionRef.current = undefined;
+          setMessages([]);
+        }, 2000);
+      } else {
+        setMessages(prev => [
+          ...prev.filter(m => m.role !== 'typing'),
+          { id: `ai-${Date.now()}`, role: 'ai', content: result.answer }
+        ]);
+      }
     } catch (err: any) {
-      setMessages(prev => {
-        const withoutTyping = prev.filter(m => m.role !== 'typing');
-        return [
-          ...withoutTyping,
-          { id: `err-${Date.now()}`, role: 'ai', content: err?.message || 'Có lỗi xảy ra' }
-        ];
-      });
+      setMessages(prev => [
+        ...prev.filter(m => m.role !== 'typing'),
+        { id: `err-${Date.now()}`, role: 'ai', content: err?.message || 'Có lỗi xảy ra' }
+      ]);
     }
-  }, [activeSessionId]);
+  // handleSend không còn phụ thuộc vào activeSessionId — loại bỏ dependency vòng lặp
+  }, []);
 
   const handleQuickAction = useCallback((action: QuickAction) => {
     handleSend(action.label);
   }, [handleSend]);
 
-  const handleNewChat = useCallback(async () => {
-    try {
-      const res = await createNewSession();
-      setActiveSessionId(res.sessionId);
-      setMessages([]);
-    } catch (err) {
-      console.log('Error creating new session', err);
+  const handleNewChat = useCallback(() => {
+    // Hủy timer nếu đang chạy
+    if (resetTimerRef.current) {
+      clearTimeout(resetTimerRef.current);
+      resetTimerRef.current = null;
     }
+    // Reset cả ref và state, không gọi API
+    currentChatSessionRef.current = undefined;
+    setActiveSessionId(undefined);
+    setMessages([]);
   }, []);
 
   // -- Sidebar Logic --
@@ -212,8 +246,12 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
   const handleDeleteSession = async (id: string) => {
     try {
       await deleteSession(id);
+      if (id === currentChatSessionRef.current) {
+        currentChatSessionRef.current = undefined;
+      }
       if (id === activeSessionId) {
         setActiveSessionId(undefined);
+        setMessages([]);
       }
       setSessions(prev => prev.filter(s => s.id !== id));
     } catch (err) {
@@ -289,6 +327,12 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
                     key={s.id} 
                     style={[styles.sidebarItem, activeSessionId === s.id && styles.sidebarItemActive]}
                     onPress={() => {
+                      // Hủy timer reset nếu đang chạy
+                      if (resetTimerRef.current) {
+                        clearTimeout(resetTimerRef.current);
+                        resetTimerRef.current = null;
+                      }
+                      // Đồng bộ cả state (trigger useEffect fetch) và ref (để gửi tiếp)
                       setActiveSessionId(s.id);
                       closeSidebar();
                     }}

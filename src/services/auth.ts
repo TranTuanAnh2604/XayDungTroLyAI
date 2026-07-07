@@ -102,8 +102,7 @@ export async function login(email: string, password: string): Promise<AuthRespon
     {
       email,
       password,
-    },
-    { skipAuth: true },
+    }
   );
   return normalizeAuthResponse(response);
 }
@@ -123,8 +122,7 @@ export async function register(
       name,
       email,
       password,
-    },
-    { skipAuth: true },
+    }
   );
   console.log('📝 register: Response từ server', JSON.stringify(response, null, 2));
   return { success: response.success ?? true };
@@ -140,8 +138,7 @@ export async function loginWithGoogle(idToken: string, serverAuthCode?: string):
 
   const response = await apiPost<RawAuthResponse>(
     '/api/Auth/google-login',
-    body,
-    { skipAuth: true },
+    body
   );
   return normalizeAuthResponse(response);
 }
@@ -151,8 +148,7 @@ export async function loginWithGoogleRefreshToken(refreshToken: string): Promise
     '/api/Auth/google-login',
     {
       refreshToken,
-    },
-    { skipAuth: true },
+    }
   );
   return normalizeAuthResponse(response);
 }
@@ -166,8 +162,7 @@ export async function verifyOTP(
     message?: string 
   }>(
     '/api/Auth/verify-email',
-    { email, otp },
-    { skipAuth: true },
+    { email, otp }
   );
 
   return { success: response.success ?? true };
@@ -180,8 +175,7 @@ export async function resendOTP(email: string): Promise<{ success: boolean }> {
     '/api/Auth/resend-otp',
     {
       email,
-    },
-    { skipAuth: true },
+    }
   );
   return response;
 }
@@ -192,8 +186,7 @@ export async function forgotPassword(email: string) {
     message?: string;
   }>(
     '/api/Auth/forgot-password',
-    { email },
-    { skipAuth: true },
+    { email }
   );
 
   console.log('📝 forgotPassword response:', response);
@@ -219,8 +212,7 @@ export async function resetPassword({
       email,
       otp,
       newPassword,
-    },
-    { skipAuth: true },
+    }
   );
 
   console.log('📝 resetPassword: Response từ server', JSON.stringify(response, null, 2));
@@ -246,8 +238,7 @@ export async function refreshToken(
     '/api/Auth/refresh_token',
     {
       refreshToken: refreshTokenValue,
-    },
-    { skipAuth: true },
+    }
   );
 
   console.log('🔄 refreshToken response:', JSON.stringify(response, null, 2));

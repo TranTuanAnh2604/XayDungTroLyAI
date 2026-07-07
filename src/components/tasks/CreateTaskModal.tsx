@@ -45,7 +45,7 @@ export default function CreateTaskModal({ visible, onClose, onSaved, onVoicePres
   };
 
   const handleCreate = async () => {
-    if (!formData.title.trim()) return;
+    if (!formData.title.trim() || !formData.dueDate) return;
     try {
       setIsSubmitting(true);
       if (formData.type === 'task') {
@@ -88,9 +88,9 @@ export default function CreateTaskModal({ visible, onClose, onSaved, onVoicePres
         <Text style={s.cancelBtnText}>Hủy</Text>
       </TouchableOpacity>
       <TouchableOpacity
-        style={[s.submitBtn, !formData.title.trim() && s.submitBtnDisabled]}
+        style={[s.submitBtn, (!formData.title.trim() || !formData.dueDate) && s.submitBtnDisabled]}
         onPress={handleCreate}
-        disabled={!formData.title.trim() || isSubmitting}
+        disabled={!formData.title.trim() || !formData.dueDate || isSubmitting}
       >
         {isSubmitting ? (
           <ActivityIndicator size="small" color={COLORS.onPrimary} />

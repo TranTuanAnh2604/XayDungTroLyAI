@@ -1,240 +1,205 @@
-import {
-  getAuthToken,
-  getRefreshToken,
-  updateAuthToken,
-  clearAuthData,
-} from './authStorage';
+import * as SecureStore from 'expo-secure-store';
 
 export const API_BASE_URL = 'https://assistantai-bc7b.onrender.com';
+//export const API_BASE_URL = 'http://192.168.1.12:5283';
 
-export type ApiResponse<T> = {
-  data?: T;
-  message?: string;
+type ApiEnvelope<T> = {
   success?: boolean;
+  Succeeded?: boolean;
+  messenger?: string;
+  message?: string;
+  Message?: string;
+  title?: string;
+  errors?: Record<string, string[]>;
+  data?: T;
+  Data?: T;
 };
 
-let isRefreshingToken = false;
-let refreshTokenPromise: Promise<boolean> | null = null;
+const AUTH_TOKEN_KEY = 'AUTH_TOKEN';
+const REFRESH_TOKEN_KEY = 'REFRESH_TOKEN';
 
-async function refreshAccessToken(): Promise<boolean> {
-  if (isRefreshingToken && refreshTokenPromise) {
-    return refreshTokenPromise;
-  }
-
-  isRefreshingToken = true;
-  refreshTokenPromise = (async () => {
-    try {
-      const refreshToken = await getRefreshToken();
-      if (!refreshToken) {
-        return false;
-      }
-
-      // Import here to avoid circular dependency
-      const { refreshToken: refreshTokenFn } = await import('./auth');
-      const response = await refreshTokenFn(refreshToken);
-      
-      await updateAuthToken(response.token, response.refreshToken);
-      return true;
-    } catch (error) {
-      console.error('Failed to refresh token:', error);
-      return false;
-    } finally {
-      isRefreshingToken = false;
-      refreshTokenPromise = null;
-    }
-  })();
-
-  return refreshTokenPromise;
-}
-
-async function makeRequest<T>(
-  method: string,
-  path: string,
-  body?: unknown,
-  skipAuth = false,
-): Promise<T> {
-  const token = await getAuthToken();
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  const requestUrl = `${API_BASE_URL}${normalizedPath}`;
-
-  const REQUEST_TIMEOUT_MS = 300000;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(
-    () => controller.abort(),
-    REQUEST_TIMEOUT_MS,
-  );
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+/**
+ * Hàm "Lính gác" tự động gắn Token và xử lý làm mới nếu Token hết hạn (401)
+ */
+async function fetchWithInterceptor(url: string, options: RequestInit): Promise<Response> {
+  // 1. Gắn Token hiện tại vào Header
+  let token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
+  let headers: Record<string, string> = {
+    ...(options.headers as Record<string, string> || {})
   };
 
-  if (!skipAuth && token) {
-    headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
 
-  console.log('REQUEST:', { requestUrl, method, skipAuth, hasAuthHeader: !!headers.Authorization });
+  // 2. Chạy API lần đầu
+  let response = await fetch(url, { ...options, headers });
 
-  let response;
+  // 3. Nếu BE trả về 401 Unauthorized (Hết hạn Token)
+  if (response.status === 401) {
+    const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+
+    // Nếu có Refresh Token thì thử gọi API làm mới
+    if (refreshToken) {
+      try {
+        const refreshRes = await fetch(`${API_BASE_URL}/api/Auth/refresh_token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken: refreshToken, RefreshToken: refreshToken }),
+        });
+
+        const refreshData = await refreshRes.json().catch(() => null);
+        const isSuccess = refreshRes.ok && refreshData && (refreshData.success !== false && refreshData.Succeeded !== false);
+
+        if (isSuccess) {
+          // Bóc tách Token mới từ phản hồi của C#
+          const newTokens = refreshData.data || refreshData.Data || refreshData;
+          const newAccessToken = newTokens.token || newTokens.accessToken || newTokens.AccessToken;
+          const newRefreshToken = newTokens.refreshToken || newTokens.RefreshToken;
+
+          if (newAccessToken && newRefreshToken) {
+            // Lưu token mới vào máy
+            await SecureStore.setItemAsync(AUTH_TOKEN_KEY, newAccessToken);
+            await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, newRefreshToken);
+
+            // Gắn token mới và thử gọi lại API ban đầu lần 2 một cách âm thầm
+            headers['Authorization'] = `Bearer ${newAccessToken}`;
+            response = await fetch(url, { ...options, headers });
+          }
+        } else if (response.status === 401 && !url.includes('/api/Gmail/')) {
+          // Nếu Refresh Token cũng hết hạn -> Xóa token để ép về màn hình Login (Chỉ áp dụng nếu lỗi ban đầu là 401)
+          await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
+          await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+        }
+      } catch (error) {
+        console.log('Lỗi trong quá trình Refresh Token', error);
+      }
+    } else if (response.status === 401 && !url.includes('/api/Gmail/')) {
+      await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
+      await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+    }
+  }
+
+  return response;
+}
+
+/**
+ * Xử lý bóc tách các mảng lỗi, validation trả về từ BE
+ */
+function handleApiResponse<T>(response: Response, result: ApiEnvelope<T> | null): T {
+  const isSuccess = response.ok && (result?.success !== false && result?.Succeeded !== false);
+
+  if (!isSuccess) {
+    let errorMsg = result?.message || result?.Message || result?.messenger;
+
+    if (!errorMsg && result?.errors) {
+      const errorList = Object.values(result.errors).flat();
+      if (errorList.length > 0) {
+        errorMsg = errorList.join('\n');
+      }
+    }
+    if (!errorMsg && result?.title) {
+      errorMsg = result.title;
+    }
+
+    throw new Error(errorMsg || `Phiên đăng nhập không hợp lệ hoặc máy chủ lỗi (HTTP ${response.status}).`);
+  }
+
+  return (result?.data !== undefined ? result.data : result?.Data) as T ?? (result as unknown as T);
+}
+
+// ─────────────────────────────────────────────────────────────
+// CÁC PHƯƠNG THỨC API GỌI QUA INTERCEPTOR
+// ─────────────────────────────────────────────────────────────
+export async function apiPost<T>(path: string, body: unknown): Promise<T> {
+  const url = `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
   try {
-    response = await fetch(requestUrl, {
-      method,
-      headers,
-      ...(body !== undefined && { body: JSON.stringify(body) }),
-      signal: controller.signal,
+    // Gọi fetchWithInterceptor thay vì fetch thuần
+    const response = await fetchWithInterceptor(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     });
+    const result = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
+    return handleApiResponse(response, result);
   } catch (error: any) {
-    clearTimeout(timeoutId);
-    const isAbortError =
-      error instanceof Error
-        ? error.name === 'AbortError'
-        : error?.name === 'AbortError';
-
-    if (isAbortError) {
-      console.error('FETCH ERROR: Request aborted by timeout');
-      throw new Error(
-        `Request timed out after ${REQUEST_TIMEOUT_MS / 1000} seconds. Please try again or check your network connection.`,
-      );
-    }
-
-    console.error('FETCH ERROR:', error);
-    throw error;
+    if (error.name === 'ApiError') throw error;
+    throw new Error(error.message || 'Không thể kết nối tới máy chủ.');
   }
+}
 
-  clearTimeout(timeoutId);
-
-  const rawResponseBody =
-    await response.json().catch(() => ({}));
-
-  const responseBody =
-    rawResponseBody &&
-    typeof rawResponseBody === 'object' &&
-    'body' in rawResponseBody &&
-    rawResponseBody.body &&
-    typeof rawResponseBody.body === 'object'
-      ? rawResponseBody.body
-      : rawResponseBody;
-
-  console.log('STATUS:', response.status);
-
-  // Handle 401 Unauthorized - try to refresh token for any authenticated request.
-  // POST requests may also require refresh when the current auth token is expired.
-  if (response.status === 401 && !path.includes('/refresh_token') && !path.includes('/login')) {
-    console.log('AUTH: Received 401, attempting token refresh for', requestUrl);
-    const refreshed = await refreshAccessToken();
-    if (refreshed) {
-      // Retry request with new token
-      return makeRequest<T>(method, path, body);
-    }
-
-    // Refresh failed, clear auth data to force re-login
-    await clearAuthData();
-    throw new Error('Phiên đã hết hạn. Vui lòng đăng nhập lại.');
-  }
-
-  if (!response.ok) {
-    const errorMessage =
-      responseBody?.message ||
-      responseBody?.Messenger ||
-      responseBody?.messenger ||
-      responseBody?.error ||
-      responseBody?.errorMessage ||
-      responseBody?.Message ||
-      (typeof responseBody?.Messenger === 'string' ? responseBody.Messenger : undefined) ||
-      `Server error (${response.status})`;
-
-    console.error('API ERROR RESPONSE:', {
-      url: requestUrl,
-      status: response.status,
-      body: responseBody,
+export async function apiGet<T>(path: string): Promise<T> {
+  const url = `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+  try {
+    const response = await fetchWithInterceptor(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
     });
-
-    throw new Error(errorMessage);
+    const result = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
+    return handleApiResponse(response, result);
+  } catch (error: any) {
+    if (error.name === 'ApiError') throw error;
+    throw new Error(error.message || 'Không thể kết nối tới máy chủ.');
   }
-
-  return responseBody as T;
 }
 
-export async function apiPost<T>(
-  path: string,
-  body?: unknown,
-  options?: { skipAuth?: boolean },
-): Promise<T> {
-  console.log('URL:', `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`);
-  if (body !== undefined) {
-    console.log('BODY:', JSON.stringify(body));
+export async function apiPut<T>(path: string, body: unknown): Promise<T> {
+  const url = `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+  try {
+    const response = await fetchWithInterceptor(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const result = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
+    return handleApiResponse(response, result);
+  } catch (error: any) {
+    if (error.name === 'ApiError') throw error;
+    throw new Error(error.message || 'Không thể kết nối tới máy chủ.');
   }
-  return makeRequest<T>('POST', path, body, options?.skipAuth ?? false);
 }
 
-export async function apiGet<T>(
-  path: string,
-  options?: { skipAuth?: boolean },
-): Promise<T> {
-  return makeRequest<T>('GET', path, undefined, options?.skipAuth ?? false);
-}
-
-export async function apiPut<T>(
-  path: string,
-  body: unknown,
-  options?: { skipAuth?: boolean },
-): Promise<T> {
-  return makeRequest<T>('PUT', path, body, options?.skipAuth ?? false);
-}
-
-export async function apiDelete<T>(
-  path: string,
-  options?: { skipAuth?: boolean },
-): Promise<T> {
-  return makeRequest<T>('DELETE', path, undefined, options?.skipAuth ?? false);
-}
-
-export async function apiUpload<T>(
-  path: string,
-  formData: FormData,
-  options?: { skipAuth?: boolean },
-): Promise<T> {
-  const token = await getAuthToken();
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  const requestUrl = `${API_BASE_URL}${normalizedPath}`;
-
-  const headers: Record<string, string> = {};
-
-  if (!options?.skipAuth && token) {
-    headers.Authorization = `Bearer ${token}`;
+export async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
+  const url = `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+  try {
+    const response = await fetchWithInterceptor(url, {
+      method: 'POST',
+      body: formData,
+      // Không set Content-Type để form-data tự sinh boundary
+    });
+    const result = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
+    return handleApiResponse(response, result);
+  } catch (error: any) {
+    if (error.name === 'ApiError') throw error;
+    throw new Error(error.message || 'Không thể kết nối tới máy chủ.');
   }
-
-  // Do NOT set Content-Type to application/json or multipart/form-data manually,
-  // fetch will automatically set the correct boundary for FormData.
-
-  const response = await fetch(requestUrl, {
-    method: 'POST', // standard method for uploads
-    headers,
-    body: formData,
-  });
-
-  if (response.status === 401 && !path.includes('/refresh_token')) {
-    // Basic 401 retry logic
-    const refreshed = await refreshAccessToken();
-    if (refreshed) {
-      return apiUpload<T>(path, formData, options);
-    }
-    await clearAuthData();
-    throw new Error('Phiên đã hết hạn. Vui lòng đăng nhập lại.');
-  }
-
-  if (!response.ok) {
-    const rawResponseBody = await response.json().catch(() => ({}));
-    throw new Error(rawResponseBody?.message || `Server error (${response.status})`);
-  }
-
-  return response.json() as Promise<T>;
 }
-
-export async function apiPatch<T>(
-  path: string,
-  body?: unknown,
-  options?: { skipAuth?: boolean },
-): Promise<T> {
-  return makeRequest<T>('PATCH', path, body, options?.skipAuth ?? false);
+export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
+  const url = `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+  try {
+    const response = await fetchWithInterceptor(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const result = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
+    return handleApiResponse(response, result);
+  } catch (error: any) {
+    if (error.name === 'ApiError') throw error;
+    throw new Error(error.message || 'Không thể kết nối tới máy chủ.');
+  }
 }
-
+export async function apiDelete<T>(path: string): Promise<T> {
+  const url = `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+  try {
+    const response = await fetchWithInterceptor(url, {
+      method: 'DELETE', // Định nghĩa đúng HTTP Method DELETE cho đồng bộ với C#
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const result = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
+    return handleApiResponse(response, result);
+  } catch (error: any) {
+    if (error.name === 'ApiError') throw error;
+    throw new Error(error.message || 'Không thể kết nối tới máy chủ.');
+  }
+}

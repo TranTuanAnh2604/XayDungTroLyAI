@@ -95,15 +95,19 @@ export default function CreateEventModal({
     setDescription('');
     setLocation('');
     setSource('app');
+    
+    // Bắt đầu bằng thời gian hiện tại
     setStartDate(now);
-    setEndDate(now);
+    // Kết thúc mặc định sau 1 tiếng
+    setEndDate(new Date(now.getTime() + 60 * 60 * 1000));
+    
     setIsAllDay(false);
     setShowStartDatePicker(false);
     setShowStartTimePicker(false);
     setShowEndDatePicker(false);
     setShowEndTimePicker(false);
     setError(null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   const handleCreate = async () => {
@@ -139,10 +143,10 @@ export default function CreateEventModal({
     try {
       await onCreate({
         title: title.trim(),
-        description: description.trim(),
+        description: description.trim() || undefined,
         startTime: startIso,
         endTime: endIso,
-        location: location.trim(),
+        location: location.trim() || undefined,
         source: source.trim() || 'app',
         externalId: `event-${Date.now()}`,
         isAllDay,

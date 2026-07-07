@@ -32,7 +32,17 @@
       "expo-mail-composer",
       "@react-native-community/datetimepicker",
       "@react-native-google-signin/google-signin",
-      "@react-native-voice/voice"
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Ứng dụng cần sử dụng micro để nhận diện giọng nói của bạn.",
+          "speechRecognitionPermission": "Ứng dụng cần tính năng nhận diện giọng nói để tương tác.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox",
+            "com.google.android.tts"
+          ]
+        }
+      ]
     ],
     "ios": {
       "supportsTablet": true

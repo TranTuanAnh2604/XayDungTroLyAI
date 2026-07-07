@@ -4,9 +4,10 @@ import {
   ActivityIndicator, Alert, Platform, NativeModules,
   View, Animated,
 } from 'react-native';
-import Voice, {
-  type SpeechResultsEvent,
-} from '@react-native-voice/voice';
+import {
+  ExpoSpeechRecognitionModule,
+  useSpeechRecognitionEvent,
+} from 'expo-speech-recognition';
 import { voiceTaskApi, type ParsedTask } from '../../services/voicetask';
 import { useTheme } from '../../hooks/useTheme';
 import { getTypography } from '../../constants/typography';
@@ -17,7 +18,6 @@ import TaskFormFields from './ui/TaskFormFields';
 
 type VoiceState = 'idle' | 'listening' | 'processing' | 'preview' | 'error';
 
-const isVoiceNativeModuleAvailable = !!(NativeModules.Voice || NativeModules.RNVoice);
 
 interface Props {
   visible: boolean;
@@ -83,41 +83,56 @@ export default function VoiceTaskModal({ visible, onClose, onSaved }: Props) {
     handleParseRef.current = handleParse;
   }, [handleParse]);
 
-  useEffect(() => {
-    if (!visible || !Voice || !isVoiceNativeModuleAvailable) return;
-    if (Voice.isAvailable) {
-      Voice.isAvailable().catch(console.error);
+  useSpeechRecognitionEvent('start', () => {
+    console.log('[VoiceTaskModal] Event: start');
+    setVoiceState('listening');
+  });
+
+  useSpeechRecognitionEvent('result', (event) => {
+    console.log('[VoiceTaskModal] Event: result', event.results[0]?.transcript);
+    const text = event.results[0]?.transcript || '';
+    transcriptRef.current = text;
+    setTranscript(text);
+  });
+
+  useSpeechRecognitionEvent('end', () => {
+    console.log('[VoiceTaskModal] Event: end');
+    const text = transcriptRef.current.trim();
+    if (voiceStateRef.current !== 'listening') return;
+    if (text) {
+      handleParseRef.current(text);
+    } else {
+      setVoiceState('idle');
     }
-    Voice.onSpeechResults = (e: SpeechResultsEvent) => {
-      const text = e.value?.[0] ?? '';
-      transcriptRef.current = text;
-      setTranscript(text);
-    };
-    Voice.onSpeechEnd = () => {
-      if (Platform.OS === 'ios') {
-        const text = transcriptRef.current.trim();
-        if (voiceStateRef.current !== 'listening') return;
-        if (text) {
-          handleParseRef.current(text);
-        } else {
-          setVoiceState('idle');
-        }
-      }
-    };
-    return () => {
-      if (Voice && isVoiceNativeModuleAvailable) {
-        Voice.destroy().then(Voice.removeAllListeners).catch(() => {});
-      }
-    };
-  }, [visible]);
+  });
+
+  useSpeechRecognitionEvent('error', (event) => {
+    console.log('[VoiceTaskModal] Lỗi nhận diện giọng nói:', event.error, event.message);
+    // 'aborted' và 'no-speech' là hành vi bình thường, không hiển thị lỗi
+    if (event.error === 'aborted' || event.error === 'no-speech') {
+      setVoiceState('idle');
+      return;
+    }
+    if (event.error === 'client') {
+      setErrorMsg('Lỗi hệ thống: Dịch vụ nhận diện của thiết bị đang bận hoặc lỗi. Hãy thử cài/cập nhật Google App.');
+    } else if (event.error === 'not-allowed') {
+      setErrorMsg('Chưa cấp quyền microphone. Vào Cài đặt > Ứng dụng để bật quyền.');
+    } else if (event.error === 'service-not-allowed') {
+      setErrorMsg('Thiết bị không hỗ trợ nhận diện giọng nói. Hãy cài Google App.');
+    } else {
+      setErrorMsg('Lỗi nhận diện giọng nói: ' + (event.message || event.error));
+    }
+    setVoiceState('error');
+  });
 
   useEffect(() => {
     if (!visible) resetAll();
   }, [visible]);
 
   const resetAll = async () => {
-    if (Voice && isVoiceNativeModuleAvailable) {
-      try { await Voice.cancel(); } catch {}
+    // Chỉ abort nếu đang thực sự listening để tránh lỗi 'aborted'
+    if (voiceStateRef.current === 'listening') {
+      try { ExpoSpeechRecognitionModule.abort(); } catch {}
     }
     isProcessingRef.current = false;
     transcriptRef.current = '';
@@ -128,36 +143,53 @@ export default function VoiceTaskModal({ visible, onClose, onSaved }: Props) {
   };
 
   const handleStartListening = async () => {
-    if (!Voice || !isVoiceNativeModuleAvailable) {
-      setErrorMsg('Nhận diện giọng nói không khả dụng trên thiết bị này.');
-      setVoiceState('error');
+    console.log('[VoiceTaskModal] handleStartListening called. Current state:', voiceStateRef.current);
+    if (voiceStateRef.current === 'listening') {
+      console.log('[VoiceTaskModal] Already listening. Ignoring duplicate start.');
       return;
     }
-    await resetAll();
+    
     try {
-      setVoiceState('listening');
-      await Voice.start('vi-VN');
+      const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      console.log('[VoiceTaskModal] Permission status:', permission.granted);
+      if (!permission.granted) {
+        setErrorMsg('Bạn chưa cấp quyền sử dụng microphone. Vào Cài đặt > Ứng dụng để bật.');
+        setVoiceState('error');
+        return;
+      }
+
+      const isAvailable = await ExpoSpeechRecognitionModule.isRecognitionAvailable();
+      console.log('[VoiceTaskModal] isRecognitionAvailable:', isAvailable);
+      if (!isAvailable) {
+        setErrorMsg('Thiết bị chưa cài Google App hoặc không hỗ trợ nhận diện giọng nói.\nHãy cài/cập nhật Google App từ Play Store.');
+        setVoiceState('error');
+        return;
+      }
+      
+      isProcessingRef.current = false;
+      transcriptRef.current = '';
+      setTranscript('');
+      setParsed(null);
+      setErrorMsg('');
+      
+      console.log('[VoiceTaskModal] Calling ExpoSpeechRecognitionModule.start()...');
+      ExpoSpeechRecognitionModule.start({ 
+        lang: 'vi-VN',
+        interimResults: true,
+        continuous: false,
+      });
     } catch (e) {
+      console.log('[VoiceTaskModal] Lỗi khi bắt đầu ghi âm:', e);
       setErrorMsg('Không thể bắt đầu ghi âm. Kiểm tra quyền microphone!');
       setVoiceState('error');
     }
   };
 
   const handleStopListening = async () => {
+    console.log('[VoiceTaskModal] handleStopListening called. Current state:', voiceStateRef.current);
     if (voiceStateRef.current !== 'listening') return;
-    if (Voice && isVoiceNativeModuleAvailable) {
-      try { await Voice.stop(); } catch (e) {}
-    }
-    if (Platform.OS === 'android') {
-      setTimeout(() => {
-        const text = transcriptRef.current.trim();
-        if (voiceStateRef.current !== 'listening') return;
-        if (text) {
-          handleParseRef.current(text);
-        } else {
-          setVoiceState('idle');
-        }
-      }, 300);
+    try { ExpoSpeechRecognitionModule.stop(); } catch (e) {
+      console.log('[VoiceTaskModal] Lỗi khi stop:', e);
     }
   };
 

@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, Linking, Alert, NativeModules } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import Voice, {
-  SpeechResultsEvent,
-  SpeechErrorEvent,
-} from '@react-native-voice/voice';
+import {
+  ExpoSpeechRecognitionModule,
+  useSpeechRecognitionEvent,
+} from 'expo-speech-recognition';
 import * as Speech from 'expo-speech';
 import AmbientParticles from '../../components/voice/AmbientParticles';
 import AiCoreVisualizer from '../../components/voice/AiCoreVisualizer';
@@ -29,7 +29,7 @@ type VoiceState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
 
 const IDLE_HINT = 'Nhấn vào vòng tròn để bắt đầu nói...';
 
-const isVoiceNativeModuleAvailable = !!(NativeModules.Voice || NativeModules.RNVoice);
+
 
 export default function VoiceAssistantScreen({
   onBackToChat,
@@ -40,89 +40,104 @@ export default function VoiceAssistantScreen({
   const { colors: COLORS } = useTheme();
 
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
+  const voiceStateRef = useRef<VoiceState>('idle');
+  useEffect(() => {
+    voiceStateRef.current = voiceState;
+  }, [voiceState]);
+
   const [transcript, setTranscript] = useState('');
   const [answerText, setAnswerText] = useState('');
   const activeSessionId = useRef<string | undefined>(sessionId);
+  const transcriptRef = useRef('');
+  const isProcessingRef = useRef(false);
 
-  useEffect(() => {
-    if (!Voice || !isVoiceNativeModuleAvailable) return;
-
-    Voice.onSpeechStart = () => setVoiceState('listening');
-    Voice.onSpeechResults = (e: SpeechResultsEvent) => {
-      const text = e.value?.[0]?.trim();
-      if (text) {
-        setTranscript(text);
-        handleUserSpeech(text);
-      } else {
-        setVoiceState('idle');
-      }
-    };
-    Voice.onSpeechError = (e: SpeechErrorEvent) => {
-      console.log('Lỗi nhận diện giọng nói:', e.error);
+  useSpeechRecognitionEvent('start', () => {
+    console.log('[VoiceAssistantScreen] Event: start');
+    setVoiceState('listening');
+  });
+  useSpeechRecognitionEvent('end', () => {
+    console.log('[VoiceAssistantScreen] Event: end');
+    const text = transcriptRef.current.trim();
+    if (voiceStateRef.current !== 'listening') return;
+    
+    if (text) {
+      handleUserSpeech(text);
+    } else {
       setVoiceState('idle');
-    };
-
-    return () => {
-      if (Voice && isVoiceNativeModuleAvailable && Voice.destroy) {
-        Voice.destroy().then(() => {
-          if (Voice.removeAllListeners) {
-            Voice.removeAllListeners();
-          }
-        }).catch(console.error);
-      }
-    };
-  }, []);
+    }
+  });
+  useSpeechRecognitionEvent('result', (event) => {
+    console.log('[VoiceAssistantScreen] Event: result', event.results[0]?.transcript);
+    const text = event.results[0]?.transcript || '';
+    transcriptRef.current = text;
+    setTranscript(text);
+  });
+  useSpeechRecognitionEvent('error', (event) => {
+    console.log('[VoiceAssistantScreen] Lỗi nhận diện giọng nói:', event.error, event.message);
+    setVoiceState((prev) => (prev === 'listening' ? 'idle' : prev));
+    // 'aborted' và 'no-speech' là bình thường, không hiển thị Alert
+    if (event.error === 'aborted' || event.error === 'no-speech') return;
+    if (event.error === 'client') {
+      Alert.alert('Lỗi hệ thống', 'Dịch vụ giọng nói đang gặp sự cố. Hãy cài/cập nhật Google App từ Play Store và thử lại.');
+    } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+      Alert.alert('Thiếu quyền', 'Chưa cấp quyền microphone hoặc thiết bị không hỗ trợ. Kiểm tra Cài đặt > Ứng dụng.');
+    }
+  });
 
   const startListening = useCallback(async () => {
-    if (!Voice || !isVoiceNativeModuleAvailable) {
-      Alert.alert('Lỗi micro', 'Nhận diện giọng nói không khả dụng trên thiết bị này.');
+    console.log('[VoiceAssistantScreen] startListening called. Current state:', voiceStateRef.current);
+    if (voiceStateRef.current === 'listening') {
+      console.log('[VoiceAssistantScreen] Already listening. Ignoring duplicate start.');
       return;
     }
     try {
+      // 1. Xin quyền trước (trên một số thiết bị phải có quyền trước khi isRecognitionAvailable trả về đúng)
+      const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      console.log('[VoiceAssistantScreen] Permission status:', permission.granted);
+      if (!permission.granted) {
+        Alert.alert('Lỗi micro', 'Không thể bật micro. Kiểm tra quyền truy cập trong Cài đặt > Ứng dụng > Hivic AI.');
+        return;
+      }
+
+      // 2. Kiểm tra service có khả dụng không
+      const isAvailable = await ExpoSpeechRecognitionModule.isRecognitionAvailable();
+      console.log('[VoiceAssistantScreen] isRecognitionAvailable:', isAvailable);
+      if (!isAvailable) {
+        Alert.alert(
+          'Dịch vụ giọng nói chưa sẵn sàng',
+          'Thiết bị của bạn chưa cài đặt dịch vụ nhận diện giọng nói (Google App).\n\nHãy cài hoặc cập nhật Google App từ Play Store rồi thử lại.',
+          [{ text: 'Đã hiểu', style: 'cancel' }]
+        );
+        return;
+      }
+      
       Speech.stop();
       setAnswerText('');
       setTranscript('');
-      await Voice.start('vi-VN');
-      setVoiceState('listening');
+      transcriptRef.current = '';
+      isProcessingRef.current = false;
+      
+      console.log('[VoiceAssistantScreen] Calling ExpoSpeechRecognitionModule.start()...');
+      ExpoSpeechRecognitionModule.start({
+        lang: 'vi-VN',
+        interimResults: true,
+        continuous: false,
+      });
     } catch (err) {
-      console.log('Không thể bắt đầu ghi âm:', err);
-      Alert.alert('Lỗi micro', 'Không thể bật micro. Kiểm tra quyền truy cập trong Cài đặt.');
+      console.log('[VoiceAssistantScreen] Lỗi khi bắt đầu ghi âm:', err);
+      Alert.alert('Lỗi', 'Không thể khởi động dịch vụ giọng nói.');
     }
   }, []);
 
   const stopListening = useCallback(async () => {
-    if (!Voice || !isVoiceNativeModuleAvailable) return;
+    console.log('[VoiceAssistantScreen] stopListening called. Current state:', voiceStateRef.current);
+    if (voiceStateRef.current !== 'listening') return;
     try {
-      await Voice.stop();
+      ExpoSpeechRecognitionModule.stop();
     } catch (err) {
-      console.log('Lỗi khi dừng ghi âm:', err);
+      console.log('[VoiceAssistantScreen] Lỗi khi dừng ghi âm:', err);
     }
   }, []);
-
-  const handleUserSpeech = useCallback(async (text: string) => {
-    setVoiceState('thinking');
-    try {
-      const result = await chat(text, activeSessionId.current);
-
-      if (result.sessionId && result.sessionId !== activeSessionId.current) {
-        activeSessionId.current = result.sessionId;
-        onSessionChange?.(result.sessionId);
-      }
-
-      if (result.kind === 'action') {
-        setAnswerText(result.answer);
-        speakThenExecuteAction(result.answer, result);
-        return;
-      }
-
-      setAnswerText(result.answer);
-      speak(result.answer);
-    } catch (err: any) {
-      const msg = err?.message || 'Xin lỗi, mình gặp lỗi kết nối.';
-      setAnswerText(msg);
-      speak(msg);
-    }
-  }, [onSessionChange]);
 
   const speak = useCallback((text: string) => {
     if (!text) {
@@ -135,19 +150,6 @@ export default function VoiceAssistantScreen({
       onDone: () => setVoiceState('idle'),
       onStopped: () => setVoiceState('idle'),
       onError: () => setVoiceState('idle'),
-    });
-  }, []);
-
-  const speakThenExecuteAction = useCallback((
-    text: string,
-    action: { actionId: string; deepLink?: string; fallbackUrl: string; appName: string },
-  ) => {
-    setVoiceState('speaking');
-    Speech.speak(text, {
-      language: 'vi-VN',
-      onDone: () => { openApp(action); },
-      onStopped: () => { openApp(action); },
-      onError: () => { openApp(action); },
     });
   }, []);
 
@@ -172,6 +174,49 @@ export default function VoiceAssistantScreen({
       setVoiceState('idle');
     }
   }, []);
+
+  const speakThenExecuteAction = useCallback((
+    text: string,
+    action: { actionId: string; deepLink?: string; fallbackUrl: string; appName: string },
+  ) => {
+    setVoiceState('speaking');
+    Speech.speak(text, {
+      language: 'vi-VN',
+      onDone: () => { openApp(action); },
+      onStopped: () => { openApp(action); },
+      onError: () => { openApp(action); },
+    });
+  }, [openApp]);
+
+  const handleUserSpeech = useCallback(async (text: string) => {
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+    setVoiceState('thinking');
+    
+    try {
+      const result = await chat(text, activeSessionId.current);
+
+      if (result.sessionId && result.sessionId !== activeSessionId.current) {
+        activeSessionId.current = result.sessionId;
+        onSessionChange?.(result.sessionId);
+      }
+
+      if (result.kind === 'action') {
+        setAnswerText(result.answer);
+        speakThenExecuteAction(result.answer, result);
+        return;
+      }
+
+      setAnswerText(result.answer);
+      speak(result.answer);
+    } catch (err: any) {
+      const msg = err?.message || 'Xin lỗi, mình gặp lỗi kết nối.';
+      setAnswerText(msg);
+      speak(msg);
+    } finally {
+      isProcessingRef.current = false;
+    }
+  }, [onSessionChange, speak, speakThenExecuteAction]);
 
   const handleMicPress = useCallback(() => {
     if (voiceState === 'listening') {

@@ -178,7 +178,7 @@ export async function autoSyncGmail(): Promise<{
   addedSummaries: number;
 }> {
   try {
-    const response = await apiPost<GmailAutoSyncResponse>('/api/Gmail/auto-sync');
+    const response = await apiPost<GmailAutoSyncResponse>('/api/Gmail/auto-sync', {});
 
     console.log('📧 autoSyncGmail response', JSON.stringify(response, null, 2));
 
@@ -279,3 +279,23 @@ export async function archiveGmailEmail(
   };
 }
 // Note: backend toggles archive/pin state when calling the same endpoint twice.
+
+export async function getGmailDashboard(): Promise<Record<string, any>> {
+  try {
+    const response = await apiGet<Record<string, any>>('/api/Gmail/dashboard');
+    return response || {};
+  } catch (error) {
+    console.error('Failed to fetch Gmail dashboard:', error);
+    throw error;
+  }
+}
+
+export async function getGmailPreferences(): Promise<Record<string, any>> {
+  try {
+    const response = await apiGet<Record<string, any>>('/api/Gmail/preferences');
+    return response || {};
+  } catch (error) {
+    console.error('Failed to fetch Gmail preferences:', error);
+    throw error;
+  }
+}

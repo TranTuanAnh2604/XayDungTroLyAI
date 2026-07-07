@@ -20,7 +20,7 @@ import type { CalendarSyncRequest } from '../../services/sync';
 
 type EditEventModalProps = {
   visible: boolean;
-  event: CalendarSyncRequest  | null;
+  event: CalendarSyncRequest | null;
   onClose: () => void;
   onEdit: (eventId: string, event: CalendarSyncRequest) => Promise<void>;
   onDelete?: (eventId: string) => Promise<void>;
@@ -96,8 +96,9 @@ export default function EditEventModal({
     setDescription(event.description || '');
     setLocation(event.location || '');
     // Use the event's saved times when valid; fall back to the open timestamp.
-    setStartDate(startDateTime ?? now);
-    setEndDate(endDateTime ?? now);
+    const startValue = startDateTime ?? now;
+    setStartDate(startValue);
+    setEndDate(endDateTime ?? new Date(startValue.getTime() + 60 * 60 * 1000));
     setIsAllDay(event.isAllDay || false);
     setShowStartDatePicker(false);
     setShowStartTimePicker(false);
@@ -114,7 +115,7 @@ export default function EditEventModal({
     setDescription('');
     setLocation('');
     setStartDate(resetTo);
-    setEndDate(resetTo);
+    setEndDate(new Date(resetTo.getTime() + 60 * 60 * 1000));
     setIsAllDay(false);
     setShowStartDatePicker(false);
     setShowStartTimePicker(false);
@@ -165,8 +166,8 @@ export default function EditEventModal({
         id: event.id,
 
         title: title.trim() || event.title,
-        description: description.trim() || event.description,
-        location: location.trim() || event.location,
+        description: description.trim() || event.description || undefined,
+        location: location.trim() || event.location || undefined,
 
         startTime: startIso,
         endTime: endIso,
@@ -174,7 +175,7 @@ export default function EditEventModal({
         source: event.source ?? 'app',
         externalId: event.externalId,
         isAllDay,
-        });
+      });
     } catch (editError: any) {
       setError(editError?.message || 'Không thể cập nhật sự kiện.');
     } finally {
@@ -184,36 +185,36 @@ export default function EditEventModal({
 
   const handleDelete = async () => {
     console.log('FULL event object:', JSON.stringify(event, null, 2));
-  if (!event?.id || !onDelete) {
-    return;
-  }
+    if (!event?.id || !onDelete) {
+      return;
+    }
 
-  const confirmed = await new Promise<boolean>((resolve) => {
-    Alert.alert(
-      'Xóa sự kiện',
-      'Bạn chắc chắn muốn xóa sự kiện này?',
-      [
-        { text: 'Hủy', style: 'cancel', onPress: () => resolve(false) },
-        { text: 'Xóa', style: 'destructive', onPress: () => resolve(true) },
-      ],
-      { cancelable: true },
-    );
-  });
+    const confirmed = await new Promise<boolean>((resolve) => {
+      Alert.alert(
+        'Xóa sự kiện',
+        'Bạn chắc chắn muốn xóa sự kiện này?',
+        [
+          { text: 'Hủy', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Xóa', style: 'destructive', onPress: () => resolve(true) },
+        ],
+        { cancelable: true },
+      );
+    });
 
-  if (!confirmed) return;
+    if (!confirmed) return;
 
-  setSubmitting(true);
-  setError(null);
+    setSubmitting(true);
+    setError(null);
 
-  try {
-    await onDelete(event.id);
-    onClose();
-  } catch (deleteError: any) {
-    setError(deleteError?.message || 'Không thể xóa sự kiện.');
-  } finally {
-    setSubmitting(false);
-  }
-};
+    try {
+      await onDelete(event.id);
+      onClose();
+    } catch (deleteError: any) {
+      setError(deleteError?.message || 'Không thể xóa sự kiện.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <Modal visible={visible} animationType="slide" transparent>

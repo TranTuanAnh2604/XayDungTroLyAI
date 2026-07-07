@@ -64,7 +64,7 @@ export default function TaskDetailModal({
       Alert.alert('Lỗi', 'Tiêu đề không được để trống');
       return;
     }
-    
+
     setIsSubmitting(true);
     try {
       if (item.itemType === 'task') {
@@ -130,10 +130,10 @@ export default function TaskDetailModal({
     return (
       <View style={s.actionRow}>
         <TouchableOpacity style={s.deleteBtn} onPress={() => onDelete(item)}>
-          <Text style={s.deleteBtnText}>🗑️ Xóa</Text>
+          <Text style={s.deleteBtnText}>Xóa</Text>
         </TouchableOpacity>
         <TouchableOpacity style={s.editBtn} onPress={() => setIsEditMode(true)}>
-          <Text style={s.editBtnText}>✏️ Chỉnh sửa</Text>
+          <Text style={s.editBtnText}>Chỉnh sửa</Text>
         </TouchableOpacity>
       </View>
     );
@@ -161,14 +161,14 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   statusBadgeDone: { backgroundColor: `${COLORS.primary}1A` },
   statusText: { fontSize: 11, fontWeight: '700', color: COLORS.error },
   statusTextDone: { color: COLORS.primary },
-  
+
   actionRow: { flexDirection: 'row', gap: 12, width: '100%', alignItems: 'center' },
   cancelBtn: { paddingVertical: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   cancelBtnText: { ...typography.bodyLg, color: COLORS.textSecondary, fontWeight: '600' },
   submitBtn: { flex: 1, backgroundColor: COLORS.primary, paddingVertical: 14, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
   submitBtnDisabled: { backgroundColor: COLORS.outlineVariant },
   submitBtnText: { ...typography.bodyLg, color: COLORS.onPrimary, fontWeight: '700' },
-  
+
   deleteBtn: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: RADIUS.md, backgroundColor: COLORS.surfaceVariant, alignItems: 'center', justifyContent: 'center' },
   deleteBtnText: { ...typography.bodyLg, color: COLORS.error, fontWeight: '600' },
   editBtn: { flex: 1, backgroundColor: COLORS.primary, paddingVertical: 14, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
