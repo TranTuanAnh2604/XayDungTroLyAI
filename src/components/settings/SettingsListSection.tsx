@@ -17,23 +17,17 @@ import type { ThemeMode } from '../../context/ThemeContext';
 type SettingsListSectionProps = {
   section: SettingsListSectionType;
   onItemPress?: (itemId: string) => void;
+  onToggleChange?: (itemId: string, value: boolean) => void;
 };
 
 export default function SettingsListSection({
   section,
   onItemPress,
+  onToggleChange,
 }: SettingsListSectionProps) {
   const { theme, setTheme, colors: COLORS } = useContext(ThemeContext);
   const typography = useMemo(() => getTypography(COLORS), [COLORS]);
   const styles = useMemo(() => createStyles(COLORS, typography), [COLORS, typography]);
-
-  const [toggles, setToggles] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(
-      section.items
-        .filter((i) => i.type === 'toggle')
-        .map((i) => [i.id, i.toggleDefault ?? false]),
-    ),
-  );
 
   return (
     <View style={styles.wrap}>
@@ -93,9 +87,9 @@ export default function SettingsListSection({
                   <Text style={styles.label}>{item.label}</Text>
                 </View>
                 <Switch
-                  value={toggles[item.id] ?? false}
+                  value={item.toggleDefault ?? false}
                   onValueChange={(value) => {
-                    setToggles((prev) => ({ ...prev, [item.id]: value }));
+                    onToggleChange?.(item.id, value);
                   }}
                   trackColor={{
                     false: COLORS.outlineVariant,

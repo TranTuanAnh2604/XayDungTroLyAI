@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, View, Animated } from 'react-native';
 import { BottomNavBar } from '../components/navigation';
 import ChatNavigator from './ChatNavigator';
 import HomeScreen from '../screens/home/HomeScreen';
@@ -13,6 +13,16 @@ export default function MainNavigator() {
   const { colors: COLORS } = useTheme();
   const styles = React.useMemo(() => createStyles(COLORS), [COLORS]);
   const [activeTab, setActiveTab] = useState<AppTabId>('home');
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    fadeAnim.setValue(0);
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [activeTab]);
 
   const renderScreen = () => {
     switch (activeTab) {
@@ -33,7 +43,9 @@ export default function MainNavigator() {
 
   return (
     <View style={styles.root}>
-      {renderScreen()}
+      <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+        {renderScreen()}
+      </Animated.View>
       <BottomNavBar activeTab={activeTab} onTabPress={setActiveTab} />
     </View>
   );

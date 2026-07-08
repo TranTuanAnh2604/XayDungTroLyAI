@@ -3,7 +3,6 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
 
-
 type GmailConnectBannerProps = {
   visible: boolean;
 };
@@ -55,7 +54,6 @@ export default function GmailConnectBanner({ visible }: GmailConnectBannerProps)
 const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   container: {
     alignItems: 'center',
-    marginBottom: 16,
   },
   badge: {
     flexDirection: 'row',

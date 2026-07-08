@@ -1,6 +1,6 @@
 import { getTypography } from '../../constants/typography';
-import React from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -21,6 +21,12 @@ import { SPACING } from '../../constants/spacing';
 import { useAuth } from '../../context/AuthContext';
 import { useProfile } from '../../hooks/useProfile';
 import type { RootStackParamList } from '../../navigation/types';
+import ForgotPasswordModal from '../../components/auth/ForgotPasswordModal';
+import OTPVerificationModal from '../../components/auth/OTPVerificationModal';
+import ResetPasswordModal from '../../components/auth/ResetPasswordModal';
+import { forgotPassword, resetPassword, verifyOTP } from '../../services/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
 
 export default function SettingsScreen() {
   const { colors: COLORS } = useTheme();
@@ -40,6 +46,131 @@ export default function SettingsScreen() {
   const handleLogout = async () => {
     await signOut();
     navigation.reset({ index: 0, routes: [{ name: 'Auth' }] });
+  };
+
+  const [pushEnabled, setPushEnabled] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const saved = await AsyncStorage.getItem('@app:push_enabled');
+        if (saved !== null) {
+          setPushEnabled(saved === 'true');
+        } else {
+          // Check system permissions if nothing saved
+          const { status } = await Notifications.getPermissionsAsync();
+          setPushEnabled(status === 'granted');
+        }
+      } catch (e) {
+        console.warn('Failed to load push setting', e);
+      }
+    })();
+  }, []);
+
+  const dynamicPreferencesSection = {
+    ...PREFERENCES_SECTION,
+    items: PREFERENCES_SECTION.items.map((item) => {
+      if (item.id === 'push') {
+        return { ...item, toggleDefault: pushEnabled };
+      }
+      return item;
+    }),
+  };
+
+  const handleToggleChange = async (itemId: string, value: boolean) => {
+    if (itemId === 'push') {
+      if (value) {
+        // User wants to turn it on
+        const { status } = await Notifications.getPermissionsAsync();
+        if (status !== 'granted') {
+          const granted = await Notifications.requestPermissionsAsync();
+          if (granted.status !== 'granted') {
+            Alert.alert(
+              'Cấp quyền thông báo',
+              'Vui lòng cấp quyền thông báo cho ứng dụng trong Cài đặt của thiết bị để bật tính năng này.',
+            );
+            setPushEnabled(false);
+            return;
+          }
+        }
+      }
+      // Save preference
+      setPushEnabled(value);
+      try {
+        await AsyncStorage.setItem('@app:push_enabled', String(value));
+      } catch (e) {
+        console.warn('Failed to save push setting', e);
+      }
+    }
+  };
+
+  const [activeModal, setActiveModal] = useState<{
+    type: 'none' | 'forgot' | 'otp' | 'reset';
+    email?: string;
+    otp?: string;
+  }>({ type: 'none' });
+
+  const handleAccountAction = (itemId: string) => {
+    if (itemId === 'password') {
+      const email = profile?.email || user?.email;
+      if (email) {
+        Alert.alert(
+          'Đổi mật khẩu',
+          `Chúng tôi sẽ gửi một mã OTP đến email ${email} của bạn. Bạn có muốn tiếp tục?`,
+          [
+            { text: 'Hủy', style: 'cancel' },
+            {
+              text: 'Tiếp tục',
+              onPress: async () => {
+                try {
+                  await forgotPassword(email);
+                  setActiveModal({ type: 'otp', email });
+                } catch (e) {
+                  Alert.alert('Lỗi', 'Không thể gửi OTP');
+                }
+              },
+            },
+          ]
+        );
+      } else {
+        setActiveModal({ type: 'forgot' });
+      }
+    }
+  };
+
+  const handleForgotPasswordSubmit = async (emailInput: string) => {
+    try {
+      await forgotPassword(emailInput);
+      setActiveModal({ type: 'otp', email: emailInput });
+    } catch (e) {
+      Alert.alert('Lỗi', 'Không thể gửi OTP');
+    }
+  };
+
+  const handleVerifyOtp = async (otp: string) => {
+    if (!activeModal.email) return;
+    // For password reset, we don't call verify-email API.
+    // We just proceed to the reset step and send the OTP along with the new password.
+    setActiveModal({ type: 'reset', email: activeModal.email, otp });
+  };
+
+  const handleResetPassword = async (newPassword: string) => {
+    if (!activeModal.email || !activeModal.otp) return;
+    try {
+      await resetPassword({
+        email: activeModal.email,
+        otp: activeModal.otp,
+        newPassword,
+      });
+      Alert.alert('Thành công', 'Mật khẩu đã được cập nhật');
+      setActiveModal({ type: 'none' });
+    } catch (e) {
+      Alert.alert('Lỗi', 'Không thể đổi mật khẩu');
+    }
+  };
+
+  const closePasswordResetFlow = () => {
+    setActiveModal({ type: 'none' });
   };
 
   return (
@@ -78,9 +209,9 @@ export default function SettingsScreen() {
 
         {/* <AiMemorySection items={AI_MEMORY_ITEMS} /> */}
 
-        <SettingsListSection section={ACCOUNT_SECTION} />
+        <SettingsListSection section={ACCOUNT_SECTION} onItemPress={handleAccountAction} />
 
-        <SettingsListSection section={PREFERENCES_SECTION} />
+        <SettingsListSection section={dynamicPreferencesSection} onToggleChange={handleToggleChange} />
 
         <Pressable
           onPress={handleLogout}
@@ -92,6 +223,26 @@ export default function SettingsScreen() {
           <Text style={styles.logoutText}>Đăng xuất</Text>
         </Pressable>
       </ScrollView>
+
+      <ForgotPasswordModal
+        visible={activeModal.type === 'forgot'}
+        onClose={closePasswordResetFlow}
+        onSubmit={handleForgotPasswordSubmit}
+      />
+
+      <OTPVerificationModal
+        visible={activeModal.type === 'otp'}
+        email={activeModal.email || ''}
+        onClose={closePasswordResetFlow}
+        onVerify={handleVerifyOtp}
+      />
+
+      <ResetPasswordModal
+        visible={activeModal.type === 'reset'}
+        email={activeModal.email || ''}
+        onClose={closePasswordResetFlow}
+        onSubmit={handleResetPassword}
+      />
     </View>
   );
 }

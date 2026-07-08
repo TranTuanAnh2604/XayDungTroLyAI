@@ -1,5 +1,5 @@
 // Thêm chữ apiPatch vào hàng import
-import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from './api'; 
+import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from './api';
 import { DeviceEventEmitter } from 'react-native';
 
 // --- DTOs ---
@@ -27,12 +27,12 @@ export type TodoDto = {
 // --- XUẤT API ---
 export const tasksApi = {
   async getTasks(): Promise<TaskDto[]> {
-    return apiGet<TaskDto[]>('/api/tasks');
+    return apiGet<TaskDto[]>('/api/Tasks');
   },
 
   async toggleTaskComplete(id: string): Promise<boolean> {
-    const result = await apiPut<boolean>(`/api/tasks/${id}/complete`, {});
-    DeviceEventEmitter.emit('tasks_changed');
+    const result = await apiPut<boolean>(`/api/Tasks/${id}/complete`, {});
+    // DeviceEventEmitter.emit('tasks_changed');
     return result;
   },
 
@@ -48,8 +48,9 @@ export const tasksApi = {
     };
     if (dueDate) payload.DueDate = dueDate;
 
-    const result = await apiPost<string>('/api/tasks', payload);
-    DeviceEventEmitter.emit('tasks_changed');
+    const result = await apiPost<string>('/api/Tasks', payload);
+    // DeviceEventEmitter.emit('tasks_changed');
+    // DeviceEventEmitter.emit('events_changed');
     return result;
   },
 
@@ -66,57 +67,63 @@ export const tasksApi = {
       DueDate: data.dueDate,
     };
 
-    const result = await apiPut<string>(`/api/tasks/${id}`, payload);
-    DeviceEventEmitter.emit('tasks_changed');
+    const result = await apiPut<string>(`/api/Tasks/${id}`, payload);
+    // DeviceEventEmitter.emit('tasks_changed');
+    // DeviceEventEmitter.emit('events_changed');
     return result;
   },
 
   async deleteTask(id: string): Promise<string> {
-    const result = await apiDelete<string>(`/api/tasks/${id}`);
-    DeviceEventEmitter.emit('tasks_changed');
+    const result = await apiDelete<string>(`/api/Tasks/${id}`);
+    // DeviceEventEmitter.emit('tasks_changed');
+    // DeviceEventEmitter.emit('events_changed');
     return result;
   },
 
   // TODOS
   async getTodos(status: 'all' | 'pending' | 'completed' = 'all', search?: string): Promise<TodoDto[]> {
-    let path = `/api/todos?status=${status}`;
+    let path = `/api/Todos?status=${status}`;
     if (search?.trim()) path += `&search=${encodeURIComponent(search.trim())}`;
     return apiGet<TodoDto[]>(path);
   },
 
   async toggleTodoComplete(id: string): Promise<any> {
-    const result = await apiPatch<any>(`/api/todos/${id}/complete`);
-    DeviceEventEmitter.emit('tasks_changed');
+    const result = await apiPatch<any>(`/api/Todos/${id}/complete`);
+    // DeviceEventEmitter.emit('tasks_changed');
+    // DeviceEventEmitter.emit('events_changed');
     return result;
   },
 
   async createTodo(title: string, description?: string, dueDate?: string): Promise<any> {
-    const result = await apiPost<any>('/api/todos', {
+    const result = await apiPost<any>('/api/Todos', {
       Title: title,
       Description: description || '',
       DueDate: dueDate || new Date().toISOString(),
       Completed: false,
       Source: 'manual',
     });
-    DeviceEventEmitter.emit('tasks_changed');
+    // DeviceEventEmitter.emit('tasks_changed');
+    // DeviceEventEmitter.emit('events_changed');
     return result;
   },
 
   async updateTodo(id: string, data: { title?: string; description?: string; dueDate?: string; completed?: boolean; source?: string }): Promise<string> {
-    const result = await apiPut<string>(`/api/todos/${id}`, {
+    const result = await apiPut<string>(`/api/Todos/${id}`, {
       Title: data.title,
       Description: data.description,
       DueDate: data.dueDate,
       Completed: data.completed ?? false,
       Source: data.source,
     });
-    DeviceEventEmitter.emit('tasks_changed');
+    // DeviceEventEmitter.emit('tasks_changed');
+    // DeviceEventEmitter.emit('events_changed');
     return result;
   },
 
   async deleteTodo(id: string): Promise<string> {
-    const result = await apiDelete<string>(`/api/todos/${id}`);
-    DeviceEventEmitter.emit('tasks_changed');
+    const result = await apiDelete<string>(`/api/Todos/${id}`);
+    // DeviceEventEmitter.emit('tasks_changed');
+    // DeviceEventEmitter.emit('events_changed');
     return result;
   },
 };

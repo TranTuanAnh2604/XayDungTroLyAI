@@ -20,6 +20,7 @@ type ConflictResolutionModalProps = {
   serverConflictId?: string | null;
   onClose: () => void;
   onApplySuggestion: (suggestion: any) => Promise<void>;
+  onDismiss?: () => void;
 };
 
 export default function ConflictResolutionModal({
@@ -29,6 +30,7 @@ export default function ConflictResolutionModal({
   serverConflictId,
   onClose,
   onApplySuggestion,
+  onDismiss,
 }: ConflictResolutionModalProps) {
   const { colors: COLORS } = useTheme();
   const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
@@ -69,6 +71,7 @@ export default function ConflictResolutionModal({
       // Không chặn người dùng đóng modal dù resolve lỗi
     } finally {
       setDismissing(false);
+      onDismiss?.();
       onClose();
     }
   };
@@ -146,61 +149,53 @@ export default function ConflictResolutionModal({
       console.log(`Calling AI Suggest API with ConflictID: ${targetId}`);
 
       const response = await aiSuggestConflict(targetId);
-      console.log(`Response:\n`, response);
+      console.log(JSON.stringify(response, null, 2));
+      console.log('API response:', response);
+      console.log('Options:', response?.options);
 
-      let suggestions = [];
+      let suggestions: any[] = [];
       let introStr = null;
 
-      if (response && response.suggestion && typeof response.suggestion === 'string') {
-        const suggestionText = response.suggestion;
-        // Split by newlines followed by a number, a dot, and optionally markdown bold
-        const optionsStr = suggestionText.split(/\n\d+\.\s+(?:\*\*)?/);
+      // Extract detailed explanations if the backend provides a combined explanation string
+      let parsedExplanations: string[] = [];
+      if (response && typeof response.explanation === 'string') {
+        const explanationText = response.explanation;
+        const markerRegex = /(?:^|\n)[\s\-*]*(?:\*\*)?(?:(?:Cách|Lựa chọn|Option|Giải pháp|Bước)\s+\d+[:.]?|\d+\.)(?:\*\*)?\s*/gi;
+        const matches = [...explanationText.matchAll(markerRegex)];
 
-        if (optionsStr.length > 1) {
-          introStr = optionsStr[0].trim();
+        if (matches.length > 0) {
+          introStr = explanationText.substring(0, matches[0].index).trim() || null;
 
-          for (let i = 1; i < optionsStr.length; i++) {
-            const optText = optionsStr[i].replace(/\*\*/g, '').trim();
-            const explanation = `Cách ${i}: ${optText}`;
-
-            let newStart = undefined;
-            let newEnd = undefined;
-
-            // Match HH:mm - HH:mm or HH:mm đến HH:mm
-            const timeMatch = optText.match(/(\d{1,2}:\d{2})\s*(?:-|–|đến)\s*(\d{1,2}:\d{2})/);
-            if (timeMatch) {
-              const startDate = new Date(mainEvent.startTime);
-              const endDate = new Date(mainEvent.endTime);
-
-              const [sH, sM] = timeMatch[1].split(':');
-              startDate.setHours(parseInt(sH, 10), parseInt(sM, 10), 0, 0);
-              newStart = startDate.toISOString();
-
-              const [eH, eM] = timeMatch[2].split(':');
-              endDate.setHours(parseInt(eH, 10), parseInt(eM, 10), 0, 0);
-              newEnd = endDate.toISOString();
+          for (let i = 0; i < matches.length; i++) {
+            const startIdx = matches[i].index + matches[i][0].length;
+            const endIdx = i + 1 < matches.length ? matches[i + 1].index : explanationText.length;
+            const optText = explanationText.substring(startIdx, endIdx).replace(/\*\*/g, '').trim();
+            if (optText) {
+              parsedExplanations.push(`Cách ${i + 1}: ${optText}`);
             }
-
-            suggestions.push({
-              explanation,
-              suggestedStartTime: newStart,
-              suggestedEndTime: newEnd
-            });
           }
         } else {
-          suggestions = [{ explanation: suggestionText }];
+          introStr = explanationText;
         }
+      }
+
+      if (response && Array.isArray(response.options)) {
+        suggestions = response.options.map((option: any, index: number) => ({
+          ...option,
+          id: option.id || String(index),
+          newStart: option.newStart ?? option.suggestedStartTime ?? option.newStartTime,
+          newEnd: option.newEnd ?? option.suggestedEndTime ?? option.newEndTime,
+          explanation: parsedExplanations[index] || option.reason || `Cách ${index + 1}: Dời ${option.title || 'sự kiện'}`
+        }));
+      } else if (parsedExplanations.length > 0) {
+        suggestions = parsedExplanations.map((exp, index) => ({
+          explanation: exp
+        }));
       } else if (Array.isArray(response)) {
         suggestions = response;
-      } else if (response && typeof response === 'object') {
-        if (response.data && Array.isArray(response.data)) {
-          suggestions = response.data;
-        } else {
-          suggestions = [response];
-        }
-      } else if (typeof response === 'string') {
-        suggestions = [{ explanation: response }];
       }
+
+      console.log('aiResult:', suggestions);
 
       setAiIntro(introStr);
       setAiResult(suggestions);
@@ -238,108 +233,114 @@ export default function ConflictResolutionModal({
     return date.toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
-  const renderSuggestions = () => {
-    if (!aiResult || aiResult.length === 0) {
-      return (
-        <View style={styles.resultContainer}>
-          {aiIntro && <Text style={styles.aiIntroText}>{aiIntro}</Text>}
-          <Text style={styles.resultText}>Không có gợi ý nào từ AI.</Text>
-        </View>
-      );
-    }
-
-    return (
-      <View style={styles.resultContainer}>
-        {aiIntro && <Text style={styles.aiIntroText}>{aiIntro}</Text>}
-        <Text style={styles.resultTitle}>Vui lòng chọn một gợi ý:</Text>
-        <ScrollView style={styles.scrollableResult} nestedScrollEnabled>
-          {aiResult.map((item, index) => {
-            const isSelected = selectedSuggestionIndex === index;
-            const explanation = item.explanation || item.message || item.reason || (typeof item === 'string' ? item : JSON.stringify(item));
-            const newStart = item.suggestedStartTime || item.newStartTime;
-            const newEnd = item.suggestedEndTime || item.newEndTime;
-
-            return (
-              <Pressable
-                key={index}
-                style={[styles.suggestionCard, isSelected && styles.suggestionCardSelected]}
-                onPress={() => setSelectedSuggestionIndex(index)}
-              >
-                <Text style={styles.suggestionExplanation}>{explanation}</Text>
-                {(newStart || newEnd) && (
-                  <View style={styles.suggestionTimes}>
-                    <Text style={styles.suggestionTimeText}>
-                      🕒 Mới: {formatTime(newStart)} - {formatTime(newEnd)}
-                    </Text>
-                  </View>
-                )}
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-        <Pressable
-          onPress={handleApply}
-          style={[styles.button, styles.primaryButton, (applying || selectedSuggestionIndex === null) && styles.buttonDisabled]}
-          disabled={applying || selectedSuggestionIndex === null}
-        >
-          {applying ? (
-            <ActivityIndicator color={COLORS.onPrimary} />
-          ) : (
-            <Text style={styles.primaryButtonText}>Áp dụng gợi ý đã chọn</Text>
-          )}
-        </Pressable>
-      </View>
-    );
-  };
-
   return (
     <Modal visible={visible} animationType="fade" transparent>
       <View style={styles.backdrop}>
         <View style={styles.container}>
           <Text style={styles.title}>Phát hiện xung đột lịch</Text>
 
-          <ScrollView style={styles.eventsScroll}>
-            <Text style={styles.bold}>Sự kiện của bạn:</Text>
-            <Text style={styles.eventDetailText}>- {mainEvent.title} ({formatTime(mainEvent.startTime)} - {formatTime(mainEvent.endTime)})</Text>
-
-            <View style={styles.spacing} />
-            <Text style={[styles.bold, { color: COLORS.danger || 'red' }]}>Bị trùng lặp thời gian với:</Text>
-            {conflictingEvents.map((evt, idx) => (
-              <Text key={idx} style={styles.eventDetailText}>
-                - {evt.title} ({formatTime(evt.startTime)} - {formatTime(evt.endTime)})
+          <ScrollView
+            style={styles.mainScroll}
+            contentContainerStyle={styles.mainScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.eventsBlock}>
+              <Text style={styles.bold}>Sự kiện của bạn:</Text>
+              <Text style={styles.eventDetailText}>
+                - {mainEvent.title} ({formatTime(mainEvent.startTime)} - {formatTime(mainEvent.endTime)})
               </Text>
-            ))}
+
+              <View style={styles.spacing} />
+              <Text style={[styles.bold, { color: COLORS.danger || 'red' }]}>Bị trùng lặp thời gian với:</Text>
+              {conflictingEvents.map((evt, idx) => (
+                <Text key={idx} style={styles.eventDetailText}>
+                  - {evt.title} ({formatTime(evt.startTime)} - {formatTime(evt.endTime)})
+                </Text>
+              ))}
+            </View>
+
+            {error && <Text style={styles.errorText}>{error}</Text>}
+
+            {aiResult && (
+              <View style={styles.resultContainer}>
+                {aiIntro ? <Text style={styles.aiIntroText}>{aiIntro}</Text> : null}
+                <Text style={styles.resultTitle}>Vui lòng chọn một gợi ý:</Text>
+
+                {aiResult.map((item, index) => {
+                  const isSelected = selectedSuggestionIndex === index;
+                  const explanation = item.explanation || item.message || item.reason || (typeof item === 'string' ? item : JSON.stringify(item));
+                  const newStart = item.suggestedStartTime || item.newStartTime;
+                  const newEnd = item.suggestedEndTime || item.newEndTime;
+
+                  return (
+                    <Pressable
+                      key={index}
+                      style={[styles.suggestionCard, isSelected && styles.suggestionCardSelected]}
+                      onPress={() => setSelectedSuggestionIndex(index)}
+                    >
+                      <View style={styles.radioContainer}>
+                        <View style={[styles.outerRadio, isSelected && styles.outerRadioSelected]}>
+                          {isSelected && <View style={styles.innerRadio} />}
+                        </View>
+                      </View>
+                      <View style={styles.suggestionContent}>
+                        <Text style={styles.suggestionExplanation}>{explanation}</Text>
+                        {(newStart || newEnd) && (
+                          <View style={styles.suggestionTimes}>
+                            <Text style={styles.suggestionTimeText}>
+                              🕒 Mới: {formatTime(newStart)} - {formatTime(newEnd)}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
           </ScrollView>
 
-          {error && <Text style={styles.errorText}>{error}</Text>}
+          <View style={styles.actionContainer}>
+            {aiResult ? (
+              <Pressable
+                onPress={handleApply}
+                style={[styles.button, styles.primaryButton, (applying || selectedSuggestionIndex === null) && styles.buttonDisabled]}
+                disabled={applying || selectedSuggestionIndex === null}
+              >
+                {applying ? (
+                  <ActivityIndicator color={COLORS.onPrimary} />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Áp dụng gợi ý đã chọn</Text>
+                )}
+              </Pressable>
+            ) : (
+              <Pressable
+                onPress={handleAiSuggest}
+                style={[styles.button, styles.primaryButton, loading && styles.buttonDisabled]}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color={COLORS.onPrimary} />
+                ) : (
+                  <Text style={styles.primaryButtonText}>AI gợi ý xử lý</Text>
+                )}
+              </Pressable>
+            )}
 
-          {aiResult ? renderSuggestions() : (
-            <Pressable
-              onPress={handleAiSuggest}
-              style={[styles.button, styles.primaryButton, loading && styles.buttonDisabled]}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color={COLORS.onPrimary} />
-              ) : (
-                <Text style={styles.primaryButtonText}>AI gợi ý xử lý</Text>
-              )}
-            </Pressable>
-          )}
-
-          {!applying && (
-            <Pressable
-              onPress={handleDismiss}
-              disabled={dismissing}
-              style={[styles.button, styles.secondaryButton, dismissing && styles.buttonDisabled]}
-            >
-              {dismissing ? (
-                <ActivityIndicator color={COLORS.onSurface} />
-              ) : (
-                <Text style={styles.secondaryButtonText}>Bỏ qua (Giữ nguyên)</Text>
-              )}
-            </Pressable>
-          )}
+            {!applying && (
+              <Pressable
+                onPress={handleDismiss}
+                disabled={dismissing}
+                style={[styles.button, styles.secondaryButton, dismissing && styles.buttonDisabled, { marginBottom: 0 }]}
+              >
+                {dismissing ? (
+                  <ActivityIndicator color={COLORS.onSurface} />
+                ) : (
+                  <Text style={styles.secondaryButtonText}>Bỏ qua (Giữ nguyên)</Text>
+                )}
+              </Pressable>
+            )}
+          </View>
         </View>
       </View>
     </Modal>
@@ -369,15 +370,22 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   title: {
     ...typography.headlineSm,
     color: COLORS.onSurface,
-    marginBottom: 12,
+    marginBottom: 16,
     textAlign: 'center',
   },
-  eventsScroll: {
-    maxHeight: 150,
+  mainScroll: {
+    width: '100%',
+    maxHeight: '100%', // Take up available space until actionContainer
     marginBottom: 16,
+  },
+  mainScrollContent: {
+    paddingBottom: 8,
+  },
+  eventsBlock: {
     padding: 12,
     backgroundColor: COLORS.surfaceVariant,
     borderRadius: 8,
+    marginBottom: 16,
   },
   spacing: {
     height: 12,
@@ -410,24 +418,47 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   resultTitle: {
     ...typography.labelLg,
     color: COLORS.onSurface,
-    marginBottom: 8,
-    fontWeight: 'bold',
-  },
-  scrollableResult: {
-    maxHeight: 200,
     marginBottom: 12,
+    fontWeight: 'bold',
   },
   suggestionCard: {
     backgroundColor: COLORS.surfaceVariant,
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 10,
     borderWidth: 2,
     borderColor: 'transparent',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
   },
   suggestionCardSelected: {
     borderColor: COLORS.primary,
     backgroundColor: COLORS.primaryTint10 || '#E0E7FF',
+  },
+  radioContainer: {
+    marginRight: 12,
+    marginTop: 2,
+  },
+  outerRadio: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: COLORS.outline,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  outerRadioSelected: {
+    borderColor: COLORS.primary,
+  },
+  innerRadio: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: COLORS.primary,
+  },
+  suggestionContent: {
+    flex: 1,
   },
   suggestionExplanation: {
     ...typography.bodySm,
@@ -445,6 +476,12 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   resultText: {
     ...typography.bodySm,
     color: COLORS.onSurface,
+  },
+  actionContainer: {
+    width: '100%',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.surfaceVariant,
   },
   button: {
     width: '100%',

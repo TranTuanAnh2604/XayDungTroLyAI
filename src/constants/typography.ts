@@ -61,7 +61,7 @@ export const getTypography = (COLORS: ThemeColors) => ({
     letterSpacing: 0.6,
     fontWeight: '600',
     textTransform: 'uppercase',
-    color: COLORS.outline,
+    color: COLORS.onSurfaceVariant,
   } as TextStyle,
   linkSmall: {
     fontSize: 10,

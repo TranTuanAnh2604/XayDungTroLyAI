@@ -19,7 +19,64 @@ const AUTH_TOKEN_KEY = 'AUTH_TOKEN';
 const REFRESH_TOKEN_KEY = 'REFRESH_TOKEN';
 
 /**
- * Hàm "Lính gác" tự động gắn Token và xử lý làm mới nếu Token hết hạn (401)
+ * Mutex cho refresh token: đảm bảo chỉ có 1 request refresh chạy tại một thời điểm.
+ * Các request khác sẽ chờ kết quả của request đầu tiên.
+ */
+let refreshPromise: Promise<{ accessToken: string; refreshToken: string } | null> | null = null;
+
+async function doRefreshToken(): Promise<{ accessToken: string; refreshToken: string } | null> {
+  const currentRefreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+  if (!currentRefreshToken) {
+    return null;
+  }
+
+  try {
+    const refreshRes = await fetch(`${API_BASE_URL}/api/Auth/refresh_token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: currentRefreshToken, RefreshToken: currentRefreshToken }),
+    });
+
+    const refreshData = await refreshRes.json().catch(() => null);
+
+    // Nếu server trả về 401 cho chính refresh endpoint → token thực sự hết hạn
+    if (refreshRes.status === 401) {
+      console.warn('[interceptor] Refresh token bị server từ chối (401). Xóa phiên.');
+      await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
+      await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+      return null;
+    }
+
+    const isSuccess = refreshRes.ok && refreshData && (refreshData.success !== false && refreshData.Succeeded !== false);
+    if (!isSuccess) {
+      // Server lỗi tạm thời (500, 503...) — KHÔNG xóa token để tránh mất phiên
+      console.warn(`[interceptor] Refresh thất bại (HTTP ${refreshRes.status}) nhưng không xóa token.`);
+      return null;
+    }
+
+    const newTokens = refreshData.data || refreshData.Data || refreshData;
+    const newAccessToken = newTokens.token || newTokens.accessToken || newTokens.AccessToken;
+    const newRefreshToken = newTokens.refreshToken || newTokens.RefreshToken;
+
+    if (newAccessToken && newRefreshToken) {
+      await SecureStore.setItemAsync(AUTH_TOKEN_KEY, newAccessToken);
+      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, newRefreshToken);
+      console.log('[interceptor] Refresh token thành công, token mới đã lưu.');
+      return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+    }
+
+    console.warn('[interceptor] Refresh response thiếu token fields.');
+    return null;
+  } catch (error) {
+    // Lỗi mạng — KHÔNG xóa token
+    console.warn('[interceptor] Lỗi mạng khi refresh token:', error);
+    return null;
+  }
+}
+
+/**
+ * Hàm "Lính gác" tự động gắn Token và xử lý làm mới nếu Token hết hạn (401).
+ * Sử dụng mutex để tránh race condition khi nhiều request đồng thời gặp 401.
  */
 async function fetchWithInterceptor(url: string, options: RequestInit): Promise<Response> {
   // 1. Gắn Token hiện tại vào Header
@@ -37,47 +94,27 @@ async function fetchWithInterceptor(url: string, options: RequestInit): Promise<
 
   // 3. Nếu BE trả về 401 Unauthorized (Hết hạn Token)
   if (response.status === 401) {
-    const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
-
-    // Nếu có Refresh Token thì thử gọi API làm mới
-    if (refreshToken) {
-      try {
-        const refreshRes = await fetch(`${API_BASE_URL}/api/Auth/refresh_token`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken: refreshToken, RefreshToken: refreshToken }),
-        });
-
-        const refreshData = await refreshRes.json().catch(() => null);
-        const isSuccess = refreshRes.ok && refreshData && (refreshData.success !== false && refreshData.Succeeded !== false);
-
-        if (isSuccess) {
-          // Bóc tách Token mới từ phản hồi của C#
-          const newTokens = refreshData.data || refreshData.Data || refreshData;
-          const newAccessToken = newTokens.token || newTokens.accessToken || newTokens.AccessToken;
-          const newRefreshToken = newTokens.refreshToken || newTokens.RefreshToken;
-
-          if (newAccessToken && newRefreshToken) {
-            // Lưu token mới vào máy
-            await SecureStore.setItemAsync(AUTH_TOKEN_KEY, newAccessToken);
-            await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, newRefreshToken);
-
-            // Gắn token mới và thử gọi lại API ban đầu lần 2 một cách âm thầm
-            headers['Authorization'] = `Bearer ${newAccessToken}`;
-            response = await fetch(url, { ...options, headers });
-          }
-        } else if (response.status === 401 && !url.includes('/api/Gmail/')) {
-          // Nếu Refresh Token cũng hết hạn -> Xóa token để ép về màn hình Login (Chỉ áp dụng nếu lỗi ban đầu là 401)
-          await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
-          await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
-        }
-      } catch (error) {
-        console.log('Lỗi trong quá trình Refresh Token', error);
-      }
-    } else if (response.status === 401 && !url.includes('/api/Gmail/')) {
-      await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
-      await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+    // Bỏ qua Gmail endpoints — lỗi 401 từ Gmail là do Google token, không phải app token
+    if (url.includes('/api/Gmail/')) {
+      return response;
     }
+
+    // Sử dụng mutex: nếu đang có refresh chạy, chờ kết quả thay vì chạy thêm
+    if (!refreshPromise) {
+      refreshPromise = doRefreshToken().finally(() => {
+        refreshPromise = null;
+      });
+    }
+
+    const newTokens = await refreshPromise;
+
+    if (newTokens) {
+      // Refresh thành công → gọi lại request gốc với token mới
+      headers['Authorization'] = `Bearer ${newTokens.accessToken}`;
+      response = await fetch(url, { ...options, headers });
+    }
+    // Nếu refresh thất bại, trả về response 401 gốc để caller xử lý
+    // KHÔNG xóa token ở đây — chỉ doRefreshToken() mới có quyền xóa khi server xác nhận 401
   }
 
   return response;

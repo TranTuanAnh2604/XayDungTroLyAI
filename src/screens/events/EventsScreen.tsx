@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, DeviceEventEmitter, StyleSheet, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -189,6 +189,9 @@ export default function EventsScreen() {
   const [conflictEvent, setConflictEvent] = useState<CalendarSyncRequest | null>(null);
   const [serverConflictId, setServerConflictId] = useState<string | null>(null);
   const [conflictingEvents, setConflictingEvents] = useState<CalendarSyncRequest[]>([]);
+  const [ignoredConflicts, setIgnoredConflicts] = useState<Set<string>>(new Set());
+  const ignoredConflictsRef = useRef<Set<string>>(new Set());
+  const [hasLoadedIgnoredConflicts, setHasLoadedIgnoredConflicts] = useState(false);
   const shownConflictsRef = useRef<Set<string>>(new Set());
   const bottomChrome = getBottomNavReservedHeight(insets);
 
@@ -220,6 +223,19 @@ export default function EventsScreen() {
   useEffect(() => {
     rawCalendarEventsRef.current = rawCalendarEvents;
   }, [rawCalendarEvents]);
+
+  useEffect(() => {
+    AsyncStorage.getItem('@app:events:ignored_conflicts').then(val => {
+      if (val) {
+        try {
+          const parsed = new Set<string>(JSON.parse(val));
+          setIgnoredConflicts(parsed);
+          ignoredConflictsRef.current = parsed;
+        } catch (e) {}
+      }
+      setHasLoadedIgnoredConflicts(true);
+    });
+  }, []);
 
   useEffect(() => {
     loadedExternalIdsRef.current = loadedExternalIds;
@@ -395,7 +411,7 @@ export default function EventsScreen() {
   }, [isFocused, refreshEvents]);
 
   useEffect(() => {
-    if (loading || rawCalendarEvents.length < 2) return;
+    if (!hasLoadedIgnoredConflicts || loading || rawCalendarEvents.length < 2) return;
 
     // Determine the boundaries of the currently selected date
     const selectedDateStart = new Date(selectedDateId);
@@ -422,6 +438,14 @@ export default function EventsScreen() {
 
       const overlaps = eventsForSelectedDate.filter((e2) => {
         if (e1.id === e2.id) return false;
+
+        const e1Id = e1.id || e1.externalId || e1.title || '';
+        const e2Id = e2.id || e2.externalId || e2.title || '';
+        if (e1Id && e2Id) {
+          const conflictKey = [String(e1Id), String(e2Id)].sort().join('_');
+          if (ignoredConflictsRef.current.has(conflictKey)) return false;
+        }
+
         const e2Start = parseCalendarDate(e2.startTime)?.getTime() || 0;
         const e2End = parseCalendarDate(e2.endTime)?.getTime() || 0;
         return e1Start < e2End && e1End > e2Start;
@@ -539,6 +563,14 @@ export default function EventsScreen() {
 
     return sourceEvents.filter((existing) => {
       if (existing.id === candidate.id) return false;
+
+      const candidateId = candidate.id || candidate.externalId || candidate.title || '';
+      const existingId = existing.id || existing.externalId || existing.title || '';
+      if (candidateId && existingId) {
+        const conflictKey = [String(candidateId), String(existingId)].sort().join('_');
+        if (ignoredConflictsRef.current.has(conflictKey)) return false;
+      }
+
       const existingStart = parseCalendarDate(existing.startTime)?.getTime();
       const existingEnd = parseCalendarDate(existing.endTime)?.getTime();
       if (!existingStart || !existingEnd) return false;
@@ -549,20 +581,40 @@ export default function EventsScreen() {
   };
 
   const applyAiSuggestion = async (suggestion: any) => {
-    if (!conflictEvent || !conflictEvent.id) return;
+    const targetEventId = suggestion.eventId || (conflictEvent ? conflictEvent.id : null);
+    if (!targetEventId) return;
+
+    let targetEvent = conflictEvent?.id === targetEventId ? conflictEvent : conflictingEvents.find(e => e.id === targetEventId);
+    if (!targetEvent) {
+       targetEvent = rawCalendarEvents.find((e: any) => e.id === targetEventId);
+    }
+    
+    if (!targetEvent) {
+       console.error("Target event not found for applyAiSuggestion", targetEventId);
+       Alert.alert('Lỗi', 'Không tìm thấy sự kiện cần dời.');
+       return;
+    }
+
     try {
       const updatedEvent = {
-        ...conflictEvent,
-        startTime: suggestion.suggestedStartTime || suggestion.newStartTime || conflictEvent.startTime,
-        endTime: suggestion.suggestedEndTime || suggestion.newEndTime || conflictEvent.endTime,
+        ...targetEvent,
+        startTime: suggestion.newStart || suggestion.suggestedStartTime || suggestion.newStartTime || targetEvent.startTime,
+        endTime: suggestion.newEnd || suggestion.suggestedEndTime || suggestion.newEndTime || targetEvent.endTime,
       };
-      await updateCalendarEvent(conflictEvent.id, updatedEvent);
+
+      console.log("Applying suggestion:", suggestion);
+      console.log("Updating event:", targetEventId);
+      console.log("New Start:", updatedEvent.startTime);
+      console.log("New End:", updatedEvent.endTime);
+      console.log("PUT payload:", updatedEvent);
+
+      await updateCalendarEvent(targetEventId, updatedEvent);
 
       // Đồng bộ thay đổi về lịch máy nếu sự kiện gốc thuộc lịch máy
-      if (conflictEvent.source === 'device' && conflictEvent.externalId) {
+      if (targetEvent.source === 'device' && targetEvent.externalId) {
         try {
           const { updateDeviceCalendarEvent } = require('../../services/calendar');
-          await updateDeviceCalendarEvent(conflictEvent.externalId, updatedEvent);
+          await updateDeviceCalendarEvent(targetEvent.externalId, updatedEvent);
           console.log('[applyAiSuggestion] Successfully updated device calendar event');
         } catch (e) {
           console.warn('[applyAiSuggestion] Failed to update device calendar event', e);
@@ -598,6 +650,62 @@ export default function EventsScreen() {
     return { sourceEvents, source, serverConflicts };
   }, [refreshEvents, rawCalendarEvents]);
 
+  // Listen for events_changed from task/todo/voice creation to detect conflicts
+  // on backend-auto-generated events
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener('events_changed', async () => {
+      console.log('[events-changed] Received events_changed, refreshing and checking conflicts...');
+
+      // Small delay to allow backend to finish creating the event + conflict record
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      // Reset shown conflicts so we can detect new ones from the task-generated event
+      shownConflictsRef.current.clear();
+
+      // Fetch latest events and server conflicts
+      const { sourceEvents, serverConflicts } = await getLatestConflictCheckData();
+
+      // Check ALL events for conflicts (not just the selected date)
+      for (const event of sourceEvents) {
+        const conflicts = findEventConflicts(event, sourceEvents);
+        if (conflicts.length > 0) {
+          const cId = event.id || event.externalId || event.title;
+          if (cId && !shownConflictsRef.current.has(cId)) {
+            setConflictEvent(event);
+            setConflictingEvents(conflicts);
+            shownConflictsRef.current.add(cId);
+            conflicts.forEach((o) => {
+              const oId = o.id || o.externalId || o.title;
+              if (oId) shownConflictsRef.current.add(oId);
+            });
+
+            // Try to find a matching server conflict ID for backend AI suggest API
+            const eid = event.id;
+            const matchingConflict = serverConflicts.find((c: any) =>
+              c.eventId === eid || c.EventId === eid ||
+              c.conflictingEventId === eid || c.ConflictingEventId === eid ||
+              c.mainEventId === eid || c.MainEventId === eid ||
+              c.eventAId === eid || c.EventAId === eid || c.event_a_id === eid ||
+              c.eventBId === eid || c.EventBId === eid || c.event_b_id === eid ||
+              (c.deviceEvent && c.deviceEvent.id === eid) ||
+              (c.serverEvent && c.serverEvent.id === eid) ||
+              (c.EventA && c.EventA.id === eid) ||
+              (c.EventB && c.EventB.id === eid) ||
+              c.title === event.title || c.Title === event.title ||
+              (c.serverEvent && c.serverEvent.title === event.title) ||
+              (c.deviceEvent && c.deviceEvent.title === event.title)
+            );
+            setServerConflictId(matchingConflict ? (matchingConflict.id || matchingConflict.Id) : null);
+            console.log('[events-changed] conflict detected for:', event.title, 'serverConflictId:', matchingConflict ? (matchingConflict.id || matchingConflict.Id) : 'none');
+            break;
+          }
+        }
+      }
+    });
+
+    return () => subscription.remove();
+  }, [getLatestConflictCheckData]);
+
   const formatEventRange = (event: CalendarSyncRequest) => {
     const start = parseCalendarDate(event.startTime);
     const end = parseCalendarDate(event.endTime);
@@ -632,6 +740,23 @@ export default function EventsScreen() {
         defaultDateId={selectedDateId}
         onClose={() => setIsCreateModalOpen(false)}
         onCreate={async (event) => {
+          // Strict conflict check for manual creation
+          const candidateStart = parseCalendarDate(event.startTime)?.getTime();
+          const candidateEnd = parseCalendarDate(event.endTime)?.getTime();
+          if (candidateStart && candidateEnd) {
+            const strictConflicts = rawCalendarEvents.filter((existing) => {
+              const existingStart = parseCalendarDate(existing.startTime)?.getTime();
+              const existingEnd = parseCalendarDate(existing.endTime)?.getTime();
+              if (!existingStart || !existingEnd) return false;
+              return candidateStart < existingEnd && candidateEnd > existingStart;
+            });
+            if (strictConflicts.length > 0) {
+              const conflict = strictConflicts[0];
+              const rangeStr = formatEventRange(conflict);
+              throw new Error(`Thời gian sự kiện bị trùng với sự kiện "${conflict.title || 'Không tên'}"\n(${rangeStr}).`);
+            }
+          }
+
           let createdEvent;
           try {
             console.log('[1] Sending create event request');
@@ -753,6 +878,25 @@ export default function EventsScreen() {
         onEdit={async (eventId, updatedEvent) => {
           try {
             const oldEvent = rawCalendarEvents.find((item) => item.id === eventId);
+            
+            // Strict conflict check for manual update
+            const candidateStart = parseCalendarDate(updatedEvent.startTime)?.getTime();
+            const candidateEnd = parseCalendarDate(updatedEvent.endTime)?.getTime();
+            if (candidateStart && candidateEnd) {
+              const strictConflicts = rawCalendarEvents.filter((existing) => {
+                if (existing.id === eventId) return false;
+                const existingStart = parseCalendarDate(existing.startTime)?.getTime();
+                const existingEnd = parseCalendarDate(existing.endTime)?.getTime();
+                if (!existingStart || !existingEnd) return false;
+                return candidateStart < existingEnd && candidateEnd > existingStart;
+              });
+              if (strictConflicts.length > 0) {
+                const conflict = strictConflicts[0];
+                const rangeStr = formatEventRange(conflict);
+                throw new Error(`Thời gian cập nhật bị trùng với sự kiện "${conflict.title || 'Không tên'}"\n(${rangeStr}).`);
+              }
+            }
+
             const oldType = inferTimelineEventType(oldEvent?.title || '', oldEvent?.isAllDay || false);
             const newType = inferTimelineEventType(updatedEvent.title || '', updatedEvent.isAllDay || false);
 
@@ -925,6 +1069,22 @@ export default function EventsScreen() {
           setConflictEvent(null);
           setConflictingEvents([]);
           setServerConflictId(null);
+        }}
+        onDismiss={() => {
+          if (conflictEvent && conflictingEvents.length > 0) {
+            const newIgnored = new Set(ignoredConflictsRef.current);
+            const e1Id = conflictEvent.id || conflictEvent.externalId || conflictEvent.title || '';
+            conflictingEvents.forEach(e2 => {
+              const e2Id = e2.id || e2.externalId || e2.title || '';
+              if (e1Id && e2Id) {
+                const key = [String(e1Id), String(e2Id)].sort().join('_');
+                newIgnored.add(key);
+              }
+            });
+            setIgnoredConflicts(newIgnored);
+            ignoredConflictsRef.current = newIgnored;
+            AsyncStorage.setItem('@app:events:ignored_conflicts', JSON.stringify(Array.from(newIgnored))).catch(() => {});
+          }
         }}
         onApplySuggestion={applyAiSuggestion}
       />

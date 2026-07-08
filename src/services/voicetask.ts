@@ -1,4 +1,5 @@
 import { apiPost } from './api';
+import { DeviceEventEmitter } from 'react-native';
 
 export interface ParsedTask {
   type: 'task' | 'todo';
@@ -16,5 +17,7 @@ export const voiceTaskApi = {
 
   async save(task: ParsedTask): Promise<void> {
     await apiPost<void>('/api/voicetask/save', task);
+    DeviceEventEmitter.emit('tasks_changed');
+    DeviceEventEmitter.emit('events_changed');
   }
 };

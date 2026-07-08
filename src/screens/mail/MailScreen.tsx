@@ -12,8 +12,10 @@ import MailFilterBar from '../../components/mail/MailFilterBar';
 import GmailDashboard from '../../components/mail/GmailDashboard';
 import { TabScreenLayout, TopAppBar } from '../../components/navigation';
 import { useTheme } from '../../hooks/useTheme';
+import IosGlassView from '../../components/ui/IosGlassView';
 import {
   getBottomNavReservedHeight,
+  getTopAppBarHeight,
   SCROLL_BOTTOM_EXTRA,
 } from '../../constants/layout';
 import {
@@ -56,6 +58,13 @@ export default function MailScreen() {
   const isFocused = useIsFocused();
   const fabAnim = useComposeFabScroll();
   const bottomChrome = getBottomNavReservedHeight(insets);
+  const scrollRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({ y: 0, animated: false });
+    }
+  }, [viewMode]);
 
   // Stop any running FAB animation when the screen unmounts to avoid native
   // animated node leaks after navigation.
@@ -385,77 +394,90 @@ export default function MailScreen() {
     }
   };
 
+  const topChrome = getTopAppBarHeight(insets);
+
   return (
     <TabScreenLayout
-      topBar={<TopAppBar onSettingsPress={openSettings} />}
+      scrollRef={scrollRef}
+      topBar={
+        <>
+          <TopAppBar onSettingsPress={openSettings} />
+          <IosGlassView variant="chrome" style={[styles.viewModeContainer, { top: topChrome, position: 'absolute', left: 0, right: 0, zIndex: 40, borderWidth: 0, elevation: 0, shadowOpacity: 0 }]}>
+            <View style={styles.segmentedControl}>
+              <Text
+                onPress={() => setViewMode('inbox')}
+                style={[styles.segmentButton, viewMode === 'inbox' && styles.segmentActive, viewMode === 'inbox' ? { color: COLORS.onPrimary, backgroundColor: COLORS.primary } : { color: COLORS.onSurfaceVariant }]}
+              >
+                Hộp thư
+              </Text>
+              <Text
+                onPress={() => setViewMode('dashboard')}
+                style={[styles.segmentButton, viewMode === 'dashboard' && styles.segmentActive, viewMode === 'dashboard' ? { color: COLORS.onPrimary, backgroundColor: COLORS.primary } : { color: COLORS.onSurfaceVariant }]}
+              >
+                Dashboard
+              </Text>
+            </View>
+          </IosGlassView>
+        </>
+      }
       bottomExtra={SCROLL_BOTTOM_EXTRA + 48}
+      contentContainerStyle={viewMode === 'dashboard' ? { flex: 1, paddingTop: topChrome + 70 + 16 } : { paddingTop: topChrome + 70 + 16 }}
+      innerStyle={viewMode === 'dashboard' ? { flex: 1 } : undefined}
+      disableScrollWrapper={viewMode === 'dashboard'}
       scrollViewProps={{
         onScroll: fabAnim.onScroll,
         scrollEventThrottle: 16,
       }}
     >
-      <View style={styles.viewModeContainer}>
-        <View style={styles.segmentedControl}>
-          <Text
-            onPress={() => setViewMode('inbox')}
-            style={[styles.segmentButton, viewMode === 'inbox' && styles.segmentActive, viewMode === 'inbox' ? { color: COLORS.onPrimary, backgroundColor: COLORS.primary } : { color: COLORS.onSurfaceVariant }]}
-          >
-            Hộp thư
-          </Text>
-          <Text
-            onPress={() => setViewMode('dashboard')}
-            style={[styles.segmentButton, viewMode === 'dashboard' && styles.segmentActive, viewMode === 'dashboard' ? { color: COLORS.onPrimary, backgroundColor: COLORS.primary } : { color: COLORS.onSurfaceVariant }]}
-          >
-            Dashboard
-          </Text>
-        </View>
-      </View>
-
       {viewMode === 'dashboard' ? (
-        <GmailDashboard />
+        <View style={{ flex: 1 }}>
+          <GmailDashboard contentContainerStyle={{ paddingTop: topChrome + 70 + 16, paddingBottom: SCROLL_BOTTOM_EXTRA + 48 }} />
+        </View>
       ) : (
         <>
           <GmailConnectBanner visible={isConnecting} />
 
-          <MailFilterBar
-            filters={MAIL_FILTERS}
-            activeId={activeFilter}
-            onChange={setActiveFilter}
-          />
-
-          <MailAiSummaryCard summary={MAIL_AI_SUMMARY} />
-
-          <View style={styles.gmailStatusContainer}>
-            <Text style={styles.gmailStatusText}>{syncMessage || 'Đang chờ Gmail...'}</Text>
-          </View>
-
-          <MailDetailModal
-            visible={isDetailOpen}
-            email={selectedEmail}
-            onClose={() => setIsDetailOpen(false)}
-            onPinPress={handlePinEmail}
-            onArchivePress={handleArchiveEmail}
-            isPinned={selectedEmail ? pinnedEmailIds.includes(selectedEmail.id) : false}
-            isArchived={selectedEmail ? archivedEmailIds.includes(selectedEmail.id) : false}
-            isBusy={isActionBusy}
-          />
-
-          {gmailCategory ? (
-            <MailCategorySection
-              key={gmailCategory.id}
-              category={gmailCategory}
-              onEmailPress={handleEmailPress}
+          <View style={styles.listSection}>
+            <MailFilterBar
+              filters={MAIL_FILTERS}
+              activeId={activeFilter}
+              onChange={setActiveFilter}
             />
-          ) : (
-            <View style={styles.emptyStateContainer}>
-              <Text style={styles.emptyStateTitle}>Không có email để hiển thị</Text>
-              <Text style={styles.emptyStateSubtitle}>
-                {isConnected
-                  ? 'Gmail đã được kết nối nhưng hiện tại chưa có email nào để hiển thị.'
-                  : 'Vui lòng kết nối Gmail hoặc thử lại sau khi đồng bộ xong.'}
-              </Text>
+
+            {/* <MailAiSummaryCard summary={MAIL_AI_SUMMARY} /> */}
+
+            <View style={styles.gmailStatusContainer}>
+              <Text style={styles.gmailStatusText}>{syncMessage || 'Đang chờ Gmail...'}</Text>
             </View>
-          )}
+
+            <MailDetailModal
+              visible={isDetailOpen}
+              email={selectedEmail}
+              onClose={() => setIsDetailOpen(false)}
+              onPinPress={handlePinEmail}
+              onArchivePress={handleArchiveEmail}
+              isPinned={selectedEmail ? pinnedEmailIds.includes(selectedEmail.id) : false}
+              isArchived={selectedEmail ? archivedEmailIds.includes(selectedEmail.id) : false}
+              isBusy={isActionBusy}
+            />
+
+            {gmailCategory ? (
+              <MailCategorySection
+                key={gmailCategory.id}
+                category={gmailCategory}
+                onEmailPress={handleEmailPress}
+              />
+            ) : (
+              <View style={styles.emptyStateContainer}>
+                <Text style={styles.emptyStateTitle}>Không có email để hiển thị</Text>
+                <Text style={styles.emptyStateSubtitle}>
+                  {isConnected
+                    ? 'Gmail đã được kết nối nhưng hiện tại chưa có email nào để hiển thị.'
+                    : 'Vui lòng kết nối Gmail hoặc thử lại sau khi đồng bộ xong.'}
+                </Text>
+              </View>
+            )}
+          </View>
         </>
       )}
     </TabScreenLayout>
@@ -463,6 +485,9 @@ export default function MailScreen() {
 }
 
 const createStyles = (COLORS: any) => StyleSheet.create({
+  listSection: {
+    gap: 16,
+  },
   viewModeContainer: {
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -489,7 +514,6 @@ const createStyles = (COLORS: any) => StyleSheet.create({
     elevation: 2,
   },
   gmailStatusContainer: {
-    marginBottom: 16,
     paddingHorizontal: 4,
   },
   gmailStatusText: {
@@ -501,7 +525,6 @@ const createStyles = (COLORS: any) => StyleSheet.create({
     backgroundColor: COLORS.surfaceContainerLow,
     borderRadius: 16,
     marginHorizontal: 4,
-    marginTop: 16,
   },
   emptyStateTitle: {
     fontSize: 16,

@@ -107,7 +107,6 @@ export default function MailFilterBar({
 
 const createStyles = (COLORS: any) => StyleSheet.create({
   container: {
-    marginBottom: 32,
     height: 40,
     justifyContent: 'center',
   },

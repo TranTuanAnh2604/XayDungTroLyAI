@@ -86,14 +86,30 @@ const DICTIONARY: Record<string, string> = {
   forum: 'Diễn đàn',
 };
 
-function formatLabel(key: string): string {
-  if (!key) return '';
-  const lowerKey = String(key).toLowerCase();
+function formatLabel(key: string, context?: string): string {
+  if (key === undefined || key === null) return '';
+  const strKey = String(key);
+  const lowerKey = strKey.toLowerCase();
+
+  // Map numeric importance levels if context suggests it
+  if (context && (context.toLowerCase().includes('importance') || context.toLowerCase().includes('quan trọng'))) {
+    const importanceMap: Record<string, string> = {
+      '1': 'Khẩn cấp',
+      '2': 'Quan trọng',
+      '3': 'Thông tin',
+      '4': 'Bình thường',
+      '5': 'Thấp'
+    };
+    if (importanceMap[strKey]) {
+      return importanceMap[strKey];
+    }
+  }
+
   if (DICTIONARY[lowerKey]) {
     return DICTIONARY[lowerKey];
   }
   // Convert camelCase or snake_case to Title Case as fallback
-  const result = String(key).replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ');
+  const result = strKey.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ');
   return result.charAt(0).toUpperCase() + result.slice(1);
 }
 
@@ -137,8 +153,8 @@ export default function DynamicDashboardRenderer({ data }: DynamicDashboardRende
           <View key={key} style={styles.section}>
             <Text style={[typography.headlineSm, { color: colors.onBackground, marginBottom: 8 }]}>{formatLabel(key)}</Text>
             {value.map((item, idx) => {
-              const itemLabel = item.date || item.time || item.label || item.name || item.title || item.key || item.category;
-              const displayLabel = itemLabel ? formatLabel(String(itemLabel)) : 'Không có nhãn';
+              const itemLabel = item.date || item.time || item.label || item.name || item.title || item.key || item.category || item.importance || item.classification;
+              const displayLabel = itemLabel && itemLabel !== 'Unknown' && itemLabel !== 'null' ? formatLabel(String(itemLabel), key) : 'Không có nhãn';
               return (
                 <View key={idx} style={styles.listItem}>
                   <Text style={typography.bodyMd}>{displayLabel}</Text>
@@ -156,8 +172,8 @@ export default function DynamicDashboardRenderer({ data }: DynamicDashboardRende
           <View key={key} style={styles.section}>
             <Text style={[typography.headlineSm, { color: colors.onBackground, marginBottom: 8 }]}>{formatLabel(key)}</Text>
             {value.map((item, idx) => {
-              const itemLabel = item.label || item.name || item.title || item.key || item.category;
-              const displayLabel = itemLabel ? formatLabel(String(itemLabel)) : 'Không có nhãn';
+              const itemLabel = item.label || item.name || item.title || item.key || item.category || item.importance || item.classification;
+              const displayLabel = itemLabel && itemLabel !== 'Unknown' && itemLabel !== 'null' ? formatLabel(String(itemLabel), key) : 'Không có nhãn';
               return (
                 <View key={idx} style={styles.listItem}>
                   <Text style={typography.bodyMd}>{displayLabel}</Text>

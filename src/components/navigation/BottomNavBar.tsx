@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { APP_TABS } from '../../data/navigationTabs';
@@ -17,10 +17,21 @@ export type BottomNavBarProps = {
   onTabPress?: (tab: AppTabId) => void;
 };
 
+// Enable LayoutAnimation on Android for old architecture
+const isFabric = typeof global !== 'undefined' && !!(global as any).nativeFabricUIManager;
+if (
+  Platform.OS === 'android' &&
+  UIManager.setLayoutAnimationEnabledExperimental &&
+  !isFabric
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 export default function BottomNavBar({
   activeTab,
   onTabPress,
 }: BottomNavBarProps) {
+
   const insets = useSafeAreaInsets();
   const { colors: COLORS } = useTheme();
   const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
@@ -35,7 +46,15 @@ export default function BottomNavBar({
           return (
             <Pressable
               key={tab.id}
-              onPress={() => onTabPress?.(tab.id)}
+              onPress={() => {
+                LayoutAnimation.configureNext({
+                  duration: 650,
+                  create: { type: 'easeInEaseOut', property: 'opacity' },
+                  update: { type: 'spring', springDamping: 0.55 },
+                  delete: { type: 'easeInEaseOut', property: 'opacity' },
+                });
+                onTabPress?.(tab.id);
+              }}
               style={({ pressed }) => [
                 styles.tab,
                 active && styles.tabActive,
@@ -72,10 +91,10 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 6,
     paddingHorizontal: 16,
     borderRadius: 9999,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.45)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
@@ -86,15 +105,21 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   tab: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 6,
+    paddingVertical: 4,
     paddingHorizontal: 8,
     minWidth: 52,
     borderRadius: 9999,
   },
   tabActive: {
-    backgroundColor: COLORS.secondaryTint,
+    backgroundColor: 'rgba(255, 255, 255, 0.6)', // Liquid glass highlight - slightly more opaque
     paddingHorizontal: 16,
-    transform: [{ scale: 1.08 }],
+    transform: [{ scale: 1.05 }],
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#fff',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
   tabPressed: {
     opacity: 0.85,
@@ -105,7 +130,7 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     color: COLORS.tabInactive,
-    marginTop: 4,
+    marginTop: 2,
     textTransform: 'uppercase',
     letterSpacing: -0.2,
   },

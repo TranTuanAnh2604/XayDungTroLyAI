@@ -23,6 +23,9 @@ type TabScreenLayoutProps = {
   footer?: ReactNode;
   scrollViewProps?: Omit<ScrollViewProps, 'children' | 'contentContainerStyle'>;
   contentContainerStyle?: ScrollViewProps['contentContainerStyle'];
+  innerStyle?: any; // ViewStyle
+  scrollRef?: React.RefObject<any>; // ScrollView
+  disableScrollWrapper?: boolean;
   maxContentWidth?: number;
 };
 
@@ -36,6 +39,9 @@ export default function TabScreenLayout({
   footer,
   scrollViewProps,
   contentContainerStyle,
+  innerStyle,
+  scrollRef,
+  disableScrollWrapper = false,
   maxContentWidth = SCREEN_CONTENT_MAX_WIDTH,
 }: TabScreenLayoutProps) {
   const insets = useSafeAreaInsets();
@@ -48,23 +54,30 @@ export default function TabScreenLayout({
     <View style={styles.root}>
       {topBar}
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[
-          styles.scrollContent,
-          {
-            paddingTop: topChrome + SCROLL_CONTENT_GAP,
-            paddingBottom: bottomChrome + bottomExtra + SCROLL_CONTENT_GAP,
-          },
-          contentContainerStyle,
-        ]}
-        showsVerticalScrollIndicator={false}
-        {...scrollViewProps}
-      >
-        <View style={[styles.inner, { maxWidth: maxContentWidth }]}>
+      {disableScrollWrapper ? (
+        <View style={styles.scroll}>
           {children}
         </View>
-      </ScrollView>
+      ) : (
+        <ScrollView
+          ref={scrollRef}
+          style={styles.scroll}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingTop: topChrome + SCROLL_CONTENT_GAP,
+              paddingBottom: bottomChrome + bottomExtra + SCROLL_CONTENT_GAP,
+            },
+            contentContainerStyle,
+          ]}
+          showsVerticalScrollIndicator={false}
+          {...scrollViewProps}
+        >
+          <View style={[styles.inner, { maxWidth: maxContentWidth }, innerStyle]}>
+            {children}
+          </View>
+        </ScrollView>
+      )}
 
       {footer}
     </View>

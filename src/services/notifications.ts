@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { detectEventType, getReminderOffsetForEventType, type EventType } from '../utils/eventTypeDetection';
 import type { CalendarSyncRequest } from './sync';
 
@@ -51,6 +52,14 @@ export async function initializeNotifications(): Promise<boolean> {
 }
 
 export async function requestNotificationPermission(): Promise<boolean> {
+  try {
+    const saved = await AsyncStorage.getItem('@app:push_enabled');
+    if (saved === 'false') {
+      return false; // User explicitly disabled notifications in app settings
+    }
+  } catch (e) {
+    // ignore
+  }
   return initializeNotifications();
 }
 
