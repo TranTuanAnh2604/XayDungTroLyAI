@@ -268,11 +268,6 @@ export default function Chat() {
                             <span className="material-symbols-outlined">add_circle</span>
                         </button>
                         <div className="ml-[8px] pl-[8px] border-l border-[#c6c6cd]">
-                            <img
-                                alt="User Profile"
-                                className="w-9 h-9 rounded-full border border-[#c6c6cd] shadow-sm cursor-pointer hover:ring-2 hover:ring-[#6b38d4] transition-all"
-                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuB__r4eEtkYNDnDuAP4BAtDM5aJKLGMsUkAKk3_pXI9FqeJqpk74eYyZ-86xfiGW_e_lKUbgJQTni6Qn3M0tf1xzeNdZ2F3DWl4lxiyqdgHhF4s9rx7PqBOPKzXTB5QSMgBKvG2k9Abdhs9ffyH44oPI7qLTrl1gVI-3ESPBMwDSG9yJWh-Y0MUaE8MpcLXuiKSt4thEkvF87i-9KnEikCsjO_Zcx7_7G4j5fTnKk8EkBPnoJQ9lxdopo7xR219ssRToAndckcbdQo"
-                            />
                         </div>
                     </div>
                 </header>
