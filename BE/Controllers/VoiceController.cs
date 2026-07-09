@@ -33,6 +33,9 @@ namespace Assistant.Controllers
             if (!Guid.TryParse(userIdStr, out var userId))
                 return Unauthorized();
 
+            // Giờ VN hiện tại, dùng chung cho mọi CreatedAt trong action này
+            var vnNow = DateTime.UtcNow.AddHours(7);
+
             try
             {
                 var (reply, taskJson, calendarJson) = await _groqService.ChatWithIntentAsync(request.Text);
@@ -57,18 +60,24 @@ namespace Assistant.Controllers
                             var priorityStr = node?["priority"]?.ToString();
                             byte priority = byte.TryParse(priorityStr, out var p) ? p : (byte)2;
 
+                            // AI trả về giờ VN (wall-clock) -> chỉ gắn nhãn Utc, KHÔNG convert
+                            DateTime? dueDate = null;
+                            if (!string.IsNullOrEmpty(dueDateStr) && DateTime.TryParse(dueDateStr, out var pd))
+                            {
+                                dueDate = DateTime.SpecifyKind(pd, DateTimeKind.Utc);
+                            }
+
                             var task = new Assistant.Models.Task
                             {
                                 Id = Guid.NewGuid(),
                                 UserId = userId,
                                 Title = title,
                                 Description = node?["description"]?.ToString(),
-                                DueDate = string.IsNullOrEmpty(dueDateStr) ? null
-                                    : DateTime.TryParse(dueDateStr, out var pd) ? pd : null,
+                                DueDate = dueDate,
                                 Priority = priority,
                                 Status = "pending",
                                 InputMethod = "voice",
-                                CreatedAt = DateTime.UtcNow
+                                CreatedAt = vnNow
                             };
                             _db.Tasks.Add(task);
                             await _db.SaveChangesAsync();
@@ -106,11 +115,12 @@ namespace Assistant.Controllers
                                 Title = title,
                                 Description = node?["description"]?.ToString(),
                                 Location = node?["location"]?.ToString(),
-                                StartTime = DateTime.SpecifyKind(startTime.ToUniversalTime(), DateTimeKind.Utc),
-                                EndTime = DateTime.SpecifyKind(endTime.ToUniversalTime(), DateTimeKind.Utc),
+                                // AI trả về giờ VN (wall-clock) -> chỉ gắn nhãn Utc, KHÔNG convert
+                                StartTime = DateTime.SpecifyKind(startTime, DateTimeKind.Utc),
+                                EndTime = DateTime.SpecifyKind(endTime, DateTimeKind.Utc),
                                 IsAllDay = node?["isAllDay"]?.GetValue<bool>() ?? false,
                                 Source = "voice",
-                                CreatedAt = DateTime.UtcNow
+                                CreatedAt = vnNow
                             };
                             _db.CalendarEvents.Add(calEvent);
                             await _db.SaveChangesAsync();
@@ -148,7 +158,7 @@ namespace Assistant.Controllers
                 UserId = userId,
                 Transcript = request.Transcript,
                 AiResponse = request.AiResponse,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow.AddHours(7) // giờ VN, khớp convention toàn project
             };
 
             _db.VoiceTranscripts.Add(record);

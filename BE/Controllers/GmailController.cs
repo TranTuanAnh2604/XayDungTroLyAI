@@ -66,7 +66,7 @@ namespace Assistant.Controllers
 
         // 2. LẤY DANH SÁCH GMAIL (inbox) — đặt TRONG class
         [HttpGet("inbox")]
-        public async Task<IActionResult> GetInbox([FromQuery] int maxResults = 10)
+        public async Task<IActionResult> GetInbox([FromQuery] int maxResults = 15)
         {
             var userId = GetUserId();
 

@@ -19,7 +19,7 @@ export const autoSyncGmail = () =>
     }).then((r) => r.json());
 
 // Đổi tên khớp với Gmail.jsx
-export const getInboxGmails = (maxResults = 10) =>
+export const getInboxGmails = (maxResults = 15) =>
     fetch(`${BASE_URL}/api/gmail/inbox?maxResults=${maxResults}`, {
         headers: getHeaders(),
     }).then((r) => r.json());
