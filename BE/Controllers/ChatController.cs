@@ -56,8 +56,8 @@ namespace Assistant.Controllers
                 Id = Guid.NewGuid(),
                 UserId = userId,
                 Title = null,
-                CreatedAt = DateTime.UtcNow,
-                LastActivity = DateTime.UtcNow
+                CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc),
+                LastActivity = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc)
             };
 
             _context.ChatSessions.Add(session);
@@ -167,7 +167,7 @@ namespace Assistant.Controllers
             }
 
             // 6. Lưu tin nhắn + task/event mới cùng lúc
-            var now = DateTime.UtcNow;
+            var now = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc);
 
             var userMessage = new ChatMessage
             {
@@ -507,7 +507,7 @@ namespace Assistant.Controllers
                 Status = "pending",
                 InputMethod = "ai_chat",   // bắt buộc, không null
                 EstimatedMinutes = null,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc),
                 CompletedAt = null
             };
         }
@@ -550,7 +550,7 @@ namespace Assistant.Controllers
                 ExternalId = null,
                 IsAllDay = action.IsAllDay,
                 Priority = MapEventPriority(action.Priority),
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc)
             };
         }
     }

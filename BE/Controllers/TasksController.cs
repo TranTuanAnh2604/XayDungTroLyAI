@@ -56,7 +56,7 @@ namespace Assistant.Controllers
                 DueDate = request.DueDate,
                 Status = request.Status ?? "pending",
                 InputMethod = "text",
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc),
             };
 
             _context.Tasks.Add(task);
@@ -81,7 +81,7 @@ namespace Assistant.Controllers
 
             if (request.Status == "done")
             {
-                task.CompletedAt = DateTime.UtcNow;
+                task.CompletedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc);
             }
 
             await _context.SaveChangesAsync();
@@ -101,7 +101,7 @@ namespace Assistant.Controllers
             if (task == null) return NotFound(new ApiResponse<string>("Không tìm thấy công việc!"));
 
             task.Status = "done";
-            task.CompletedAt = DateTime.UtcNow;
+            task.CompletedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc);
             await _context.SaveChangesAsync();
 
             return Ok(new ApiResponse<bool>(true, "Đã đánh dấu hoàn thành!"));

@@ -43,7 +43,7 @@ namespace Assistant.Controllers
             if (existingToken != null)
             {
                 existingToken.Value = request.GoogleRefreshToken;
-                existingToken.UpdatedAt = DateTime.UtcNow;
+                existingToken.UpdatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc);
             }
             else
             {
@@ -55,8 +55,8 @@ namespace Assistant.Controllers
                     Key = "Google_RefreshToken",
                     Value = request.GoogleRefreshToken,
                     Source = "system",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc),
+                    UpdatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc)
                 });
             }
 
@@ -117,7 +117,7 @@ namespace Assistant.Controllers
         public async Task<IActionResult> AutoSync()
         {
             var userId = GetUserId();
-            var today = DateTime.Now;
+            var today = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc);
 
             var googleTokenMemory = await _context.UserMemories
                 .FirstOrDefaultAsync(m => m.UserId == userId && m.Category == "OAuth" && m.Key == "Google_RefreshToken");
@@ -176,7 +176,7 @@ RÀO CẢN BẢO MẬT:
                                     Priority = (byte)(extractedTask.Priority >= 1 && extractedTask.Priority <= 4 ? extractedTask.Priority : 2),
                                     DueDate = extractedTask.DueDate ?? today.AddDays(1),
                                     InputMethod = "ai",
-                                    CreatedAt = DateTime.UtcNow
+                                    CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc)
                                 });
                                 addedTasks++;
                             }

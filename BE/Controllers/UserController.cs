@@ -14,7 +14,7 @@ namespace Assistant.Controllers
     public class UsersController : ControllerBase
     {
         private readonly AppDbContext _context;
-        private readonly IWebHostEnvironment _env;  // ✅ thêm để lưu file
+        private readonly IWebHostEnvironment _env;  // thêm để lưu file
 
         public UsersController(AppDbContext context, IWebHostEnvironment env)
         {
@@ -37,7 +37,7 @@ namespace Assistant.Controllers
                 Name = user.Name,
                 Email = user.Email,
                 Timezone = user.Timezone,
-                AvatarUrl = user.AvatarUrl   // ✅ trả về avatarUrl
+                AvatarUrl = user.AvatarUrl  
             }, "Lấy thông tin thành công!"));
         }
 
@@ -69,7 +69,7 @@ namespace Assistant.Controllers
             if (!allowedTypes.Contains(file.ContentType.ToLower()))
                 return BadRequest(new ApiResponse<string>("Chỉ chấp nhận file ảnh (jpg, png, webp, gif)!"));
 
-            const long maxSize = 10L * 1024 * 1024; // ✅ 10MB
+            const long maxSize = 10L * 1024 * 1024; // 10MB
             if (file.Length > maxSize)
                 return BadRequest(new ApiResponse<string>("Ảnh không được vượt quá 10MB!"));
 
@@ -107,7 +107,7 @@ namespace Assistant.Controllers
             if (memory != null)
             {
                 memory.Value = request.Value;
-                memory.UpdatedAt = DateTime.UtcNow;
+                memory.UpdatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc);
             }
             else
             {
@@ -118,8 +118,8 @@ namespace Assistant.Controllers
                     Key = request.Key,
                     Value = request.Value,
                     Source = "manual",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc),
+                    UpdatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc)
                 });
             }
 

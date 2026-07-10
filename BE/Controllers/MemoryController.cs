@@ -34,7 +34,7 @@ namespace Assistant.Controllers
         {
             var userId = GetUserId();
             var memories = await _context.UserMemories
-                .Where(m => m.UserId == userId)
+                .Where(m => m.UserId == userId && m.Category != "OAuth")
                 .OrderByDescending(m => m.UpdatedAt)
                 .Select(m => new
                 {
@@ -91,7 +91,7 @@ namespace Assistant.Controllers
                 .ToList();
 
             var userId = GetUserId();
-            var now = DateTime.UtcNow;
+            var now = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc);
             int added = 0, updated = 0;
 
             foreach (var item in dedupedExtracted)

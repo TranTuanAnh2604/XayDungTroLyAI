@@ -168,7 +168,7 @@ namespace Assistant.Controllers
                 if (existingToken != null)
                 {
                     existingToken.Value = googleRefreshToken;
-                    existingToken.UpdatedAt = DateTime.UtcNow;
+                    existingToken.UpdatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc);
                 }
                 else
                 {
@@ -180,8 +180,8 @@ namespace Assistant.Controllers
                         Key = "Google_RefreshToken",
                         Value = googleRefreshToken,
                         Source = "system",
-                        CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow
+                        CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc);
+                        UpdatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc);
                     });
                 }
                 await _context.SaveChangesAsync();
