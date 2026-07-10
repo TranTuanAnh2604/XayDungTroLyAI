@@ -399,7 +399,7 @@ export default function Chat() {
                             ))}
                         </div>
 
-                        {/* Input Box — giờ là 1 hàng ngang: textarea + nút gửi */}
+                        {/* Input Box */}
                         <div className="rounded-xl border border-[#c6c6cd]/50 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05)] flex items-end gap-[8px] p-[8px] focus-within:ring-2 focus-within:ring-[#6b38d4]/50 focus-within:border-[#6b38d4] transition-all bg-white"
                             style={{ background: "rgba(255,255,255,0.7)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
                         >

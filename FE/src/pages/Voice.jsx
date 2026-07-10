@@ -39,7 +39,7 @@ export default function Voice() {
         const viVoice = voices.find((v) => v.lang === "vi-VN" || v.lang.startsWith("vi"));
         if (viVoice) utterance.voice = viVoice;
 
-        // ✅ Callback khi đọc xong
+        // Callback khi đọc xong
         utterance.onend = () => onDone?.();
 
         window.speechSynthesis.speak(utterance);
@@ -84,7 +84,7 @@ export default function Voice() {
         }
     }, [speakText]);
 
-    // Khởi tạo Web Speech API — chỉ chạy 1 lần khi mount
+    // Khởi tạo Web Speech API
     useEffect(() => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
@@ -162,17 +162,7 @@ export default function Voice() {
         return () => clearInterval(interval);
     }, [isListening]);
 
-    // Nút 1: tắt mic, giữ chat
-    const handleMicOff = () => {
-        isConversationModeRef.current = false;
-        if (recognitionRef.current) {
-            recognitionRef.current.abort();
-        }
-        window.speechSynthesis.cancel();
-        setIsListening(false);
-    };
-
-    // Nút 2: nghe 1 lần rồi dừng chờ (không auto restart)
+    // Nút 1
     const handleSingleListen = () => {
         if (!recognitionRef.current || isProcessing) return;
 
@@ -306,15 +296,7 @@ export default function Voice() {
 
                         <div className="bg-[#f8f9ff]/80 backdrop-blur-xl border border-[#c6c6cd] shadow-sm rounded-full px-[24px] py-[8px] flex items-center justify-center gap-[24px] mb-[24px]">
 
-                            {/* Nút 1: tắt mic, giữ chat */}
-                            <button
-                                onClick={handleMicOff}
-                                className="w-12 h-12 rounded-full flex items-center justify-center text-[#45464d] hover:bg-[#e5eeff] hover:text-[#000000] transition-all"
-                            >
-                                <span className="material-symbols-outlined">mic_off</span>
-                            </button>
-
-                            {/* Nút 2: nghe 1 lần rồi dừng chờ */}
+                            {/* Nút 1 */}
                             <div className="relative">
                                 {isListening && <div className="absolute inset-0 bg-[#6b38d4] rounded-full pulse-ring opacity-50"></div>}
                                 <button
@@ -329,7 +311,7 @@ export default function Voice() {
                                 </button>
                             </div>
 
-                            {/* Nút 3: tắt toàn bộ cuộc hội thoại */}
+                            {/* Nút 2 */}
                             <button
                                 onClick={handleEndCall}
                                 className="w-12 h-12 rounded-full flex items-center justify-center bg-[#ffdad6] text-[#93000a] hover:bg-[#ba1a1a] hover:text-white transition-all active:scale-95"
