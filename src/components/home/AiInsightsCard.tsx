@@ -8,9 +8,9 @@ import { useTheme } from '../../hooks/useTheme';
 import type { ProductivityReport } from '../../types/productivity';
 
 type AiInsightsCardProps = { report: ProductivityReport | null; skeleton?: boolean; };
-type InsightRowProps = { icon: string; iconColor: string; label: string; items: string[]; COLORS: any; typography: any; };
+type InsightRowProps = { icon: string; iconColor: string; label: string; items: string[]; COLORS: any; typography: any; isDark: boolean; };
 
-function InsightRow({ icon, iconColor, label, items, COLORS, typography }: InsightRowProps) {
+function InsightRow({ icon, iconColor, label, items, COLORS, typography, isDark }: InsightRowProps) {
   if (!items || items.length === 0) return null;
   return (
     <View style={{ marginBottom: 12 }}>
@@ -21,7 +21,7 @@ function InsightRow({ icon, iconColor, label, items, COLORS, typography }: Insig
       {items.map((item, idx) => (
         <View key={idx} style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
           <Text style={{ color: iconColor, fontSize: 13, lineHeight: 20 }}>•</Text>
-          <Text style={{ ...typography.bodyMd, color: COLORS.textPrimary, flex: 1, lineHeight: 20 }}>{item}</Text>
+          <Text style={{ ...typography.bodyMd, color: isDark ? '#000' : COLORS.textPrimary, flex: 1, lineHeight: 20 }}>{item}</Text>
         </View>
       ))}
     </View>
@@ -29,9 +29,9 @@ function InsightRow({ icon, iconColor, label, items, COLORS, typography }: Insig
 }
 
 export default function AiInsightsCard({ report, skeleton = false }: AiInsightsCardProps) {
-  const { colors: COLORS } = useTheme();
+  const { colors: COLORS, isDark } = useTheme();
   const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
-  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography, isDark), [COLORS, typography, isDark]);
   if (skeleton || !report) {
     return (
       <HomeGlassCard variant='ai' padding={20}>
@@ -54,23 +54,23 @@ export default function AiInsightsCard({ report, skeleton = false }: AiInsightsC
       {report.overallEvaluation ? (<View style={styles.evalBox}><Text style={styles.evalText}>{report.overallEvaluation}</Text></View>) : null}
       {hasInsights ? (
         <View style={styles.insights}>
-          <InsightRow icon='thumb-up' iconColor={COLORS.success} label='Điểm mạnh' items={report.strengths ?? []} COLORS={COLORS} typography={typography} />
-          <InsightRow icon='warning' iconColor={COLORS.warning} label='Cần cải thiện' items={report.weaknesses ?? []} COLORS={COLORS} typography={typography} />
-          <InsightRow icon='lightbulb' iconColor={COLORS.primary} label='Đề xuất' items={report.suggestions ?? []} COLORS={COLORS} typography={typography} />
+          <InsightRow icon='thumb-up' iconColor={COLORS.success} label='Điểm mạnh' items={report.strengths ?? []} COLORS={COLORS} typography={typography} isDark={isDark} />
+          <InsightRow icon='warning' iconColor={COLORS.warning} label='Cần cải thiện' items={report.weaknesses ?? []} COLORS={COLORS} typography={typography} isDark={isDark} />
+          <InsightRow icon='lightbulb' iconColor={COLORS.primary} label='Đề xuất' items={report.suggestions ?? []} COLORS={COLORS} typography={typography} isDark={isDark} />
         </View>
       ) : null}
       {!report.aiSummary && !hasInsights ? (<Text style={styles.empty}>Chưa có phân tích AI cho tuần này.</Text>) : null}
     </HomeGlassCard>
   );
 }
-const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
+const createStyles = (COLORS: any, typography: any, isDark: boolean) => StyleSheet.create({
   sparkle: { position: 'absolute', top: 16, right: 16 },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.secondary },
-  label: { fontSize: 10, fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase', color: COLORS.textSecondary },
-  summary: { ...typography.bodyMd, color: COLORS.textPrimary, lineHeight: 22, marginBottom: 12 },
+  label: { fontSize: 10, fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase', color: isDark ? '#000' : COLORS.textSecondary },
+  summary: { ...typography.bodyMd, color: isDark ? '#000' : COLORS.textPrimary, lineHeight: 22, marginBottom: 12 },
   evalBox: { backgroundColor: COLORS.primary + '0D', borderRadius: 12, padding: 12, marginBottom: 16, borderLeftWidth: 3, borderLeftColor: COLORS.primary },
-  evalText: { ...typography.bodyMd, color: COLORS.textPrimary, lineHeight: 20 },
+  evalText: { ...typography.bodyMd, color: isDark ? '#000' : COLORS.textPrimary, lineHeight: 20 },
   insights: { marginTop: 4 },
-  empty: { ...typography.bodyMd, color: COLORS.textSecondary, fontStyle: 'italic' },
+  empty: { ...typography.bodyMd, color: isDark ? '#000' : COLORS.textSecondary, fontStyle: 'italic' },
 });

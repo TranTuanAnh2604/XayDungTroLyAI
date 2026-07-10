@@ -231,7 +231,7 @@ export default function EventsScreen() {
           const parsed = new Set<string>(JSON.parse(val));
           setIgnoredConflicts(parsed);
           ignoredConflictsRef.current = parsed;
-        } catch (e) {}
+        } catch (e) { }
       }
       setHasLoadedIgnoredConflicts(true);
     });
@@ -586,13 +586,13 @@ export default function EventsScreen() {
 
     let targetEvent = conflictEvent?.id === targetEventId ? conflictEvent : conflictingEvents.find(e => e.id === targetEventId);
     if (!targetEvent) {
-       targetEvent = rawCalendarEvents.find((e: any) => e.id === targetEventId);
+      targetEvent = rawCalendarEvents.find((e: any) => e.id === targetEventId);
     }
-    
+
     if (!targetEvent) {
-       console.error("Target event not found for applyAiSuggestion", targetEventId);
-       Alert.alert('Lỗi', 'Không tìm thấy sự kiện cần dời.');
-       return;
+      console.error("Target event not found for applyAiSuggestion", targetEventId);
+      Alert.alert('Lỗi', 'Không tìm thấy sự kiện cần dời.');
+      return;
     }
 
     try {
@@ -878,7 +878,7 @@ export default function EventsScreen() {
         onEdit={async (eventId, updatedEvent) => {
           try {
             const oldEvent = rawCalendarEvents.find((item) => item.id === eventId);
-            
+
             // Strict conflict check for manual update
             const candidateStart = parseCalendarDate(updatedEvent.startTime)?.getTime();
             const candidateEnd = parseCalendarDate(updatedEvent.endTime)?.getTime();
@@ -1083,7 +1083,7 @@ export default function EventsScreen() {
             });
             setIgnoredConflicts(newIgnored);
             ignoredConflictsRef.current = newIgnored;
-            AsyncStorage.setItem('@app:events:ignored_conflicts', JSON.stringify(Array.from(newIgnored))).catch(() => {});
+            AsyncStorage.setItem('@app:events:ignored_conflicts', JSON.stringify(Array.from(newIgnored))).catch(() => { });
           }
         }}
         onApplySuggestion={applyAiSuggestion}

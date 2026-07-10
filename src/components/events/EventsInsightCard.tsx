@@ -25,9 +25,9 @@ export default function EventsInsightCard({
   onPrimaryPress,
   onSecondaryPress,
 }: EventsInsightCardProps) {
-  const { colors: COLORS } = useTheme();
+  const { colors: COLORS, isDark } = useTheme();
   const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
-  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography, isDark), [COLORS, typography, isDark]);
   const floatAnim = useRef(new Animated.Value(0)).current;
   const borderAnim = useRef(new Animated.Value(0)).current;
 
@@ -129,7 +129,7 @@ export default function EventsInsightCard({
   );
 }
 
-const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
+const createStyles = (COLORS: any, typography: any, isDark: boolean) => StyleSheet.create({
   floatWrap: {
     marginBottom: 40,
   },
@@ -166,16 +166,17 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   title: {
     ...typography.bodyLg,
     fontWeight: '700',
-    color: COLORS.secondary,
+    color: isDark ? '#000' : COLORS.secondary,
     marginBottom: 4,
   },
   body: {
     ...typography.bodyMd,
+    color: isDark ? '#000' : COLORS.onSurface,
     lineHeight: 22,
   },
   highlight: {
     fontWeight: '600',
-    color: COLORS.secondary,
+    color: isDark ? '#000' : COLORS.secondary,
   },
   actions: {
     flexDirection: 'row',

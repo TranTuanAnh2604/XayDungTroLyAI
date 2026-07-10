@@ -56,7 +56,7 @@ export default function TaskFormFields({
               data.type === 'task' && styles.typeBtnTextActive,
             ]}
           >
-            🔥 Tasks (Quan trọng)
+            Tasks (Quan trọng)
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -70,7 +70,7 @@ export default function TaskFormFields({
               data.type === 'todo' && styles.typeBtnTextActive,
             ]}
           >
-            ✅ Todos (Hàng ngày)
+            Todos (Hàng ngày)
           </Text>
         </TouchableOpacity>
       </View>

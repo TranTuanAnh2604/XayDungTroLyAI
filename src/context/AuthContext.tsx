@@ -4,6 +4,7 @@ import { login as loginApi, register as registerApi, loginWithGoogle as loginWit
 import { getSavedAuth, saveAuthData, clearAuthData, saveGoogleRefreshToken, getGmailConnectSent, saveGmailConnectSent, clearGmailConnectSent } from '../services/authStorage';
 import { signOutGoogle } from '../services/googleAuth';
 import { connectGmail } from '../services/gmail';
+import { clearLocalProfile } from '../hooks/useProfile';
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -100,6 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     await signOutGoogle();
     await clearAuthData();
+    clearLocalProfile();
     setToken(null);
     setUser(null);
   };

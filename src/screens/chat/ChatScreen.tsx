@@ -38,7 +38,8 @@ import {
   chat as chatService, 
   getSessions, 
   getSessionMessages, 
-  deleteSession 
+  deleteSession,
+  createNewSession
 } from '../../services/chat';
 
 type ChatScreenProps = {
@@ -108,9 +109,11 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
               fallbackUrl: m.fallbackUrl || m.FallbackUrl || ''
             } as ChatActionMessage;
           }
+          const rawRole = (m.role || m.Role || '').toLowerCase();
+          const mappedRole = (rawRole === 'model' || rawRole === 'assistant' || rawRole === 'system') ? 'ai' : rawRole;
           return {
             id: m.id || m.Id || Math.random().toString(),
-            role: m.role || m.Role,
+            role: mappedRole,
             content: m.content || m.Content || m.answer || m.Answer || ''
           } as ChatMessage;
         });
@@ -163,10 +166,19 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
     ]);
 
     try {
-      // Gọi API với currentChatSessionRef.current (không phải activeSessionId state)
-      const result = await chatService(text, currentChatSessionRef.current);
+      let targetSessionId = currentChatSessionRef.current;
+
+      // Nếu chưa có session (tin nhắn đầu tiên của cuộc trò chuyện mới), tạo session trước
+      if (!targetSessionId) {
+        const { sessionId } = await createNewSession();
+        targetSessionId = sessionId;
+        currentChatSessionRef.current = sessionId;
+      }
+
+      // Gọi API với targetSessionId
+      const result = await chatService(text, targetSessionId);
       
-      // Cập nhật sessionId vào REF — không set state — không trigger useEffect
+      // Cập nhật lại nếu BE có thay đổi
       if (result.sessionId) {
         currentChatSessionRef.current = result.sessionId;
       }
@@ -185,13 +197,8 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
             fallbackUrl: result.fallbackUrl
           }
         ]);
-        // 2. Sau 2 giây: reset ref và messages về trạng thái trống
-        //    activeSessionId (state) không được đụng tới — không trigger useEffect
-        resetTimerRef.current = setTimeout(() => {
-          resetTimerRef.current = null;
-          currentChatSessionRef.current = undefined;
-          setMessages([]);
-        }, 2000);
+        // We no longer automatically reset the session after an action message.
+        // The action message will stay in the chat history.
       } else {
         setMessages(prev => [
           ...prev.filter(m => m.role !== 'typing'),

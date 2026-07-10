@@ -30,6 +30,7 @@
       "expo-font",
       "expo-secure-store",
       "expo-mail-composer",
+      "expo-notifications",
       "@react-native-community/datetimepicker",
       "@react-native-google-signin/google-signin",
       [

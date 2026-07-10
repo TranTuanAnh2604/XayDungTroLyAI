@@ -13,6 +13,7 @@ import GmailDashboard from '../../components/mail/GmailDashboard';
 import { TabScreenLayout, TopAppBar } from '../../components/navigation';
 import { useTheme } from '../../hooks/useTheme';
 import IosGlassView from '../../components/ui/IosGlassView';
+import PrimaryButton from '../../components/ui/PrimaryButton';
 import {
   getBottomNavReservedHeight,
   getTopAppBarHeight,
@@ -24,6 +25,8 @@ import {
 } from '../../data/mailMock';
 import type { MailCategory, MailFilterId, MailItem } from '../../types/mail';
 import { useOpenSettings } from '../../hooks/useOpenSettings';
+import { useAuth } from '../../context/AuthContext';
+import { useProfile } from '../../hooks/useProfile';
 import {
   archiveGmailEmail,
   autoSyncGmail,
@@ -31,6 +34,7 @@ import {
   GmailEmail,
   markGmailEmailAsRead,
   pinGmailEmail,
+  connectGmailForCurrentUser,
 } from '../../services/gmail';
 
 const CACHE_KEY = '@app:mail:cached_emails';
@@ -41,6 +45,8 @@ export default function MailScreen() {
   const styles = useMemo(() => createStyles(COLORS), [COLORS]);
   const insets = useSafeAreaInsets();
   const openSettings = useOpenSettings();
+  const { user } = useAuth();
+  const { profile } = useProfile();
   const [activeFilter, setActiveFilter] = useState<MailFilterId>('all');
   const [viewMode, setViewMode] = useState<'inbox' | 'dashboard'>('inbox');
   const [isConnecting, setIsConnecting] = useState(false);
@@ -253,12 +259,18 @@ export default function MailScreen() {
           console.log('Auto-sync result (initial load):', syncResult);
           if (!syncResult.success) {
             setSyncMessage(syncResult.message || 'Đồng bộ Gmail thất bại.');
+            if (syncResult.message?.includes('Chưa liên kết Gmail') || syncResult.message?.includes('Không tìm thấy serverAuthCode')) {
+              handleConnectGmail();
+            }
           } else {
             setSyncMessage(syncResult.message || 'Đã đồng bộ Gmail.');
             setIsConnected(true);
           }
-        } catch (err) {
+        } catch (err: any) {
           console.warn('Auto-sync failed on startup', err);
+          if (err?.message?.includes('Chưa liên kết Gmail') || err?.message?.includes('Không tìm thấy serverAuthCode')) {
+            handleConnectGmail();
+          }
         }
 
         // Fetch with params from UI attachment (defaults)
@@ -363,6 +375,9 @@ export default function MailScreen() {
         console.log('📧 MailScreen: Gmail auto-sync result', syncResult);
         if (!syncResult.success) {
           setSyncMessage(syncResult.message || 'Đồng bộ Gmail thất bại.');
+          if (syncResult.message?.includes('Chưa liên kết Gmail') || syncResult.message?.includes('Không tìm thấy serverAuthCode')) {
+            handleConnectGmail();
+          }
         } else {
           setSyncMessage(syncResult.message || 'Đã đồng bộ Gmail.');
           setIsConnected(true);
@@ -371,6 +386,9 @@ export default function MailScreen() {
       } catch (error: any) {
         console.error('❌ MailScreen: Lỗi auto-sync Gmail', error);
         setSyncMessage(error?.message || 'Không thể đồng bộ Gmail.');
+        if (error?.message?.includes('Chưa liên kết Gmail') || error?.message?.includes('Không tìm thấy serverAuthCode')) {
+          handleConnectGmail();
+        }
       } finally {
         setIsConnecting(false);
       }
@@ -391,6 +409,30 @@ export default function MailScreen() {
     } catch (error: any) {
       console.error('❌ MailScreen: Lỗi lấy email Gmail', error);
       setSyncMessage(error?.message || 'Không thể tải email Gmail.');
+    }
+  };
+
+  const handleConnectGmail = async () => {
+    if (isConnecting) return;
+    setIsConnecting(true);
+    setSyncMessage('Đang chờ bạn đăng nhập Google...');
+    try {
+      const emailHint = profile?.email || user?.email;
+      const res = await connectGmailForCurrentUser(emailHint);
+      if (res.success) {
+        setIsConnected(true);
+        setSyncMessage('Liên kết Gmail thành công! Đang tải dữ liệu...');
+        await autoSyncGmail();
+        await loadGmailEmails();
+      } else {
+        setSyncMessage(res.message || 'Liên kết Gmail thất bại.');
+        Alert.alert('Lỗi', res.message || 'Liên kết Gmail thất bại.');
+      }
+    } catch (err: any) {
+      console.warn('handleConnectGmail error', err);
+      setSyncMessage(err?.message || 'Không thể liên kết Gmail.');
+    } finally {
+      setIsConnecting(false);
     }
   };
 
@@ -475,6 +517,14 @@ export default function MailScreen() {
                     ? 'Gmail đã được kết nối nhưng hiện tại chưa có email nào để hiển thị.'
                     : 'Vui lòng kết nối Gmail hoặc thử lại sau khi đồng bộ xong.'}
                 </Text>
+                {!isConnected && (
+                  <PrimaryButton
+                    label="Liên kết Gmail ngay"
+                    onPress={handleConnectGmail}
+                    style={{ marginTop: 16 }}
+                    loading={isConnecting}
+                  />
+                )}
               </View>
             )}
           </View>

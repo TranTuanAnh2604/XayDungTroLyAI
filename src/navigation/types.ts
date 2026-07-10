@@ -1,6 +1,8 @@
+import type { AppTabId } from '../types/navigation';
+
 export type RootStackParamList = {
   Auth: undefined;
-  Main: undefined;
+  Main: { tab?: AppTabId } | undefined;
   Settings: undefined;
   EditProfile: undefined;
 };

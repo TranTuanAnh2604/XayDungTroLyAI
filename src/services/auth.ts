@@ -48,7 +48,7 @@ type RawAuthResponse = {
 
 function normalizeAuthResponse(response: RawAuthResponse): AuthResponse & { refreshToken?: string } {
   console.log('🔍 normalizeAuthResponse: Parsing response', JSON.stringify(response, null, 2));
-  
+
   const tokenValue =
     response.token ?? response.accessToken ?? response.data?.token ?? response.data?.accessToken;
   const refreshTokenValue =
@@ -113,9 +113,9 @@ export async function register(
   password: string,
 ): Promise<{ success: boolean }> {
   console.log('📝 register: Gọi API', { name, email, password });
-  const response = await apiPost<{ 
-    success?: boolean; 
-    message?: string 
+  const response = await apiPost<{
+    success?: boolean;
+    message?: string
   }>(
     '/api/Auth/register',
     {
@@ -157,9 +157,9 @@ export async function verifyOTP(
   email: string,
   otp: string
 ): Promise<{ success: boolean }> {
-  const response = await apiPost<{ 
-    success?: boolean; 
-    message?: string 
+  const response = await apiPost<{
+    success?: boolean;
+    message?: string
   }>(
     '/api/Auth/verify-email',
     { email, otp }
@@ -170,7 +170,7 @@ export async function verifyOTP(
 
 export async function resendOTP(email: string): Promise<{ success: boolean }> {
   const response = await apiPost<{
-     success: boolean
+    success: boolean
   }>(
     '/api/Auth/resend-otp',
     {
@@ -191,10 +191,10 @@ export async function forgotPassword(email: string) {
 
   console.log('📝 forgotPassword response:', response);
 
-    return {
-      success: response.success ?? false,
-      message: response.message,
-    };
+  return {
+    success: response.success ?? false,
+    message: response.message,
+  };
 }
 
 export async function resetPassword({
@@ -202,7 +202,7 @@ export async function resetPassword({
   otp,
   newPassword,
 }: ResetPasswordRequest) {
-  
+
   const response = await apiPost<{
     success?: boolean;
     message?: string;
@@ -216,6 +216,21 @@ export async function resetPassword({
   );
 
   console.log('📝 resetPassword: Response từ server', JSON.stringify(response, null, 2));
+  return {
+    success: response.success ?? true,
+    message: response.message,
+  };
+}
+
+export async function changePassword(oldPassword: string, newPassword: string, confirmNewPassword: string) {
+  const response = await apiPost<{
+    success?: boolean;
+    message?: string;
+  }>(
+    '/api/Auth/change-password',
+    { oldPassword, newPassword, confirmNewPassword }
+  );
+
   return {
     success: response.success ?? true,
     message: response.message,

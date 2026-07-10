@@ -12,9 +12,9 @@ type TasksProgressCardProps = {
 };
 
 export default function TasksProgressCard({ progress }: TasksProgressCardProps) {
-  const { colors: COLORS } = useTheme();
+  const { colors: COLORS, isDark } = useTheme();
   const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
-  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography, isDark), [COLORS, typography, isDark]);
   const percent = progress.total > 0 ? progress.completed / progress.total : 0;
   const widthAnim = useRef(new Animated.Value(0)).current;
 
@@ -45,7 +45,7 @@ export default function TasksProgressCard({ progress }: TasksProgressCardProps) 
   );
 }
 
-const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
+const createStyles = (COLORS: any, typography: any, isDark: boolean) => StyleSheet.create({
   sparkle: {
     position: 'absolute',
     top: 16,
@@ -55,11 +55,12 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     ...typography.headlineMd,
     fontSize: 20,
     fontWeight: '700',
-    color: COLORS.onSurface,
+    color: isDark ? '#000' : COLORS.onSurface,
     paddingRight: 32,
   },
   subtitle: {
     ...typography.bodyMd,
+    color: isDark ? '#000' : undefined,
     marginTop: 4,
     marginBottom: 12,
   },

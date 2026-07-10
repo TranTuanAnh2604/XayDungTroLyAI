@@ -12,6 +12,12 @@ export function updateLocalProfile(updates: Partial<ApiUserProfile>) {
   }
 }
 
+export function clearLocalProfile() {
+  globalProfile = null;
+  fetchPromise = null;
+  listeners.forEach((listener) => listener(null));
+}
+
 let isFetching = false;
 let fetchPromise: Promise<ApiUserProfile> | null = null;
 

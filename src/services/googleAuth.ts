@@ -5,9 +5,11 @@ import {
 import { GOOGLE_WEB_CLIENT_ID } from '../constants/config';
 
 let googleSignInConfigured = false;
+let currentConfiguredAccount: string | undefined = undefined;
 
-export function configureGoogleSignIn(webClientId: string) {
+export function configureGoogleSignIn(webClientId: string, accountName?: string) {
   googleSignInConfigured = true;
+  currentConfiguredAccount = accountName;
   GoogleSignin.configure({
     webClientId,
     offlineAccess: true,
@@ -17,6 +19,7 @@ export function configureGoogleSignIn(webClientId: string) {
       'profile',
       'https://www.googleapis.com/auth/gmail.readonly',
     ],
+    ...(accountName ? { accountName } : {}),
   });
 }
 
@@ -27,17 +30,17 @@ export function configureGoogleSignIn(webClientId: string) {
  * Lưu ý: serverAuthCode chỉ dùng được DUY NHẤT 1 LẦN. Nếu gọi đổi code 2 lần
  * (vd: gọi nhầm API connect 2 lần với cùng code) Google sẽ trả lỗi invalid_grant.
  */
-function ensureGoogleSignInConfigured() {
-  if (!googleSignInConfigured) {
-    configureGoogleSignIn(GOOGLE_WEB_CLIENT_ID);
+function ensureGoogleSignInConfigured(accountName?: string) {
+  if (!googleSignInConfigured || (accountName && currentConfiguredAccount !== accountName)) {
+    configureGoogleSignIn(GOOGLE_WEB_CLIENT_ID, accountName);
   }
 }
 
-export async function getGoogleIdToken(): Promise<{
+export async function getGoogleIdToken(loginHint?: string): Promise<{
   idToken: string;
   serverAuthCode: string;
 }> {
-  ensureGoogleSignInConfigured();
+  ensureGoogleSignInConfigured(loginHint);
   await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
 
   try {
@@ -46,7 +49,7 @@ export async function getGoogleIdToken(): Promise<{
     console.log('GoogleSignin.signOut before signIn failed:', error);
   }
 
-  const userInfo = await GoogleSignin.signIn();
+  const userInfo = await GoogleSignin.signIn(loginHint ? { loginHint } : undefined);
 
   // Tuỳ version của @react-native-google-signin/google-signin, serverAuthCode
   // có thể nằm ở userInfo.serverAuthCode (v9-) hoặc userInfo.data.serverAuthCode (v10+)

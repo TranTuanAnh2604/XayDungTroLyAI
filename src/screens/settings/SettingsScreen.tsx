@@ -24,6 +24,7 @@ import type { RootStackParamList } from '../../navigation/types';
 import ForgotPasswordModal from '../../components/auth/ForgotPasswordModal';
 import OTPVerificationModal from '../../components/auth/OTPVerificationModal';
 import ResetPasswordModal from '../../components/auth/ResetPasswordModal';
+import ChangePasswordModal from '../../components/auth/ChangePasswordModal';
 import { forgotPassword, resetPassword, verifyOTP } from '../../services/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
@@ -105,36 +106,14 @@ export default function SettingsScreen() {
   };
 
   const [activeModal, setActiveModal] = useState<{
-    type: 'none' | 'forgot' | 'otp' | 'reset';
+    type: 'none' | 'forgot' | 'otp' | 'reset' | 'changePassword';
     email?: string;
     otp?: string;
   }>({ type: 'none' });
 
   const handleAccountAction = (itemId: string) => {
     if (itemId === 'password') {
-      const email = profile?.email || user?.email;
-      if (email) {
-        Alert.alert(
-          'Đổi mật khẩu',
-          `Chúng tôi sẽ gửi một mã OTP đến email ${email} của bạn. Bạn có muốn tiếp tục?`,
-          [
-            { text: 'Hủy', style: 'cancel' },
-            {
-              text: 'Tiếp tục',
-              onPress: async () => {
-                try {
-                  await forgotPassword(email);
-                  setActiveModal({ type: 'otp', email });
-                } catch (e) {
-                  Alert.alert('Lỗi', 'Không thể gửi OTP');
-                }
-              },
-            },
-          ]
-        );
-      } else {
-        setActiveModal({ type: 'forgot' });
-      }
+      setActiveModal({ type: 'changePassword' });
     }
   };
 
@@ -242,6 +221,12 @@ export default function SettingsScreen() {
         email={activeModal.email || ''}
         onClose={closePasswordResetFlow}
         onSubmit={handleResetPassword}
+      />
+
+      <ChangePasswordModal
+        visible={activeModal.type === 'changePassword'}
+        onClose={closePasswordResetFlow}
+        onSuccess={closePasswordResetFlow}
       />
     </View>
   );

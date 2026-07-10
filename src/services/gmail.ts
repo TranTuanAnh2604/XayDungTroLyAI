@@ -156,8 +156,8 @@ export async function connectGmail(
   };
 }
 
-async function resolveGoogleServerAuthCode(): Promise<string> {
-  const{serverAuthCode} = await getGoogleIdToken();
+async function resolveGoogleServerAuthCode(loginHint?: string): Promise<string> {
+  const{serverAuthCode} = await getGoogleIdToken(loginHint);
   if (serverAuthCode) {
     console.log('📧 resolveGoogleServerAuthCode: using serverAuthCode length =', serverAuthCode.length);
     return serverAuthCode;
@@ -166,8 +166,8 @@ async function resolveGoogleServerAuthCode(): Promise<string> {
   throw new Error('Không tìm thấy serverAuthCode để gửi lên Gmail.');
 }
 
-export async function connectGmailForCurrentUser(): Promise<GmailConnectResponse> {
-  const serverAuthCode = await resolveGoogleServerAuthCode();
+export async function connectGmailForCurrentUser(loginHint?: string): Promise<GmailConnectResponse> {
+  const serverAuthCode = await resolveGoogleServerAuthCode(loginHint);
   return connectGmail(serverAuthCode );
 }
 
@@ -189,9 +189,16 @@ export async function autoSyncGmail(): Promise<{
       addedSummaries: response.data?.addedSummaries ?? 0,
     };
   } catch (error: any) {
-    console.error('Gmail auto-sync failed:', error);
+    const isNoNewMail = error?.message?.includes('Không có email mới');
+    
+    if (isNoNewMail) {
+      console.log('📧 autoSyncGmail:', error.message);
+    } else {
+      console.error('Gmail auto-sync failed:', error);
+    }
+
     return {
-      success: false,
+      success: isNoNewMail ? true : false,
       message: error?.message || 'Đồng bộ Gmail thất bại.',
       addedEmails: 0,
       addedSummaries: 0,

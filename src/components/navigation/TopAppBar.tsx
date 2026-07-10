@@ -2,6 +2,9 @@ import React, { type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../../navigation/types';
 import { DEFAULT_APP_TITLE } from '../../constants/navigationChrome';
 import { TOP_APP_BAR_HEIGHT, TOP_APP_BAR_Z_INDEX } from '../../constants/layout';
 import { getTypography } from '../../constants/typography';
@@ -34,6 +37,11 @@ export default function TopAppBar({
   leftActions,
 }: TopAppBarProps) {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+
+  const handleTitlePress = onTitlePress || (() => {
+    navigation.navigate('Main', { tab: 'home' });
+  });
   const { colors: COLORS } = useTheme();
   const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
   const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS, typography]);
@@ -83,11 +91,10 @@ export default function TopAppBar({
             <View style={styles.leading}>
               {leftActions}
               <Pressable
-                onPress={onTitlePress}
-                disabled={!onTitlePress}
+                onPress={handleTitlePress}
                 style={({ pressed }) => [
                   styles.brand,
-                  onTitlePress && pressed && styles.pressed,
+                  pressed && styles.pressed,
                 ]}
               >
                 <AppLogo size={LOGO_SIZE} />

@@ -19,9 +19,9 @@ export default function VoiceInsightCard({
   onPrimaryPress,
   onSecondaryPress,
 }: VoiceInsightCardProps) {
-  const { colors: COLORS } = useTheme();
+  const { colors: COLORS, isDark } = useTheme();
   const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
-  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
+  const styles = React.useMemo(() => createStyles(COLORS, typography, isDark), [COLORS, typography, isDark]);
   return (
     <AppGlassCard variant="ai" padding={24} style={styles.wrap}>
       <MaterialIcons
@@ -59,7 +59,7 @@ export default function VoiceInsightCard({
   );
 }
 
-const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
+const createStyles = (COLORS: any, typography: any, isDark: boolean) => StyleSheet.create({
   wrap: {
     marginTop: 48,
   },
@@ -83,12 +83,12 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   },
   label: {
     ...typography.labelCaps,
-    color: COLORS.secondary,
+    color: isDark ? '#000' : COLORS.secondary,
     letterSpacing: 2,
   },
   body: {
     ...typography.bodyMd,
-    color: COLORS.onSurface,
+    color: isDark ? '#000' : COLORS.onSurface,
     lineHeight: 22,
   },
   actions: {
