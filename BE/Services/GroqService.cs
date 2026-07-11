@@ -54,12 +54,18 @@ namespace Assistant.Services
             return replyText ?? "AI không có phản hồi.";
         }
 
-        public async Task<(string reply, string? taskJson, string? calendarJson)> ChatWithIntentAsync(string prompt)
+        // MỚI: thêm tham số userDataContext (optional) để AI đọc được Task/Event/UserMemory
+        // của người dùng, phục vụ Voice/Chat trả lời được câu hỏi về sở thích cá nhân, lịch trình...
+        public async Task<(string reply, string? taskJson, string? calendarJson)> ChatWithIntentAsync(string prompt, string? userDataContext = null)
         {
             string url = "https://api.groq.com/openai/v1/chat/completions";
 
-            var now = DateTime.Now;
-            var systemPrompt = "Bạn là trợ lý AI thông minh. Luôn trả lời bằng tiếng Việt, ngắn gọn, tự nhiên.\n\n" +
+            // Dùng giờ VN chuẩn (UtcNow + 7h) thay vì DateTime.Now (giờ server, không đảm bảo đúng VN)
+            var now = DateTime.UtcNow.AddHours(7);
+
+            var systemPromptBuilder = new StringBuilder();
+            systemPromptBuilder.Append(
+                "Bạn là trợ lý AI thông minh. Luôn trả lời bằng tiếng Việt, ngắn gọn, tự nhiên.\n\n" +
                 "=== THÔNG TIN THỜI GIAN HIỆN TẠI ===\n" +
                 $"- Ngày giờ hiện tại: {now:yyyy-MM-dd HH:mm} (UTC+7)\n" +
                 $"- Thứ trong tuần: {GetVietnameseDayOfWeek(now.DayOfWeek)}\n" +
@@ -76,17 +82,31 @@ namespace Assistant.Services
                 "- Nếu không rõ ngày → dùng ngày mai\n" +
                 "- Nếu không rõ giờ → dùng 08:00\n" +
                 "- Thời gian kết thúc mặc định = bắt đầu + 1 giờ\n" +
-                "- Luôn dùng múi giờ +07:00 khi xuất ISO 8601\n\n" +
+                "- Luôn dùng múi giờ +07:00 khi xuất ISO 8601\n\n");
+
+            // ── MỚI: Chèn dữ liệu cá nhân hoá (task, lịch, ghi nhớ) nếu có ──
+            if (!string.IsNullOrWhiteSpace(userDataContext))
+            {
+                systemPromptBuilder.Append(
+                    "=== DỮ LIỆU CÁ NHÂN HOÁ NGƯỜI DÙNG ===\n" +
+                    userDataContext + "\n" +
+                    "Nếu người dùng hỏi về sở thích, thói quen, công việc hoặc lịch trình đã có ở trên, " +
+                    "hãy dùng đúng dữ liệu này để trả lời (điền vào trường \"reply\"). " +
+                    "KHÔNG bịa thêm thông tin không có trong dữ liệu trên.\n\n");
+            }
+
+            systemPromptBuilder.Append(
                 "=== QUY TẮC PHÂN LOẠI ===\n" +
                 "- LUÔN LUÔN tạo cả task lẫn calendarEvent cho mọi công việc, lịch hẹn, nhắc nhở\n" +
                 "- task.title = nội dung công việc ngắn gọn\n" +
                 "- calendarEvent.title = giống task.title\n" +
                 "- Nếu không có giờ cụ thể → startTime = ngày đó lúc 08:00, endTime = 09:00\n" +
                 "- Nếu không có ngày cụ thể → dùng ngày mai\n" +
-                "- Chỉ trả task: null, calendarEvent: null khi là câu hỏi thông thường không liên quan đến công việc\n\n" +
+                "- Chỉ trả task: null, calendarEvent: null khi là câu hỏi thông thường không liên quan đến công việc " +
+                "(ví dụ hỏi về sở thích, chào hỏi, trò chuyện thường)\n\n" +
                 "=== FORMAT JSON BẮT BUỘC (KHÔNG thêm text nào ngoài JSON) ===\n" +
                 "{\n" +
-                "  \"reply\": \"câu trả lời tự nhiên xác nhận những gì đã tạo\",\n" +
+                "  \"reply\": \"câu trả lời tự nhiên xác nhận những gì đã tạo, hoặc trả lời câu hỏi của người dùng\",\n" +
                 "  \"task\": null,\n" +
                 "  \"calendarEvent\": null\n" +
                 "}\n\n" +
@@ -106,7 +126,9 @@ namespace Assistant.Services
                 "    \"endTime\": \"2025-06-15T08:00:00+07:00\",\n" +
                 "    \"isAllDay\": false\n" +
                 "  }\n\n" +
-                "priority: 1=thấp, 2=bình thường, 3=khẩn cấp";
+                "priority: 1=thấp, 2=bình thường, 3=khẩn cấp");
+
+            var systemPrompt = systemPromptBuilder.ToString();
 
             var requestBody = new
             {

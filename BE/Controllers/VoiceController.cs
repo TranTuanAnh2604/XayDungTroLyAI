@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Assistant.Services;
 using Assistant.Wrappers;
 using Assistant.Models;
 using System.Security.Claims;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -38,7 +40,10 @@ namespace Assistant.Controllers
 
             try
             {
-                var (reply, taskJson, calendarJson) = await _groqService.ChatWithIntentAsync(request.Text);
+                // ── MỚI: Nạp context dữ liệu user (task, lịch, ghi nhớ) giống ChatController ──
+                var userDataContext = await BuildUserDataContextAsync(userId, vnNow);
+
+                var (reply, taskJson, calendarJson) = await _groqService.ChatWithIntentAsync(request.Text, userDataContext);
 
                 Guid? createdTaskId = null;
                 Guid? createdEventId = null;
@@ -166,6 +171,108 @@ namespace Assistant.Controllers
 
             return Ok(new ApiResponse<object>(new { id = record.Id }, "Đã lưu transcript!"));
         }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // MỚI: HELPER XÂY DỰNG CONTEXT DỮ LIỆU USER (copy logic từ ChatController
+        // để AI trong Voice cũng biết Task/Event/UserMemory, trả lời được câu hỏi
+        // liên quan sở thích cá nhân, việc đang làm, lịch sắp tới...)
+        // ═══════════════════════════════════════════════════════════════════
+
+        private async Task<string> BuildUserDataContextAsync(Guid userId, DateTime vnNow)
+        {
+            var todayStart = vnNow.Date;
+            var weekEnd = todayStart.AddDays(7);
+
+            var tasks = await _db.Tasks
+                .Where(t => t.UserId == userId && t.Status != "done")
+                .OrderBy(t => t.DueDate ?? DateTime.MaxValue)
+                .ThenByDescending(t => t.Priority)
+                .Take(30)
+                .ToListAsync();
+
+            var events = await _db.CalendarEvents
+                .Where(e => e.UserId == userId && e.StartTime >= todayStart && e.StartTime <= weekEnd)
+                .OrderBy(e => e.StartTime)
+                .Take(30)
+                .ToListAsync();
+
+            var memories = await _db.UserMemories
+                .Where(m => m.UserId == userId && m.Category != "OAuth") // không lộ token nội bộ vào prompt
+                .OrderByDescending(m => m.UpdatedAt)
+                .Take(30)
+                .ToListAsync();
+
+            if (tasks.Count == 0 && events.Count == 0 && memories.Count == 0)
+                return string.Empty;
+
+            var sb = new StringBuilder();
+            sb.AppendLine("=== DỮ LIỆU THỰC TẾ CỦA NGƯỜI DÙNG (chỉ dùng để trả lời, KHÔNG bịa thêm) ===");
+            sb.AppendLine($"Hôm nay là: {vnNow:dd/MM/yyyy} ({GetVietnameseDayOfWeek(vnNow.DayOfWeek)}), giờ hiện tại: {vnNow:HH:mm}");
+
+            if (tasks.Count > 0)
+            {
+                sb.AppendLine("\n-- Công việc (task) chưa hoàn thành --");
+                foreach (var t in tasks)
+                {
+                    var due = t.DueDate.HasValue ? t.DueDate.Value.ToString("dd/MM/yyyy HH:mm") : "chưa có hạn";
+                    var overdueFlag = (t.DueDate.HasValue && t.DueDate.Value < vnNow) ? " [QUÁ HẠN]" : "";
+                    sb.AppendLine($"- \"{t.Title}\" | Hạn: {due}{overdueFlag} | Ưu tiên: {GetTaskPriorityLabel(t.Priority)} | Trạng thái: {t.Status}");
+                }
+            }
+
+            if (events.Count > 0)
+            {
+                sb.AppendLine("\n-- Sự kiện lịch (7 ngày tới) --");
+                foreach (var e in events)
+                {
+                    var time = e.IsAllDay
+                        ? e.StartTime.ToString("dd/MM/yyyy") + " (cả ngày)"
+                        : $"{e.StartTime:dd/MM/yyyy HH:mm} - {e.EndTime:HH:mm}";
+                    var loc = string.IsNullOrWhiteSpace(e.Location) ? "" : $" | Địa điểm: {e.Location}";
+                    sb.AppendLine($"- \"{e.Title}\" | {time} | Ưu tiên: {GetCalendarPriorityLabel(e.Priority)}{loc}");
+                }
+            }
+
+            if (memories.Count > 0)
+            {
+                sb.AppendLine("\n-- Thông tin đã ghi nhớ về người dùng (sở thích, thói quen...) --");
+                foreach (var m in memories)
+                {
+                    sb.AppendLine($"- {m.Category}/{m.Key}: {m.Value}");
+                }
+            }
+
+            sb.AppendLine("=== HẾT DỮ LIỆU ===\n");
+            return sb.ToString();
+        }
+
+        private static string GetTaskPriorityLabel(byte priority) => priority switch
+        {
+            3 => "Khẩn cấp",
+            2 => "Bình thường",
+            1 => "Thấp",
+            _ => "Bình thường"
+        };
+
+        private static string GetCalendarPriorityLabel(int priority) => priority switch
+        {
+            0 => "Khẩn cấp",
+            1 => "Bình thường",
+            2 => "Thấp",
+            _ => "Bình thường"
+        };
+
+        private static string GetVietnameseDayOfWeek(DayOfWeek day) => day switch
+        {
+            DayOfWeek.Monday => "Thứ Hai",
+            DayOfWeek.Tuesday => "Thứ Ba",
+            DayOfWeek.Wednesday => "Thứ Tư",
+            DayOfWeek.Thursday => "Thứ Năm",
+            DayOfWeek.Friday => "Thứ Sáu",
+            DayOfWeek.Saturday => "Thứ Bảy",
+            DayOfWeek.Sunday => "Chủ Nhật",
+            _ => ""
+        };
     }
 
     public class VoiceRequestDto { public string Text { get; set; } = null!; }
