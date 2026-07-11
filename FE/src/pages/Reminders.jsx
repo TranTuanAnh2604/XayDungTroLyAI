@@ -28,7 +28,7 @@ function ReminderCard({ reminder, onDelete }) {
                 {reminder.body && <p className="text-[13px] text-[#45464d] mb-[4px]">{reminder.body}</p>}
                 <p className="text-[12px] text-[#45464d] flex items-center gap-[4px]">
                     <span className="material-symbols-outlined text-[13px]">schedule</span>
-                    {new Date(reminder.scheduledAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
+                    {new Date(reminder.scheduledAt + (reminder.scheduledAt.endsWith('Z') ? '' : 'Z')).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
                 </p>
             </div>
             <button onClick={() => onDelete(reminder.id)}
