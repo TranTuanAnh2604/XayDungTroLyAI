@@ -293,10 +293,32 @@ namespace Assistant.Services
             };
 
             var firstRes = await _httpClient.PostAsync(url,
-                new StringContent(JsonSerializer.Serialize(firstRequest), Encoding.UTF8, "application/json"));
+    new StringContent(JsonSerializer.Serialize(firstRequest), Encoding.UTF8, "application/json"));
             var firstStr = await firstRes.Content.ReadAsStringAsync();
+
             if (!firstRes.IsSuccessStatusCode)
+            {
+                // Model ảo giác gọi tool không tồn tại (vd tự bịa "create_task") -> fallback: gọi lại KHÔNG kèm tools
+                if (firstStr.Contains("tool_use_failed") || firstStr.Contains("tool call validation failed"))
+                {
+                    var fallbackRequest = new
+                    {
+                        model = "llama-3.1-8b-instant",
+                        messages,
+                        temperature = 0.3
+                    };
+                    var fallbackRes = await _httpClient.PostAsync(url,
+                        new StringContent(JsonSerializer.Serialize(fallbackRequest), Encoding.UTF8, "application/json"));
+                    var fallbackStr = await fallbackRes.Content.ReadAsStringAsync();
+                    if (!fallbackRes.IsSuccessStatusCode)
+                        throw new Exception($"Lỗi từ Groq (fallback): {fallbackStr}");
+
+                    return JsonNode.Parse(fallbackStr)?["choices"]?[0]?["message"]?["content"]?.ToString()
+                        ?? "AI không có phản hồi.";
+                }
+
                 throw new Exception($"Lỗi từ Groq: {firstStr}");
+            }
 
             var firstMessage = JsonNode.Parse(firstStr)?["choices"]?[0]?["message"];
             var toolCalls = firstMessage?["tool_calls"]?.AsArray();
@@ -339,7 +361,14 @@ namespace Assistant.Services
             }
 
             // Lượt 2: AI đọc kết quả search thật rồi trả lời cuối cùng
-            var secondRequest = new { model = "llama-3.1-8b-instant", messages, temperature = 0.3 };
+            var secondRequest = new
+            {
+                model = "llama-3.1-8b-instant",
+                messages,
+                temperature = 0.3,
+                max_completion_tokens = 2048,
+                response_format = new { type = "json_object" }   // ← thêm dòng này
+            };
             var secondRes = await _httpClient.PostAsync(url,
                 new StringContent(JsonSerializer.Serialize(secondRequest), Encoding.UTF8, "application/json"));
             var secondStr = await secondRes.Content.ReadAsStringAsync();

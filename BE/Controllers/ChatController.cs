@@ -269,6 +269,7 @@ namespace Assistant.Controllers
         {
             var vnNow = GetVietnamNow();
             var todayStart = vnNow.Date;
+            var todayEnd = todayStart.AddDays(1);
             var weekEnd = todayStart.AddDays(7);
 
             var tasks = await _context.Tasks
@@ -294,12 +295,25 @@ namespace Assistant.Controllers
                 return string.Empty;
 
             var sb = new StringBuilder();
-            sb.AppendLine("=== DỮ LIỆU THỰC TẾ CỦA NGƯỜI DÙNG (chỉ dùng để trả lời, KHÔNG bịa thêm) ===");
+            sb.AppendLine("=== DỮ LIỆU THỰC TẾ CỦA NGƯỜI DÙNG (chỉ dùng để trả lời, KHÔNG bịa thêm, KHÔNG bỏ sót mục nào) ===");
             sb.AppendLine($"Hôm nay là: {vnNow:dd/MM/yyyy} ({GetVietnameseDayOfWeek(vnNow.DayOfWeek)}), giờ hiện tại: {vnNow:HH:mm}");
+
+            // ── MỚI: tách riêng khối "hôm nay" để model không phải tự lọc ──
+            var tasksToday = tasks.Where(t => t.DueDate.HasValue && t.DueDate.Value >= todayStart && t.DueDate.Value < todayEnd).ToList();
+            if (tasksToday.Count > 0)
+            {
+                sb.AppendLine($"\n-- CÔNG VIỆC CỦA HÔM NAY ({tasksToday.Count} việc, liệt kê ĐẦY ĐỦ khi được hỏi) --");
+                foreach (var t in tasksToday)
+                    sb.AppendLine($"- \"{t.Title}\" | Giờ: {t.DueDate:HH:mm} | Ưu tiên: {GetTaskPriorityLabel(t.Priority)} | Trạng thái: {t.Status}");
+            }
+            else
+            {
+                sb.AppendLine("\n-- CÔNG VIỆC CỦA HÔM NAY: không có việc nào có hạn hôm nay --");
+            }
 
             if (tasks.Count > 0)
             {
-                sb.AppendLine("\n-- Công việc (task) chưa hoàn thành --");
+                sb.AppendLine("\n-- Toàn bộ công việc (task) chưa hoàn thành (mọi thời điểm) --");
                 foreach (var t in tasks)
                 {
                     var due = t.DueDate.HasValue ? t.DueDate.Value.ToString("dd/MM/yyyy HH:mm") : "chưa có hạn";
@@ -325,9 +339,7 @@ namespace Assistant.Controllers
             {
                 sb.AppendLine("\n-- Thông tin đã ghi nhớ về người dùng --");
                 foreach (var m in memories)
-                {
                     sb.AppendLine($"- {m.Category}/{m.Key}: {m.Value}");
-                }
             }
 
             sb.AppendLine("=== HẾT DỮ LIỆU ===\n");
@@ -383,9 +395,11 @@ namespace Assistant.Controllers
             var sys = new StringBuilder();
             sys.AppendLine("Bạn là trợ lý AI cá nhân, trò chuyện bằng tiếng Việt tự nhiên.");
             sys.AppendLine("Ngoài trả lời bình thường, bạn có thể NHẬN DIỆN khi người dùng muốn:");
+            sys.AppendLine("Khi người dùng hỏi về danh sách công việc/lịch trình, PHẢI liệt kê ĐẦY ĐỦ tất cả các mục có trong dữ liệu, tuyệt đối KHÔNG được tóm tắt, rút gọn hay bỏ sót bất kỳ mục nào.");
             sys.AppendLine("- Thêm một CÔNG VIỆC cần làm (task), HOẶC");
             sys.AppendLine("- Thêm một SỰ KIỆN vào lịch (event), HOẶC cả hai.");
             sys.AppendLine("Nếu câu hỏi cần thông tin real-time (thời tiết, tin tức, giá cả...), hãy dùng tool trước khi trả lời.");
+            sys.AppendLine("CHÚ Ý QUAN TRỌNG: Tool DUY NHẤT bạn được phép gọi là 'web_search'. Việc tạo CÔNG VIỆC (task) hay SỰ KIỆN (event) KHÔNG phải là tool call — đó chỉ là dữ liệu bạn điền vào trường \"actions\" trong JSON trả lời cuối cùng. TUYỆT ĐỐI KHÔNG được gọi bất kỳ hàm/tool nào tên 'create_task', 'create_event', hay tương tự — những hàm đó không tồn tại.");
             sys.AppendLine("QUAN TRỌNG: câu trả lời CUỐI CÙNG (sau khi đã có đủ thông tin) phải là JSON DUY NHẤT, không markdown, đúng cấu trúc:");
             sys.AppendLine(@"{
   ""reply"": ""câu trả lời tự nhiên"",
@@ -424,21 +438,40 @@ namespace Assistant.Controllers
                 cleaned = cleaned.Trim();
             }
 
+            // 1. Thử parse thẳng toàn bộ chuỗi
+            var parsed = TryParseAction(cleaned);
+            if (parsed != null)
+                return (parsed.Reply, parsed.Actions ?? new List<AiAction>());
+
+            // 2. Model lỡ in thêm chữ trước/sau JSON -> cắt lấy khối { ... } đầu tiên rồi thử lại
+            var firstBrace = cleaned.IndexOf('{');
+            var lastBrace = cleaned.LastIndexOf('}');
+            if (firstBrace >= 0 && lastBrace > firstBrace)
+            {
+                var jsonSlice = cleaned[firstBrace..(lastBrace + 1)];
+                parsed = TryParseAction(jsonSlice);
+                if (parsed != null)
+                    return (parsed.Reply, parsed.Actions ?? new List<AiAction>());
+            }
+
+            // 3. Thật sự không parse được -> trả nguyên văn, actions rỗng
+            return (raw, new List<AiAction>());
+        }
+
+        private AiActionResponse? TryParseAction(string text)
+        {
             try
             {
                 var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                var parsed = JsonSerializer.Deserialize<AiActionResponse>(cleaned, options);
+                var parsed = JsonSerializer.Deserialize<AiActionResponse>(text, options);
                 if (parsed != null && !string.IsNullOrWhiteSpace(parsed.Reply))
-                {
-                    return (parsed.Reply, parsed.Actions ?? new List<AiAction>());
-                }
+                    return parsed;
             }
             catch
             {
-                // AI không trả JSON hợp lệ -> coi toàn bộ nội dung là câu trả lời thường
+                // Không phải JSON hợp lệ
             }
-
-            return (raw, new List<AiAction>());
+            return null;
         }
 
         private static DateTime? ParseDateTimeVn(string? date, string? time, bool isAllDay)

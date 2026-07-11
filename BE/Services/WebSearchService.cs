@@ -48,7 +48,7 @@ namespace Assistant.Services
 
             if (json.Results != null)
                 foreach (var r in json.Results.Take(3))
-                    sb.AppendLine($"- {r.Title}: {r.Content}");
+                    sb.AppendLine($"- {r.Title}: {(r.Content.Length > 200 ? r.Content[..200] + "..." : r.Content)}");
 
             return sb.Length > 0 ? sb.ToString() : null;
         }

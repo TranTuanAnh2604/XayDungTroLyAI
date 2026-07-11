@@ -358,10 +358,7 @@ function TaskModal({ task, onClose, onSaved, existingTasks }) {
                     await createNotification({
                         title: `Nhắc nhở: ${form.title}`,
                         body: suggestion.reason,
-
-                        scheduledAt: new Date(suggestion.scheduledAt).toISOString(),
-
-                        scheduledAt: suggestion.scheduledAt, // ✅ giữ nguyên UTC string từ BE, không convert thêm
+                        scheduledAt: suggestion.scheduledAt, 
 
                     })
                 } catch (e) {

@@ -3,12 +3,29 @@ import Sidebar from '../components/Sidebar'
 import { getNotifications, createNotification, deleteNotification, suggestReminderTime } from '../services/notificationService'
 import { getTasks } from '../services/taskService'
 
+// scheduledAt từ backend là giờ Việt Nam thật (wall-clock), lưu dạng "Kind=Utc" theo convention dự án
+// -> KHÔNG convert timezone gì cả, chỉ đọc thẳng các thành phần ngày giờ trong chuỗi ISO
+function formatVnDateTime(isoString) {
+    if (!isoString) return ''
+    const match = isoString.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/)
+    if (!match) return isoString
+    const [, year, month, day, hour, minute] = match
+    return `${hour}:${minute}:00 ${day}/${month}/${year}`
+}
+
+// Trả về "giờ VN hiện tại" dạng chuỗi ISO, để so sánh string trực tiếp với scheduledAt
+// (scheduledAt trong DB là giờ VN thật lưu dạng Kind=Utc, nên so sánh string ISO là chính xác nhất)
+function getVnNowIso() {
+    const now = new Date()
+    return new Date(now.getTime() - now.getTimezoneOffset() * 60000 + 7 * 3600000).toISOString()
+}
+
 const STATUS_LABEL = { pending: 'Chờ', sent: 'Đã gửi' }
 const STATUS_COLOR = { pending: 'bg-[#eff4ff] text-[#6b38d4]', sent: 'bg-[#e6f4ea] text-[#1a6b38]' }
 const PAGE_SIZE = 5
 
 function ReminderCard({ reminder, onDelete }) {
-    const isPast = new Date(reminder.scheduledAt) < new Date()
+    const isPast = reminder.scheduledAt < getVnNowIso()
     return (
         <div className="bg-white border border-[#c6c6cd] rounded-xl p-[16px] shadow-sm flex items-start gap-[12px]">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0
@@ -28,7 +45,7 @@ function ReminderCard({ reminder, onDelete }) {
                 {reminder.body && <p className="text-[13px] text-[#45464d] mb-[4px]">{reminder.body}</p>}
                 <p className="text-[12px] text-[#45464d] flex items-center gap-[4px]">
                     <span className="material-symbols-outlined text-[13px]">schedule</span>
-                    {new Date(reminder.scheduledAt + (reminder.scheduledAt.endsWith('Z') ? '' : 'Z')).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
+                    {formatVnDateTime(reminder.scheduledAt)}
                 </p>
             </div>
             <button onClick={() => onDelete(reminder.id)}
@@ -48,7 +65,7 @@ function CreateReminderModal({ onClose, onCreated }) {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
 
-    useEffect(() => { getTasks().then(setTasks).catch(() => {}) }, [])
+    useEffect(() => { getTasks().then(setTasks).catch(() => { }) }, [])
 
     const handleSelectTask = (taskId) => {
         const task = tasks.find(t => t.id === taskId)
@@ -65,7 +82,7 @@ function CreateReminderModal({ onClose, onCreated }) {
             setAiSuggestion(suggestion)
             const localDt = new Date(suggestion.scheduledAt)
             const pad = n => String(n).padStart(2, '0')
-            const formatted = `${localDt.getFullYear()}-${pad(localDt.getMonth()+1)}-${pad(localDt.getDate())}T${pad(localDt.getHours())}:${pad(localDt.getMinutes())}`
+            const formatted = `${localDt.getFullYear()}-${pad(localDt.getMonth() + 1)}-${pad(localDt.getDate())}T${pad(localDt.getHours())}:${pad(localDt.getMinutes())}`
             setForm(f => ({ ...f, scheduledAt: formatted }))
         } catch (e) {
             setError('AI gặp lỗi: ' + e.message)
@@ -141,8 +158,11 @@ function CreateReminderModal({ onClose, onCreated }) {
 }
 
 // Component phân trang
-function Pagination({ page, totalPages, onPageChange }) {
+function Pagination({ page, totalPages, totalItems, onPageChange }) {
     if (totalPages <= 1) return null
+
+    const from = (page - 1) * PAGE_SIZE + 1
+    const to = Math.min(page * PAGE_SIZE, totalItems)
 
     // Tính range số trang hiển thị (tối đa 5 nút)
     let start = Math.max(1, page - 2)
@@ -151,8 +171,9 @@ function Pagination({ page, totalPages, onPageChange }) {
 
     return (
         <div className="flex flex-col items-center gap-[8px] mt-[16px]">
-            {/* Info */}
-            
+            <p className="text-[12px] text-[#45464d]">
+                Hiển thị {from}-{to} trong {totalItems} nhắc nhở
+            </p>
 
             {/* Nút điều hướng */}
             <div className="flex items-center gap-[6px]">
@@ -220,6 +241,11 @@ export default function Reminders() {
     // Reset về trang 1 khi đổi filter
     useEffect(() => { setPage(1) }, [filter])
 
+    const filtered = reminders.filter(r => filter === 'all' ? true : r.status === filter)
+    const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+    const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+    const pendingCount = reminders.filter(r => r.status === 'pending').length
+
     const handleDelete = async (id) => {
         if (!confirm('Xoá nhắc nhở này?')) return
         try {
@@ -233,11 +259,6 @@ export default function Reminders() {
             alert('Xoá thất bại: ' + e.message)
         }
     }
-
-    const filtered = reminders.filter(r => filter === 'all' ? true : r.status === filter)
-    const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
-    const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-    const pendingCount = reminders.filter(r => r.status === 'pending').length
 
     return (
         <div className="flex h-screen overflow-hidden" style={{ fontFamily: 'Inter, sans-serif', backgroundColor: '#f8f9ff', color: '#0b1c30' }}>

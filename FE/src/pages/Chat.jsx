@@ -35,21 +35,24 @@ export default function Chat() {
         const aiMsg = messages[aiMsgIndex];
         if (!userMsg || userMsg.role !== 'user') return;
 
-        setRegeneratingIndex(aiMsgIndex); // ← chỉ đánh dấu index này
+        setRegeneratingIndex(aiMsgIndex);
         setError("");
 
         try {
-            const isRealId = (id) => id && !String(id).startsWith('temp-')
+            // 1. Gọi AI tạo câu trả lời MỚI trước — chưa đụng gì tới dữ liệu cũ
+            await sendMessage(sessionId, userMsg.content);
+
+            // 2. Chỉ xóa cặp tin nhắn CŨ sau khi đã chắc chắn có tin nhắn mới thành công
+            const isRealId = (id) => id && !String(id).startsWith('temp-');
             if (isRealId(aiMsg?.id)) await deleteMessage(sessionId, aiMsg.id);
             if (isRealId(userMsg?.id)) await deleteMessage(sessionId, userMsg.id);
-
-            await sendMessage(sessionId, userMsg.content);
 
             const res = await getMessages(sessionId);
             setMessages(res.data || []);
         } catch (err) {
-            console.log('Regenerate error:', err.response?.data)
-            setError(err.response?.data?.message || "Không thể tạo lại câu trả lời!");
+            console.log('Regenerate error:', err.response?.data);
+            setError(err.response?.data?.messenger || "Không thể tạo lại câu trả lời!");
+            // Không mất gì cả vì chưa xóa tin nhắn cũ
         } finally {
             setRegeneratingIndex(null);
         }
@@ -112,7 +115,7 @@ export default function Chat() {
         })();
 
         return () => { isMounted = false; };
-    }, []);
+    }, [navigate]);
 
     const handleNewChat = useCallback(async () => {
         setError("");
