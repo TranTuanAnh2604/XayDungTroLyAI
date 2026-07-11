@@ -180,8 +180,8 @@ namespace Assistant.Controllers
                         Key = "Google_RefreshToken",
                         Value = googleRefreshToken,
                         Source = "system",
-                        CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc);
-                        UpdatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc);
+                        CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc),
+                        UpdatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc)
                     });
                 }
                 await _context.SaveChangesAsync();

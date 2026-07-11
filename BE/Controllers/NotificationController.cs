@@ -104,7 +104,7 @@ namespace Assistant.Controllers
             if (notification == null) return NotFound();
 
             notification.Status = "sent";
-            notification.SentAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc).AddMinutes(30);
+            notification.SentAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc);
             await _context.SaveChangesAsync();
 
             return Ok(new ApiResponse<bool>(true, "Đã đánh dấu đã gửi!"));
@@ -158,7 +158,6 @@ namespace Assistant.Controllers
                 foreach (var t in nearbyTasks)
                 {
                     var localDue = t.DueDate!.Value; // đã là giờ VN, không cần convert
-                    nearbyTasksInfo.Add($"- \"{t.Title}\" (... deadline: {localDue:dd/MM/yyyy HH:mm})");
                     var priorityLabel = t.Priority == 3 ? "Khẩn cấp" : t.Priority == 1 ? "Thấp" : "Bình thường";
                     nearbyTasksInfo.Add($"- \"{t.Title}\" (mức ưu tiên: {priorityLabel}, deadline: {localDue:dd/MM/yyyy HH:mm})");
                 }
@@ -221,7 +220,7 @@ namespace Assistant.Controllers
             {
                 ScheduledAt = request.DueDate.HasValue
                     ? request.DueDate.Value.AddDays(-1).Date.AddHours(8)
-                    : DateTime.Now.AddMinutes(30),
+                    : DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc).AddMinutes(30),
                 Reason = "Nhắc trước deadline 1 ngày lúc 8h sáng"
             };
 
@@ -259,7 +258,7 @@ namespace Assistant.Controllers
                 var localTime = suggestion!.ScheduledAt;
                 if (localTime.Kind == DateTimeKind.Unspecified)
                 {
-                    suggestion.ScheduledAt = TimeZoneInfo.ConvertTimeToUtc(localTime, vnTimeZone);
+                    suggestion.ScheduledAt = DateTime.SpecifyKind(localTime, DateTimeKind.Utc);
                 }
 
                 // Kiểm tra an toàn: đảm bảo scheduledAt luôn TRƯỚC deadline (không tin tưởng tuyệt đối vào AI)

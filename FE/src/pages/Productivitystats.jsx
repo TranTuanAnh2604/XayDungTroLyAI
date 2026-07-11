@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import Sidebar from '../components/Sidebar'
-import { getWeeklyStats } from '../services/statsService'
+import { getWeeklyStats, getMonthlyStats } from '../services/statsService'
 
 const RING_COLORS = ['#8455ef', '#565e74', '#6b38d4', '#45464d']
+const AXIS_TICKS = 4 // số mốc chia trục tung (không tính mốc 0)
 
 export default function ProductivityStats() {
     const chartRef = useRef(null)
@@ -12,16 +13,27 @@ export default function ProductivityStats() {
     const [error, setError] = useState(null)
     const [exporting, setExporting] = useState(false)
 
+    // 'week' hoặc 'month'
+    const [period, setPeriod] = useState('week')
+    // Mốc tháng đang xem (chỉ dùng khi period === 'month')
+    const [monthCursor, setMonthCursor] = useState(() => {
+        const now = new Date()
+        return { year: now.getFullYear(), month: now.getMonth() + 1 }
+    })
+
     useEffect(() => {
         let isMounted = true
         const load = async () => {
             setLoading(true)
             setError(null)
             try {
-                const data = await getWeeklyStats()
+                const data =
+                    period === 'week'
+                        ? await getWeeklyStats()
+                        : await getMonthlyStats(monthCursor.year, monthCursor.month)
                 if (isMounted) setStats(data)
             } catch (e) {
-                console.error('Không tải được thống kê tuần', e)
+                console.error('Không tải được thống kê', e)
                 if (isMounted) setError('Không tải được dữ liệu thống kê.')
             } finally {
                 if (isMounted) setLoading(false)
@@ -29,7 +41,7 @@ export default function ProductivityStats() {
         }
         load()
         return () => { isMounted = false }
-    }, [])
+    }, [period, monthCursor])
 
     useEffect(() => {
         if (!stats) return
@@ -57,12 +69,15 @@ export default function ProductivityStats() {
 
     const primaryColor = stats?.categories?.[0]?.color || '#6b38d4'
     const days = stats?.days || []
+    const periodLabel = stats?.periodLabel
 
-    // Tính giá trị lớn nhất để vẽ trục tung, làm tròn lên cho đẹp (bội số của 1h)
-    const rawMax = Math.max(...days.map((d) => d.totalMinutes || 0), 60)
-    const maxMinutes = Math.ceil(rawMax / 60) * 60
-    const AXIS_TICKS = 4 // số mốc chia (không tính mốc 0)
-    const axisTicks = Array.from({ length: AXIS_TICKS + 1 }, (_, i) => (maxMinutes / AXIS_TICKS) * (AXIS_TICKS - i))
+    // Trục tung luôn chia theo GIỜ TRÒN (1h, 2h, 3h...), không hiển thị số lẻ.
+    // Cách làm: làm tròn giá trị lớn nhất lên bội số của AXIS_TICKS giờ, để mỗi
+    // mốc chia (maxHours / AXIS_TICKS) luôn là số nguyên.
+    const rawMaxHours = Math.max(...days.map((d) => (d.totalMinutes || 0) / 60), 1)
+    const maxHours = Math.max(AXIS_TICKS, Math.ceil(rawMaxHours / AXIS_TICKS) * AXIS_TICKS)
+    const maxMinutes = maxHours * 60
+    const axisTicks = Array.from({ length: AXIS_TICKS + 1 }, (_, i) => (maxHours / AXIS_TICKS) * (AXIS_TICKS - i))
 
     const formatMinutes = (mins) => {
         if (mins <= 0) return '0h'
@@ -75,6 +90,22 @@ export default function ProductivityStats() {
 
     const overallLabel =
         overallRate >= 80 ? 'Tuyệt vời!' : overallRate >= 50 ? 'Khá tốt' : overallRate > 0 ? 'Cần cố gắng hơn' : 'Chưa có dữ liệu'
+
+    const goToPrevMonth = () => {
+        setMonthCursor((prev) => {
+            const month = prev.month === 1 ? 12 : prev.month - 1
+            const year = prev.month === 1 ? prev.year - 1 : prev.year
+            return { year, month }
+        })
+    }
+
+    const goToNextMonth = () => {
+        setMonthCursor((prev) => {
+            const month = prev.month === 12 ? 1 : prev.month + 1
+            const year = prev.month === 12 ? prev.year + 1 : prev.year
+            return { year, month }
+        })
+    }
 
     const handleExportPdf = async () => {
         if (!reportRef.current || exporting) return
@@ -100,7 +131,8 @@ export default function ProductivityStats() {
             pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height)
 
             const dateStr = new Date().toISOString().slice(0, 10)
-            pdf.save(`bao-cao-nang-suat-${dateStr}.pdf`)
+            const suffix = period === 'week' ? 'tuan' : 'thang'
+            pdf.save(`bao-cao-nang-suat-${suffix}-${dateStr}.pdf`)
         } catch (e) {
             console.error('Xuất PDF thất bại', e)
             alert('Xuất báo cáo thất bại, vui lòng thử lại.')
@@ -125,16 +157,55 @@ export default function ProductivityStats() {
                                 Báo cáo &amp; Phân tích năng suất
                             </h2>
                             <p className="text-[14px] leading-[1.4] text-[#45464d]">
-                                {days.length
-                                    ? `Dữ liệu tuần từ ${new Date(days[0].date).toLocaleDateString('vi-VN')} đến ${new Date(days[days.length - 1].date).toLocaleDateString('vi-VN')}`
-                                    : 'Dữ liệu tổng hợp tuần này'}
+                                {periodLabel
+                                    ? `Dữ liệu: ${periodLabel}`
+                                    : period === 'week'
+                                        ? 'Dữ liệu tổng hợp tuần này'
+                                        : 'Dữ liệu tổng hợp tháng này'}
                             </p>
                         </div>
-                        <div className="flex gap-[12px]">
-                            <button className="px-[14px] py-[7px] bg-white/70 backdrop-blur-md border border-[#e2e8f0] rounded-lg text-[13px] font-medium flex items-center gap-[6px] hover:bg-[#dce9ff] transition-colors">
-                                <span className="material-symbols-outlined text-[18px]">calendar_month</span>
-                                7 ngày qua
-                            </button>
+                        <div className="flex items-center gap-[12px]">
+                            {/* Toggle Tuần / Tháng */}
+                            <div className="flex items-center bg-white/70 backdrop-blur-md border border-[#e2e8f0] rounded-lg p-[3px] text-[13px] font-medium">
+                                <button
+                                    onClick={() => setPeriod('week')}
+                                    className={`px-[12px] py-[6px] rounded-md transition-colors ${period === 'week' ? 'bg-black text-white' : 'text-[#45464d] hover:bg-[#dce9ff]'
+                                        }`}
+                                >
+                                    Tuần
+                                </button>
+                                <button
+                                    onClick={() => setPeriod('month')}
+                                    className={`px-[12px] py-[6px] rounded-md transition-colors ${period === 'month' ? 'bg-black text-white' : 'text-[#45464d] hover:bg-[#dce9ff]'
+                                        }`}
+                                >
+                                    Tháng
+                                </button>
+                            </div>
+
+                            {/* Điều hướng tháng trước/sau - chỉ hiện khi đang xem theo tháng */}
+                            {period === 'month' && (
+                                <div className="flex items-center gap-[4px] bg-white/70 backdrop-blur-md border border-[#e2e8f0] rounded-lg px-[6px] py-[5px]">
+                                    <button
+                                        onClick={goToPrevMonth}
+                                        className="w-[26px] h-[26px] flex items-center justify-center rounded-md hover:bg-[#dce9ff] transition-colors"
+                                        title="Tháng trước"
+                                    >
+                                        <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                                    </button>
+                                    <span className="text-[13px] font-medium px-[4px] min-w-[64px] text-center">
+                                        {monthCursor.month}/{monthCursor.year}
+                                    </span>
+                                    <button
+                                        onClick={goToNextMonth}
+                                        className="w-[26px] h-[26px] flex items-center justify-center rounded-md hover:bg-[#dce9ff] transition-colors"
+                                        title="Tháng sau"
+                                    >
+                                        <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                                    </button>
+                                </div>
+                            )}
+
                             <button
                                 onClick={handleExportPdf}
                                 disabled={exporting}
@@ -157,11 +228,11 @@ export default function ProductivityStats() {
                     {/* Khu vực nội dung chính: chiếm hết phần còn lại, chia 2 cột */}
                     <div ref={reportRef} className="flex-1 min-h-0 grid grid-cols-12 gap-[16px]">
 
-                        {/* Section 1: Weekly Time Statistics - 8/12 cột, full chiều cao */}
+                        {/* Section 1: Time Statistics - 8/12 cột, full chiều cao */}
                         <div className="col-span-8 h-full min-h-0 bg-white/70 backdrop-blur-md border border-[#e2e8f0] p-[20px] rounded-xl shadow-sm flex flex-col">
                             <div className="shrink-0 flex justify-between items-center mb-[16px]">
                                 <h3 className="text-[18px] leading-[1.3] font-semibold">
-                                    Thống kê thời gian tuần này
+                                    {period === 'week' ? 'Thống kê thời gian tuần này' : 'Thống kê thời gian tháng này'}
                                 </h3>
                                 <div className="flex items-center gap-[12px]">
                                     <span className="flex items-center gap-[4px] text-[13px] font-medium">
@@ -177,23 +248,23 @@ export default function ProductivityStats() {
                                 </div>
                             ) : days.length === 0 ? (
                                 <div className="flex-1 min-h-0 flex items-center justify-center text-[#76777d] text-[13px]">
-                                    Chưa có dữ liệu time tracking cho tuần này
+                                    Chưa có dữ liệu time tracking cho {period === 'week' ? 'tuần' : 'tháng'} này
                                 </div>
                             ) : (
                                 <div ref={chartRef} className="flex-1 min-h-0 flex gap-[10px]">
-                                    {/* Trục tung: hiển thị mốc thời gian */}
+                                    {/* Trục tung: hiển thị mốc thời gian theo giờ tròn */}
                                     <div
                                         className="shrink-0 flex flex-col justify-between items-end text-right"
                                         style={{ width: '38px', paddingBottom: '26px' }}
                                     >
                                         {axisTicks.map((t, idx) => (
                                             <span key={idx} className="text-[11px] leading-none text-[#94a3b8]">
-                                                {formatMinutes(t)}
+                                                {t}h
                                             </span>
                                         ))}
                                     </div>
 
-                                    {/* Khu vực cột + nhãn ngày */}
+                                    {/* Khu vực cột + nhãn */}
                                     <div className="flex-1 min-h-0 flex flex-col">
                                         <div className="relative flex-1 min-h-0 flex items-end justify-between gap-4 px-[8px]">
                                             {/* Gridline ngang khớp với từng mốc trục tung */}
@@ -201,7 +272,7 @@ export default function ProductivityStats() {
                                                 <div
                                                     key={idx}
                                                     className="absolute left-0 right-0 border-t border-dashed border-[#e5eaf3]"
-                                                    style={{ bottom: `${(t / maxMinutes) * 100}%` }}
+                                                    style={{ bottom: `${(t / maxHours) * 100}%` }}
                                                 ></div>
                                             ))}
 
@@ -213,7 +284,7 @@ export default function ProductivityStats() {
                                                             className="w-8 rounded-t-sm chart-bar-transition hover:opacity-80"
                                                             style={{ backgroundColor: primaryColor, height: `${heightPercent}%`, transition: 'height 1s ease-out' }}
                                                             data-height={`${heightPercent}%`}
-                                                            title={`${item.totalMinutes} phút`}
+                                                            title={formatMinutes(item.totalMinutes)}
                                                         ></div>
                                                     </div>
                                                 )
@@ -221,9 +292,16 @@ export default function ProductivityStats() {
                                         </div>
                                         <div className="shrink-0 flex justify-between gap-4 px-[8px] pt-[6px]">
                                             {days.map((item) => (
-                                                <span key={item.label + item.date} className="flex-1 text-center text-[13px] font-medium text-[#45464d]">
-                                                    {item.label}
-                                                </span>
+                                                <div key={item.label + item.date} className="flex-1 flex flex-col items-center text-center">
+                                                    <span className="text-[13px] font-medium text-[#45464d]">
+                                                        {item.label}
+                                                    </span>
+                                                    {item.dateRangeLabel && (
+                                                        <span className="text-[11px] text-[#94a3b8] leading-tight">
+                                                            {item.dateRangeLabel}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             ))}
                                         </div>
                                     </div>
@@ -285,7 +363,9 @@ export default function ProductivityStats() {
 
                             <div className="shrink-0 mt-[16px] pt-[16px] border-t border-[#c6c6cd]">
                                 <div className="flex justify-between items-center mb-[8px]">
-                                    <span className="text-[13px] text-[#45464d]">Tổng thể tuần này</span>
+                                    <span className="text-[13px] text-[#45464d]">
+                                        {period === 'week' ? 'Tổng thể tuần này' : 'Tổng thể tháng này'}
+                                    </span>
                                     <span className="text-[13px] font-bold text-[#6b38d4]">{overallLabel}</span>
                                 </div>
                                 <div className="w-full h-2 bg-[#d3e4fe] rounded-full overflow-hidden">

@@ -100,7 +100,7 @@ namespace Assistant.Controllers
                 Location = req.Location,
                 Source = req.Source ?? "manual",
                 IsAllDay = req.IsAllDay,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc),
                 Priority = req.Priority,
             };
 
