@@ -17,11 +17,13 @@ namespace Assistant.Controllers
     {
         private readonly AppDbContext _context;
         private readonly GroqService _groqService;
+        private readonly WebSearchService _webSearchService;
 
-        public ChatController(AppDbContext context, GroqService groqService)
+        public ChatController(AppDbContext context, GroqService groqService, WebSearchService webSearchService)
         {
             _context = context;
             _groqService = groqService;
+            _webSearchService = webSearchService;
         }
 
         private Guid GetUserId() => Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -125,14 +127,14 @@ namespace Assistant.Controllers
             var userDataContext = await BuildUserDataContextAsync(userId);
             var vnNow = GetVietnamNow();
 
-            // 3. Build prompt yêu cầu AI trả JSON gồm reply + actions (task/event)
-            var prompt = BuildPromptWithAction(recentMessages, request.Content, userDataContext, vnNow);
+            // 3. Build prompt như cũ, nhưng tách để dùng tool-calling
+            var (systemPrompt, userPrompt) = BuildPromptParts(recentMessages, request.Content, userDataContext, vnNow);
 
-            // 4. Gọi AI TRƯỚC — nếu lỗi thì KHÔNG đụng gì tới DB
+            // 4. Gọi AI có khả năng tự search khi cần
             string rawAiResponse;
             try
             {
-                rawAiResponse = await _groqService.ChatAsync(prompt);
+                rawAiResponse = await _groqService.ChatWithToolsAsync(systemPrompt, userPrompt, _webSearchService);
             }
             catch (Exception ex)
             {
@@ -376,58 +378,36 @@ namespace Assistant.Controllers
 
         // ============ HELPER MỚI: PROMPT YÊU CẦU AI TRẢ JSON (reply + actions) ============
 
-        private string BuildPromptWithAction(List<ChatMessage> history, string newMessage, string? userDataContext, DateTime vnNow)
+        private (string systemPrompt, string userPrompt) BuildPromptParts(List<ChatMessage> history, string newMessage, string? userDataContext, DateTime vnNow)
         {
-            var sb = new StringBuilder();
-
-            sb.AppendLine("Bạn là trợ lý AI cá nhân, trò chuyện bằng tiếng Việt tự nhiên.");
-            sb.AppendLine("Ngoài trả lời bình thường, bạn có thể NHẬN DIỆN khi người dùng muốn:");
-            sb.AppendLine("- Thêm một CÔNG VIỆC cần làm (task), HOẶC");
-            sb.AppendLine("- Thêm một SỰ KIỆN vào lịch (event), HOẶC");
-            sb.AppendLine("- Cả hai cùng lúc.");
-            sb.AppendLine("Ví dụ: \"tôi họp lúc 2h chiều nay\" => tạo 1 event \"Họp\" lúc 14:00 hôm nay.");
-            sb.AppendLine("Ví dụ: \"nhắc tôi nộp báo cáo trước thứ 6\" => tạo 1 task \"Nộp báo cáo\", hạn là thứ 6 tuần này.");
-            sb.AppendLine();
-            sb.AppendLine("QUAN TRỌNG: CHỈ trả lời bằng một JSON hợp lệ DUY NHẤT, không thêm chữ nào khác, không dùng markdown code fence (```), đúng cấu trúc sau:");
-            sb.AppendLine(@"{
-  ""reply"": ""câu trả lời tự nhiên bằng tiếng Việt cho người dùng, xác nhận rõ nếu đã thêm task/lịch"",
-  ""actions"": [
-    {
-      ""type"": ""task hoặc event"",
-      ""title"": ""tiêu đề ngắn gọn"",
-      ""date"": ""yyyy-MM-dd"",
-      ""time"": ""HH:mm hoặc null"",
-      ""endTime"": ""HH:mm hoặc null (chỉ dùng cho event, nếu không rõ thì lấy time cộng 1 giờ)"",
-      ""isAllDay"": false,
-      ""priority"": ""urgent | normal | low"",
-      ""location"": ""địa điểm hoặc null""
-    }
-  ]
+            var sys = new StringBuilder();
+            sys.AppendLine("Bạn là trợ lý AI cá nhân, trò chuyện bằng tiếng Việt tự nhiên.");
+            sys.AppendLine("Ngoài trả lời bình thường, bạn có thể NHẬN DIỆN khi người dùng muốn:");
+            sys.AppendLine("- Thêm một CÔNG VIỆC cần làm (task), HOẶC");
+            sys.AppendLine("- Thêm một SỰ KIỆN vào lịch (event), HOẶC cả hai.");
+            sys.AppendLine("Nếu câu hỏi cần thông tin real-time (thời tiết, tin tức, giá cả...), hãy dùng tool trước khi trả lời.");
+            sys.AppendLine("QUAN TRỌNG: câu trả lời CUỐI CÙNG (sau khi đã có đủ thông tin) phải là JSON DUY NHẤT, không markdown, đúng cấu trúc:");
+            sys.AppendLine(@"{
+  ""reply"": ""câu trả lời tự nhiên"",
+  ""actions"": [ { ""type"": ""task hoặc event"", ""title"": ""..."", ""date"": ""yyyy-MM-dd"", ""time"": ""HH:mm hoặc null"", ""endTime"": ""HH:mm hoặc null"", ""isAllDay"": false, ""priority"": ""urgent|normal|low"", ""location"": ""... hoặc null"" } ]
 }");
-            sb.AppendLine("Nếu người dùng KHÔNG có ý định thêm task/lịch, trả về \"actions\": [].");
-            sb.AppendLine($"Hôm nay là {vnNow:dd/MM/yyyy} ({GetVietnameseDayOfWeek(vnNow.DayOfWeek)}), giờ hiện tại {vnNow:HH:mm}. Hãy tính ngày cụ thể (yyyy-MM-dd) dựa trên mốc này khi người dùng nói \"hôm nay\", \"ngày mai\", \"thứ 6 tuần này\"...");
-            sb.AppendLine();
+            sys.AppendLine("Nếu không có ý định thêm task/lịch, trả \"actions\": [].");
+            sys.AppendLine($"Hôm nay là {vnNow:dd/MM/yyyy} ({GetVietnameseDayOfWeek(vnNow.DayOfWeek)}), giờ hiện tại {vnNow:HH:mm}.");
 
             if (!string.IsNullOrEmpty(userDataContext))
-            {
-                sb.AppendLine(userDataContext);
-            }
+                sys.AppendLine(userDataContext);
 
+            var usr = new StringBuilder();
             if (history.Count > 0)
             {
-                sb.AppendLine("Lịch sử hội thoại gần đây:");
+                usr.AppendLine("Lịch sử hội thoại gần đây:");
                 foreach (var msg in history)
-                {
-                    var roleLabel = msg.Role == "user" ? "Người dùng" : "Trợ lý";
-                    sb.AppendLine($"{roleLabel}: {msg.Content}");
-                }
-                sb.AppendLine();
+                    usr.AppendLine($"{(msg.Role == "user" ? "Người dùng" : "Trợ lý")}: {msg.Content}");
+                usr.AppendLine();
             }
+            usr.AppendLine($"Người dùng: {newMessage}");
 
-            sb.AppendLine($"Người dùng: {newMessage}");
-            sb.AppendLine("Trợ lý (chỉ JSON):");
-
-            return sb.ToString();
+            return (sys.ToString(), usr.ToString());
         }
 
         private (string reply, List<AiAction> actions) ParseAiActionResponse(string raw)

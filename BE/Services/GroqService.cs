@@ -246,6 +246,110 @@ namespace Assistant.Services
             }
         }
 
+        public async Task<string> ChatWithToolsAsync(string systemPrompt, string userPrompt, WebSearchService webSearchService)
+        {
+            string url = "https://api.groq.com/openai/v1/chat/completions";
+
+            var tools = new object[]
+            {
+        new
+        {
+            type = "function",
+            function = new
+            {
+                name = "web_search",
+                description = "Tìm kiếm thông tin mới nhất trên Internet (thời tiết, tin tức, giá cả, sự kiện hiện tại, hoặc bất kỳ thông tin cần cập nhật real-time). CHỈ dùng khi câu hỏi thực sự cần thông tin mới, không dùng cho câu hỏi thông thường hoặc dữ liệu cá nhân đã có sẵn.",
+                parameters = new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        query = new
+                        {
+                            type = "string",
+                            description = "Từ khóa tìm kiếm ngắn gọn, rõ nghĩa"
+                        }
+                    },
+                    required = new[] { "query" }
+                }
+            }
+        }
+            };
+
+            var messages = new List<object>
+    {
+        new { role = "system", content = systemPrompt },
+        new { role = "user", content = userPrompt }
+    };
+
+            // Lượt 1: cho AI quyền tự quyết có cần gọi tool không
+            var firstRequest = new
+            {
+                model = "llama-3.1-8b-instant",
+                messages,
+                tools,
+                tool_choice = "auto",
+                temperature = 0.3
+            };
+
+            var firstRes = await _httpClient.PostAsync(url,
+                new StringContent(JsonSerializer.Serialize(firstRequest), Encoding.UTF8, "application/json"));
+            var firstStr = await firstRes.Content.ReadAsStringAsync();
+            if (!firstRes.IsSuccessStatusCode)
+                throw new Exception($"Lỗi từ Groq: {firstStr}");
+
+            var firstMessage = JsonNode.Parse(firstStr)?["choices"]?[0]?["message"];
+            var toolCalls = firstMessage?["tool_calls"]?.AsArray();
+
+            // AI không cần search -> trả lời luôn
+            if (toolCalls == null || toolCalls.Count == 0)
+                return firstMessage?["content"]?.ToString() ?? "AI không có phản hồi.";
+
+            // AI muốn gọi tool -> ghi lại message assistant kèm tool_calls
+            messages.Add(new
+            {
+                role = "assistant",
+                content = firstMessage?["content"]?.ToString(),
+                tool_calls = JsonNode.Parse(toolCalls.ToJsonString())
+            });
+
+            // Thực thi từng tool_call thật sự
+            foreach (var call in toolCalls)
+            {
+                var toolCallId = call?["id"]?.ToString() ?? "";
+                var funcName = call?["function"]?["name"]?.ToString();
+                var argsRaw = call?["function"]?["arguments"]?.ToString() ?? "{}";
+
+                string toolResultText = "Không tìm được kết quả.";
+                if (funcName == "web_search")
+                {
+                    try
+                    {
+                        var query = JsonNode.Parse(argsRaw)?["query"]?.ToString() ?? "";
+                        var result = await webSearchService.SearchAsync(query);
+                        toolResultText = result ?? "Không tìm thấy kết quả liên quan, trả lời dựa trên kiến thức sẵn có.";
+                    }
+                    catch
+                    {
+                        toolResultText = "Lỗi khi tìm kiếm, hãy trả lời dựa trên kiến thức sẵn có.";
+                    }
+                }
+
+                messages.Add(new { role = "tool", tool_call_id = toolCallId, content = toolResultText });
+            }
+
+            // Lượt 2: AI đọc kết quả search thật rồi trả lời cuối cùng
+            var secondRequest = new { model = "llama-3.1-8b-instant", messages, temperature = 0.3 };
+            var secondRes = await _httpClient.PostAsync(url,
+                new StringContent(JsonSerializer.Serialize(secondRequest), Encoding.UTF8, "application/json"));
+            var secondStr = await secondRes.Content.ReadAsStringAsync();
+            if (!secondRes.IsSuccessStatusCode)
+                throw new Exception($"Lỗi từ Groq (lượt 2): {secondStr}");
+
+            return JsonNode.Parse(secondStr)?["choices"]?[0]?["message"]?["content"]?.ToString()
+                ?? "AI không có phản hồi.";
+        }
+
         private static string GetVietnameseDayOfWeek(DayOfWeek day) => day switch
         {
             DayOfWeek.Monday => "Thứ Hai",

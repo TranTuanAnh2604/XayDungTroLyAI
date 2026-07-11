@@ -43,6 +43,7 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.AddHttpClient<WebSearchService>();
 builder.Services.AddHttpClient<GmailService>();
 builder.Services.AddScoped<GmailService>();
 builder.Services.AddScoped<ITimeTrackingService, TimeTrackingService>();
