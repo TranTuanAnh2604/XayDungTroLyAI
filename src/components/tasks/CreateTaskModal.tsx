@@ -12,10 +12,11 @@ interface CreateTaskModalProps {
   visible: boolean;
   onClose: () => void;
   onSaved: () => void;
+  onOptimisticCreate?: (task: any) => void;
   onVoicePress: () => void;
 }
 
-export default function CreateTaskModal({ visible, onClose, onSaved, onVoicePress }: CreateTaskModalProps) {
+export default function CreateTaskModal({ visible, onClose, onSaved, onOptimisticCreate, onVoicePress }: CreateTaskModalProps) {
   const { colors: COLORS } = useTheme();
   const typography = useMemo(() => getTypography(COLORS), [COLORS]);
   const s = useMemo(() => createStyles(COLORS, typography), [COLORS, typography]);
@@ -46,30 +47,47 @@ export default function CreateTaskModal({ visible, onClose, onSaved, onVoicePres
 
   const handleCreate = async () => {
     if (!formData.title.trim() || !formData.dueDate) return;
+    
+    const optimisticId = `opt-${Date.now()}`;
+    const optimisticTask = {
+      id: optimisticId,
+      title: formData.title.trim(),
+      description: formData.description.trim(),
+      priority: formData.priority,
+      dueDate: formData.dueDate.toISOString(),
+      createdAt: new Date().toISOString(),
+      completed: false,
+      itemType: formData.type,
+      meta: `Tạo: ${new Date().toLocaleDateString('vi-VN')}`
+    };
+
+    if (onOptimisticCreate) {
+      onOptimisticCreate(optimisticTask);
+    }
+    
+    resetForm();
+    onClose();
+
     try {
-      setIsSubmitting(true);
       if (formData.type === 'task') {
         await tasksApi.createTask(
           formData.title.trim(),
           formData.description.trim(),
           formData.priority,
-          formData.dueDate?.toISOString()
+          formData.dueDate.toISOString()
         );
       } else {
-        const targetDate = formData.dueDate ? formData.dueDate.toISOString() : new Date().toISOString();
+        const targetDate = formData.dueDate.toISOString();
         await tasksApi.createTodo(
           formData.title.trim(),
           formData.description.trim(),
           targetDate
         );
       }
-      resetForm();
       onSaved();
-      onClose();
     } catch (error) {
       console.error('Lỗi không thể tạo mới:', error);
-    } finally {
-      setIsSubmitting(false);
+      onSaved(); // Triggers a reload to fix UI if creation failed
     }
   };
 

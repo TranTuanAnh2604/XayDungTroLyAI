@@ -14,15 +14,17 @@ interface TaskDetailModalProps {
   visible: boolean;
   onClose: () => void;
   onSaved: () => void;
+  onOptimisticUpdate?: (updatedData: any) => void;
   onDelete: (item: ExtendedTaskItem) => void;
   onToggleCompletion: (item: ExtendedTaskItem) => void;
 }
 
 export default function TaskDetailModal({
-  item,
   visible,
+  item,
   onClose,
   onSaved,
+  onOptimisticUpdate,
   onDelete,
   onToggleCompletion,
 }: TaskDetailModalProps) {
@@ -67,6 +69,19 @@ export default function TaskDetailModal({
 
     setIsSubmitting(true);
     try {
+      setIsEditMode(false);
+
+      if (onOptimisticUpdate) {
+        onOptimisticUpdate({
+          id: item.id,
+          title: formData.title.trim(),
+          description: formData.description.trim(),
+          priority: formData.priority,
+          dueDate: formData.dueDate ? formData.dueDate.toISOString() : undefined,
+          itemType: item.itemType,
+        });
+      }
+
       if (item.itemType === 'task') {
         await tasksApi.updateTask(item.id, {
           title: formData.title.trim(),
@@ -83,10 +98,10 @@ export default function TaskDetailModal({
         });
       }
       onSaved();
-      setIsEditMode(false);
     } catch (error) {
       console.error('Lỗi khi cập nhật:', error);
       Alert.alert('Lỗi', 'Không thể cập nhật, vui lòng thử lại.');
+      onSaved(); // Triggers a reload to fix UI if update failed
     } finally {
       setIsSubmitting(false);
     }

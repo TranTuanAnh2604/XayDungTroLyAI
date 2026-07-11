@@ -11,6 +11,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '../../../hooks/useTheme';
 import { RADIUS } from '../../../constants/theme';
 import { getTypography } from '../../../constants/typography';
+import { detectEventType } from '../../../utils/eventTypeDetection';
 
 export type TaskFormData = {
   type: 'task' | 'todo';
@@ -80,7 +81,13 @@ export default function TaskFormFields({
         placeholder="Tiêu đề công việc..."
         placeholderTextColor={COLORS.outline}
         value={data.title}
-        onChangeText={(title) => update({ title })}
+        onChangeText={(text) => {
+          const updates: Partial<TaskFormData> = { title: text };
+          if (detectEventType(text) === 'urgent' && data.priority !== 'high' && data.type === 'task') {
+            updates.priority = 'high';
+          }
+          update(updates);
+        }}
         editable={!isReadOnly}
       />
 
@@ -103,7 +110,13 @@ export default function TaskFormFields({
               styles.prioBadge,
               data.priority === 'normal' && styles.prioBadgeActive,
             ]}
-            onPress={() => update({ priority: 'normal' })}
+            onPress={() => {
+              const updates: Partial<TaskFormData> = { priority: 'normal' };
+              if (data.title.includes(' (Khẩn cấp)')) {
+                updates.title = data.title.replace(' (Khẩn cấp)', '');
+              }
+              update(updates);
+            }}
             disabled={isReadOnly}
           >
             <Text
@@ -122,7 +135,13 @@ export default function TaskFormFields({
               styles.prioHigh,
               data.priority === 'high' && styles.prioBadgeHighActive,
             ]}
-            onPress={() => update({ priority: 'high' })}
+            onPress={() => {
+              const updates: Partial<TaskFormData> = { priority: 'high' };
+              if (detectEventType(data.title) !== 'urgent') {
+                updates.title = data.title.trim() + ' (Khẩn cấp)';
+              }
+              update(updates);
+            }}
             disabled={isReadOnly}
           >
             <Text

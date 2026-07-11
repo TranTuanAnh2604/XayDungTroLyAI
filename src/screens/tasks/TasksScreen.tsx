@@ -13,7 +13,8 @@ import {
   Platform,
   ScrollView,
   Pressable,
-  RefreshControl
+  RefreshControl,
+  DeviceEventEmitter
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import TaskFilterChips from '../../components/tasks/TaskFilterChips';
@@ -33,6 +34,7 @@ import VoiceTaskModal from '../../components/tasks/VoiceTaskModal';
 import CreateTaskModal from '../../components/tasks/CreateTaskModal';
 import TaskDetailModal from '../../components/tasks/TaskDetailModal';
 import { useTheme } from '../../hooks/useTheme';
+import { detectEventType } from '../../utils/eventTypeDetection';
 
 let cachedTasks: ExtendedTaskItem[] | null = null;
 let cachedTodos: ExtendedTaskItem[] | null = null;
@@ -108,7 +110,7 @@ export default function TasksScreen() {
         const rawTodos = Array.isArray(todosData) ? todosData : ((todosData as any)?.data || []);
 
         const mappedTasks: ExtendedTaskItem[] = rawTasks.map((t: any) => {
-          const isHigh = t.priority === 'high' || t.priority === 3;
+          const isHigh = t.priority === 'high' || t.priority === 3 || detectEventType(t.title || t.Title || '') === 'urgent';
 
           let timeMeta = `Tạo: ${new Date(t.createdAt || t.CreatedAt || Date.now()).toLocaleDateString('vi-VN')}`;
           if (t.dueDate || t.DueDate) {
@@ -171,9 +173,22 @@ export default function TasksScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      fetchData(true);
+      fetchData(false, true);
     }, [fetchData])
   );
+
+  useEffect(() => {
+    const taskSub = DeviceEventEmitter.addListener('tasks_changed', () => {
+      fetchData(true, true);
+    });
+    const eventSub = DeviceEventEmitter.addListener('events_changed', () => {
+      fetchData(true, true);
+    });
+    return () => {
+      taskSub.remove();
+      eventSub.remove();
+    };
+  }, [fetchData]);
 
   const handleToggleTask = useCallback((id: string, currentCompleted: boolean, itemType: 'task' | 'todo') => {
     if (itemType === 'task') {
@@ -187,11 +202,11 @@ export default function TasksScreen() {
         if (selectedItem && selectedItem.id === id) {
           setSelectedItem(prev => prev ? { ...prev, completed: !currentCompleted, completedAt: !currentCompleted ? new Date().toISOString() : undefined } : null);
         }
-        fetchData(true, true);
+        fetchData(false, true);
       })
       .catch((error) => {
         console.error('Lỗi cập nhật trạng thái:', error);
-        fetchData(true, true);
+        fetchData(false, true);
       });
   }, [selectedItem, fetchData]);
 
@@ -208,11 +223,15 @@ export default function TasksScreen() {
             try {
               setSelectedItem(null);
               if (item.itemType === 'task') {
+                setTasks(prev => prev.filter(t => t.id !== item.id));
+                if (cachedTasks) cachedTasks = cachedTasks.filter(t => t.id !== item.id);
                 await tasksApi.deleteTask(item.id);
               } else {
+                setTodos(prev => prev.filter(t => t.id !== item.id));
+                if (cachedTodos) cachedTodos = cachedTodos.filter(t => t.id !== item.id);
                 await tasksApi.deleteTodo(item.id);
               }
-              await fetchData(true, true);
+              await fetchData(false, true);
             } catch (err) {
               console.error('Lỗi khi xóa:', err);
               Alert.alert('Thất bại', 'Không thể xóa tác vụ này vào lúc này.');
@@ -226,11 +245,22 @@ export default function TasksScreen() {
   const progressData = useMemo(() => {
     const totalItems = tasks.length + todos.length;
     const completedItems = tasks.filter(t => t.completed).length + todos.filter(t => t.completed).length;
+
+    let productivityText = '';
+    if (totalItems > 0) {
+      const percentage = completedItems / totalItems;
+      if (percentage === 1) productivityText = 'Hoàn thành xuất sắc';
+      else if (percentage >= 0.7) productivityText = 'Năng suất tốt';
+      else if (percentage >= 0.4) productivityText = 'Đang tiến triển';
+      else if (percentage > 0) productivityText = 'Mới bắt đầu';
+      else productivityText = 'Chưa bắt đầu';
+    }
+
     return {
       completed: completedItems,
       total: totalItems,
       subtitle: totalItems > 0
-        ? `${completedItems}/${totalItems} Hoàn thành • Năng suất tốt`
+        ? `${completedItems}/${totalItems} Hoàn thành • ${productivityText}`
         : 'Hôm nay chưa có công việc nào',
     };
   }, [tasks, todos]);
@@ -315,7 +345,16 @@ export default function TasksScreen() {
       <CreateTaskModal
         visible={isModalVisible}
         onClose={() => setIsModalVisible(false)}
-        onSaved={() => fetchData(true, true)}
+        onSaved={() => fetchData(false, true)}
+        onOptimisticCreate={(task) => {
+          if (task.itemType === 'task') {
+            setTasks(prev => [task, ...prev]);
+            if (cachedTasks) cachedTasks = [task, ...cachedTasks];
+          } else {
+            setTodos(prev => [task, ...prev]);
+            if (cachedTodos) cachedTodos = [task, ...cachedTodos];
+          }
+        }}
         onVoicePress={() => setIsVoiceModalVisible(true)}
       />
 
@@ -323,7 +362,19 @@ export default function TasksScreen() {
         visible={!!selectedItem}
         item={selectedItem}
         onClose={() => setSelectedItem(null)}
-        onSaved={() => fetchData(true, true)}
+        onSaved={() => fetchData(false, true)}
+        onOptimisticUpdate={(updatedData) => {
+          if (updatedData.itemType === 'task') {
+            setTasks(prev => prev.map(t => t.id === updatedData.id ? { ...t, ...updatedData } : t));
+            if (cachedTasks) cachedTasks = cachedTasks.map(t => t.id === updatedData.id ? { ...t, ...updatedData } : t);
+          } else {
+            setTodos(prev => prev.map(t => t.id === updatedData.id ? { ...t, ...updatedData } : t));
+            if (cachedTodos) cachedTodos = cachedTodos.map(t => t.id === updatedData.id ? { ...t, ...updatedData } : t);
+          }
+          if (selectedItem && selectedItem.id === updatedData.id) {
+            setSelectedItem(prev => prev ? { ...prev, ...updatedData } : null);
+          }
+        }}
         onDelete={(item) => handleDeleteItem(item)}
         onToggleCompletion={(item) => handleToggleTask(item.id, item.completed, item.itemType)}
       />

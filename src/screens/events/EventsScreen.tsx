@@ -206,6 +206,20 @@ export default function EventsScreen() {
     [allEvents, selectedDateId],
   );
 
+  const importantDates = useMemo(() => {
+    const counts: Record<string, number> = {};
+    allEvents.forEach(e => {
+      if (e.type === 'urgent' && e.date) {
+        counts[e.date] = (counts[e.date] || 0) + 1;
+      }
+    });
+    const result = new Set<string>();
+    Object.entries(counts).forEach(([date, count]) => {
+      if (count >= 1) result.add(date);
+    });
+    return result;
+  }, [allEvents]);
+
   const editingEvent = useMemo(() => {
     if (!editingEventId) {
       return null;
@@ -728,6 +742,7 @@ export default function EventsScreen() {
 
       <MonthCalendar
         selectedDateId={selectedDateId}
+        importantDates={importantDates}
         onSelect={setSelectedDateId}
       />
 
@@ -757,6 +772,21 @@ export default function EventsScreen() {
             }
           }
 
+          // Optimistic UI update
+          const optimisticId = `opt-${Date.now()}`;
+          const optimisticEvent: CalendarSyncRequest = {
+            ...event,
+            id: optimisticId,
+            source: event.source || 'app',
+          };
+          
+          const optimisticTimelineEvent = mapCalendarEventToTimelineEvent(optimisticEvent, allEvents.length);
+          
+          setRawCalendarEvents(prev => [...prev, optimisticEvent]);
+          setAllEvents(prev => [...prev, optimisticTimelineEvent]);
+          setSelectedDateId(formatLocalDateId(new Date(event.startTime)));
+          setIsCreateModalOpen(false);
+
           let createdEvent;
           try {
             console.log('[1] Sending create event request');
@@ -764,11 +794,15 @@ export default function EventsScreen() {
             console.log('[2] Create event response parsed successfully');
           } catch (createError: any) {
             console.error('Failed to create calendar event (API):', createError);
-            throw createError; // Rethrow to let CreateEventModal handle it and show error
+            // Revert optimistic update
+            setRawCalendarEvents(prev => prev.filter(e => e.id !== optimisticId));
+            setAllEvents(prev => prev.filter(e => e.id !== optimisticId));
+            setError(createError?.message || 'Không thể tạo sự kiện.');
+            return; // Exit early without throwing, as the modal is already closed
           }
 
           try {
-            console.log('[3] Updating local state');
+            console.log('[3] Updating local state with real event');
             const savedEvent = {
               ...createdEvent,
               source: event.source || 'app',
@@ -788,13 +822,17 @@ export default function EventsScreen() {
               ...savedEvent,
               notificationId: reminderNotificationId ?? undefined,
             };
+            
             const nextEvents = [
-              ...allEvents,
+              ...allEvents.filter(e => e.id !== optimisticId),
               mapCalendarEventToTimelineEvent(eventWithReminder, allEvents.length),
             ];
-            const nextRawEvents = [...rawCalendarEvents, eventWithReminder];
+            const nextRawEvents = [...rawCalendarEvents.filter(e => e.id !== optimisticId), eventWithReminder];
+            
             setAllEvents(nextEvents);
             setRawCalendarEvents(nextRawEvents);
+            rawCalendarEventsRef.current = nextRawEvents;
+            
             setLoadedExternalIds((prev) => {
               const nextMap = {
                 ...prev,
@@ -807,8 +845,6 @@ export default function EventsScreen() {
               void writeEventCache(nextRawEvents, nextMap, Date.now());
               return nextMap;
             });
-            setSelectedDateId(formatLocalDateId(new Date(eventWithReminder.startTime)));
-            setIsCreateModalOpen(false);
 
             console.log('[4] Checking for conflicts');
             // Fetch latest to ensure accurate conflict checking against server truth
@@ -840,6 +876,7 @@ export default function EventsScreen() {
               console.log('[conflict-detect] matching server conflict ID:', matchingConflict ? (matchingConflict.id || matchingConflict.Id) : 'none');
               console.log('[conflict-detect] Available server conflicts:', JSON.stringify(serverConflicts));
             }
+            DeviceEventEmitter.emit('events_changed');
           } catch (postCreateError: any) {
             console.error('Event created but post-processing failed:', postCreateError);
           }
@@ -905,11 +942,49 @@ export default function EventsScreen() {
             console.log(`[edit-event] oldEvent:`, oldEvent);
             console.log(`[edit-event] updatedEvent from form:`, updatedEvent);
 
-            const editedEvent = await updateCalendarEvent(eventId, updatedEvent);
-            console.log(`[edit-event] API response (editedEvent):`, editedEvent);
+            // Optimistic UI Update
+            const optimisticMergedEvent: CalendarSyncRequest = {
+              ...(oldEvent as any),
+              ...updatedEvent,
+              id: eventId,
+            };
+            const optimisticMappedEvent = mapCalendarEventToTimelineEvent(optimisticMergedEvent, 0);
+
+            const optRawEvents = rawCalendarEvents.map((item) =>
+              item.id === eventId ? optimisticMergedEvent : item
+            );
+            setRawCalendarEvents(optRawEvents);
+            rawCalendarEventsRef.current = optRawEvents;
+
+            setAllEvents((prev) =>
+              prev.map((item) => (item.id === eventId ? optimisticMappedEvent : item))
+            );
+
+            const newDateId = formatLocalDateId(parseCalendarDate(optimisticMergedEvent.startTime) ?? getLocalMidnight());
+            setSelectedDateId(newDateId);
+
+            setIsEditModalOpen(false);
+            setEditingEventId(null);
+
+            // Background API Call
+            let editedEvent;
+            try {
+              editedEvent = await updateCalendarEvent(eventId, updatedEvent);
+              console.log(`[edit-event] API response (editedEvent):`, editedEvent);
+            } catch (editError: any) {
+              console.error('Failed to update calendar event:', editError);
+              // Revert optimistic update
+              setRawCalendarEvents(rawCalendarEvents);
+              rawCalendarEventsRef.current = rawCalendarEvents;
+              if (oldEvent) {
+                const oldMappedEvent = mapCalendarEventToTimelineEvent(oldEvent, 0);
+                setAllEvents(prev => prev.map(item => item.id === eventId ? oldMappedEvent : item));
+              }
+              setError(editError?.message || 'Không thể cập nhật sự kiện.');
+              return;
+            }
 
             const existingEvent = rawCalendarEvents.find((item) => item.id === eventId);
-
             let reminderNotificationId: string | null = null;
             try {
               reminderNotificationId = await scheduleEventReminderForEvent(
@@ -921,76 +996,38 @@ export default function EventsScreen() {
                 },
                 existingEvent?.notificationId ?? undefined,
               );
-              console.log(`[edit-event] reminder scheduled:`, reminderNotificationId);
             } catch (notifErr) {
               console.warn('[edit-event] failed to reschedule reminder:', notifErr);
             }
 
-            // Preserve ALL fields from existing event, then apply updates from form, then from API
-            const mergedEvent: CalendarSyncRequest = {
-              ...existingEvent,  // Base: all original fields
-              ...updatedEvent,   // Form: only changed fields
-              ...editedEvent,    // API: final authoritative data
-              id: eventId,       // Ensure ID is set
+            const finalMergedEvent: CalendarSyncRequest = {
+              ...optimisticMergedEvent,
+              ...editedEvent,
               notificationId: reminderNotificationId ?? existingEvent?.notificationId ?? undefined,
             };
 
-            console.log(`[edit-event] merged event:`, mergedEvent);
-            console.log(`[edit-event] critical fields for new type "${newType}":`, {
-              title: mergedEvent.title,
-              description: mergedEvent.description,
-              location: mergedEvent.location,
-              source: mergedEvent.source,
-              isAllDay: mergedEvent.isAllDay,
-            });
+            const finalRawEvents = rawCalendarEventsRef.current.map((item) =>
+              item.id === eventId ? finalMergedEvent : item
+            );
+            setRawCalendarEvents(finalRawEvents);
+            rawCalendarEventsRef.current = finalRawEvents;
 
-            const nextRawEvents = rawCalendarEvents.map((item) =>
-              item.id === eventId
-                ? { ...mergedEvent }  // Create new object reference
-                : item,
+            const finalMappedEvent = mapCalendarEventToTimelineEvent(finalMergedEvent, 0);
+            setAllEvents((prev) =>
+              prev.map((item) => (item.id === eventId ? finalMappedEvent : item))
             );
 
-            console.log(`[edit-event] updated rawCalendarEvents, count:`, nextRawEvents.length);
-            setRawCalendarEvents(nextRawEvents);
-            rawCalendarEventsRef.current = nextRawEvents;
-
-            // Map to TimelineEvent with logging
-            const mappedEvent = mapCalendarEventToTimelineEvent(mergedEvent, 0);
-            console.log(`[edit-event] mapped TimelineEvent:`, mappedEvent);
-            if (oldType !== newType) {
-              console.log(`[edit-event] TYPE CHANGED, old rendering props ≠ new rendering props!`);
-            }
-
-            setAllEvents((prev) => {
-              const updated = prev.map((item, index) =>
-                item.id === eventId
-                  ? mappedEvent
-                  : item,
-              );
-              console.log(`[edit-event] allEvents updated, count:`, updated.length);
-              return updated;
-            });
-
-            const newDateId = formatLocalDateId(
-              parseCalendarDate(mergedEvent.startTime) ?? getLocalMidnight(),
-            );
-            console.log(`[edit-event] updating selectedDateId to:`, newDateId);
-            setSelectedDateId(newDateId);
-
-            void writeEventCache(nextRawEvents, loadedExternalIdsRef.current, Date.now());
-
-            setIsEditModalOpen(false);
-            setEditingEventId(null);
+            void writeEventCache(finalRawEvents, loadedExternalIdsRef.current, Date.now());
 
             // Check for conflicts after successful edit
             const { sourceEvents, serverConflicts } = await getLatestConflictCheckData();
-            const conflicts = findEventConflicts(mergedEvent, sourceEvents);
+            const conflicts = findEventConflicts(finalMergedEvent, sourceEvents);
             if (conflicts.length > 0) {
-              setConflictEvent(mergedEvent);
+              setConflictEvent(finalMergedEvent);
               setConflictingEvents(conflicts);
 
               // Try to find a matching server conflict ID for the backend AI suggest API
-              const eid = mergedEvent.id;
+              const eid = finalMergedEvent.id;
               const matchingConflict = serverConflicts.find((c: any) =>
                 c.eventId === eid || c.EventId === eid ||
                 c.conflictingEventId === eid || c.ConflictingEventId === eid ||
@@ -1001,42 +1038,38 @@ export default function EventsScreen() {
                 (c.serverEvent && c.serverEvent.id === eid) ||
                 (c.EventA && c.EventA.id === eid) ||
                 (c.EventB && c.EventB.id === eid) ||
-                c.title === mergedEvent.title || c.Title === mergedEvent.title ||
-                (c.serverEvent && c.serverEvent.title === mergedEvent.title) ||
-                (c.deviceEvent && c.deviceEvent.title === mergedEvent.title)
+                c.title === finalMergedEvent.title || c.Title === finalMergedEvent.title ||
+                (c.serverEvent && c.serverEvent.title === finalMergedEvent.title) ||
+                (c.deviceEvent && c.deviceEvent.title === finalMergedEvent.title)
               );
               setServerConflictId(matchingConflict ? (matchingConflict.id || matchingConflict.Id) : null);
               console.log('[conflict-detect] matching server conflict ID:', matchingConflict ? (matchingConflict.id || matchingConflict.Id) : 'none');
             }
+            DeviceEventEmitter.emit('events_changed');
           } catch (editError: any) {
-            console.error(
-              'Failed to update calendar event:',
-              editError,
-            );
-
-            setError(
-              editError?.message ||
-              'Không thể cập nhật sự kiện.',
-            );
+            console.error('Unexpected error in onEdit:', editError);
+            setError(editError?.message || 'Đã xảy ra lỗi.');
           }
         }}
         onDelete={async (eventId) => {
           try {
+            console.log(`[delete-event] optimistically removing event ${eventId}`);
+            const existingEvent = rawCalendarEvents.find((item) => item.id === eventId);
+            const nextRawEvents = rawCalendarEvents.filter((item) => item.id !== eventId);
+            
+            setRawCalendarEvents(nextRawEvents);
+            rawCalendarEventsRef.current = nextRawEvents;
+            setAllEvents((prev) => prev.filter((item) => item.id !== eventId));
+            
+            setIsEditModalOpen(false);
+            setEditingEventId(null);
+
             console.log(`[delete-event] deleting event ${eventId}`);
             await deleteCalendarEvent(eventId);
             console.log(`[delete-event] deleted from server/database`);
 
-            const existingEvent = rawCalendarEvents.find((item) => item.id === eventId);
             await cancelEventReminder(existingEvent?.notificationId ?? loadedExternalIds[`notif:${eventId}`]);
             console.log(`[delete-event] cancelled reminder for ${eventId}`);
-
-            const nextRawEvents = rawCalendarEvents.filter((item) => item.id !== eventId);
-
-            setRawCalendarEvents(nextRawEvents);
-
-            setAllEvents((prev) =>
-              prev.filter((item) => item.id !== eventId),
-            );
 
             const next = { ...loadedExternalIds };
             delete next[eventId];
@@ -1049,9 +1082,7 @@ export default function EventsScreen() {
 
             console.log(`[delete-event] refreshing to sync state with server`);
             void refreshEvents({ force: true, silent: true });
-
-            setIsEditModalOpen(false);
-            setEditingEventId(null);
+            DeviceEventEmitter.emit('events_changed');
           } catch (deleteError: any) {
             console.error('Failed to delete calendar event:', deleteError);
             setError(deleteError?.message || 'Không thể xóa sự kiện.');

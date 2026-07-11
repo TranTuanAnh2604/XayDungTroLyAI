@@ -50,6 +50,11 @@ export default function MailListItem({ email, onPress }: MailListItemProps) {
         <View style={styles.row}>
           <View style={[styles.iconWrap, { backgroundColor: tone.iconBg }]}>
             <MaterialIcons name={email.icon} size={22} color={tone.iconColor} />
+            {email.isPinned && (
+              <View style={styles.pinnedBadge}>
+                <MaterialIcons name="star" size={12} color="#F59E0B" />
+              </View>
+            )}
           </View>
           <View style={styles.content}>
             <View style={styles.topRow}>
@@ -92,6 +97,19 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  pinnedBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: COLORS.surface,
+    borderRadius: 10,
+    padding: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1,
+    elevation: 2,
   },
   content: {
     flex: 1,

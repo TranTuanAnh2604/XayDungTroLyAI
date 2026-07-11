@@ -12,6 +12,7 @@ export type MailItem = {
   preview: string;
   icon: MaterialIconName;
   tone: MailCategoryTone;
+  isPinned?: boolean;
 };
 
 export type MailCategory = {

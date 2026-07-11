@@ -63,7 +63,7 @@ export default function ChatComposer({
             accessibilityLabel="Cuộc trò chuyện mới"
             style={({ pressed }) => [styles.newChatBtn, pressed && styles.iconPressed]}
           >
-            <MaterialIcons name="add" size={24} color={COLORS.outline} />
+            <MaterialIcons name="add" size={24} color={COLORS.primary} />
           </Pressable>
           <TextInput
             value={text}
@@ -151,8 +151,9 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     opacity: 0.5,
   },
   newChatBtn: {
-    padding: 4,
+    padding: 8,
     borderRadius: RADIUS.md,
+    backgroundColor: `${COLORS.primary}14`,
   },
   voiceBtn: {
     padding: 8,

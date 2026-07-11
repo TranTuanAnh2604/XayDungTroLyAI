@@ -198,7 +198,7 @@ export async function createCalendarEvent(
         }
         return normalizeCalendarEvent(response.data);
       }
-      
+
       if ('title' in response || 'startTime' in response) {
         return normalizeCalendarEvent(response);
       }

@@ -1,5 +1,5 @@
-import React from 'react';
-import { Pressable, StyleSheet, Text, View, LayoutAnimation, Platform, UIManager } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { Pressable, StyleSheet, Text, View, Animated, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { APP_TABS } from '../../data/navigationTabs';
@@ -14,6 +14,7 @@ import IosGlassView from '../ui/IosGlassView';
 
 export type BottomNavBarProps = {
   activeTab: AppTabId;
+  scrollPosition?: any;
   onTabPress?: (tab: AppTabId) => void;
 };
 
@@ -29,6 +30,7 @@ if (
 
 export default function BottomNavBar({
   activeTab,
+  scrollPosition,
   onTabPress,
 }: BottomNavBarProps) {
 
@@ -38,21 +40,80 @@ export default function BottomNavBar({
   const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS, typography]);
   const bottomOffset = Math.max(insets.bottom, BOTTOM_NAV_MIN_INSET);
 
+  const [measurements, setMeasurements] = useState<Record<string, { x: number; y: number; width: number; height: number }>>({});
+  
+  const fallbackScroll = useRef(new Animated.Value(APP_TABS.findIndex(t => t.id === activeTab))).current;
+
+  useEffect(() => {
+    if (!scrollPosition) {
+      Animated.spring(fallbackScroll, {
+        toValue: APP_TABS.findIndex(t => t.id === activeTab),
+        useNativeDriver: false,
+        friction: 7,
+        tension: 40,
+      }).start();
+    }
+  }, [activeTab, scrollPosition, fallbackScroll]);
+
+  const animatedScroll = scrollPosition || fallbackScroll;
+  const inputRange = APP_TABS.map((_, i) => i);
+  
+  const hasMeasurements = Object.keys(measurements).length > 0;
+  const outputX = APP_TABS.map((t) => measurements[t.id]?.x || 0);
+  const outputWidth = APP_TABS.map((t) => measurements[t.id]?.width || 52);
+  const outputHeight = APP_TABS.map((t) => measurements[t.id]?.height || 30);
+  const outputY = APP_TABS.map((t) => measurements[t.id]?.y || 6);
+
+  const translateX = animatedScroll.interpolate({
+    inputRange,
+    outputRange: hasMeasurements ? outputX : [0,0,0,0,0],
+    extrapolate: 'clamp',
+  });
+  const indicatorWidth = animatedScroll.interpolate({
+    inputRange,
+    outputRange: hasMeasurements ? outputWidth : [0,0,0,0,0],
+    extrapolate: 'clamp',
+  });
+  const indicatorHeight = animatedScroll.interpolate({
+    inputRange,
+    outputRange: hasMeasurements ? outputHeight : [0,0,0,0,0],
+    extrapolate: 'clamp',
+  });
+  const indicatorY = animatedScroll.interpolate({
+    inputRange,
+    outputRange: hasMeasurements ? outputY : [0,0,0,0,0],
+    extrapolate: 'clamp',
+  });
+
   return (
     <View style={[styles.wrapper, { bottom: bottomOffset }]}>
       <IosGlassView variant="regular" style={styles.bar} fillOpacity={0.1}>
+        <Animated.View
+          style={[
+            styles.activeIndicator,
+            {
+              left: 0,
+              top: 0,
+              opacity: hasMeasurements ? 1 : 0,
+              width: indicatorWidth,
+              height: indicatorHeight,
+              transform: [{ translateX }, { translateY: indicatorY }],
+            },
+          ]}
+        />
         {APP_TABS.map((tab) => {
           const active = tab.id === activeTab;
           return (
             <Pressable
               key={tab.id}
+              onLayout={(e) => {
+                const { x, y, width, height } = e.nativeEvent.layout;
+                setMeasurements((prev) => ({
+                  ...prev,
+                  [tab.id]: { x, y, width, height },
+                }));
+              }}
               onPress={() => {
-                LayoutAnimation.configureNext({
-                  duration: 650,
-                  create: { type: 'easeInEaseOut', property: 'opacity' },
-                  update: { type: 'spring', springDamping: 0.55 },
-                  delete: { type: 'easeInEaseOut', property: 'opacity' },
-                });
                 onTabPress?.(tab.id);
               }}
               style={({ pressed }) => [
@@ -111,9 +172,13 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     borderRadius: 9999,
   },
   tabActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.6)', // Liquid glass highlight - slightly more opaque
     paddingHorizontal: 16,
     transform: [{ scale: 1.05 }],
+  },
+  activeIndicator: {
+    position: 'absolute',
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    borderRadius: 9999,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.3)',
     shadowColor: '#fff',

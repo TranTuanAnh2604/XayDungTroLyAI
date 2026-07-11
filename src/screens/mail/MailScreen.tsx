@@ -100,6 +100,7 @@ export default function MailScreen() {
     preview: email.content.slice(0, 100),
     icon: email.isRead ? 'drafts' : 'email',
     tone: email.isRead ? 'secondary' : 'primary',
+    isPinned: pinnedEmailIds.includes(email.id),
   });
 
   const isImportantEmail = (email: GmailEmail) => {
@@ -148,7 +149,7 @@ export default function MailScreen() {
     const now = Date.now();
     const recentThreshold = 1000 * 60 * 60 * 24 * 2; // 2 days
 
-    return gmailEmails.filter((email) => {
+    const filtered = gmailEmails.filter((email) => {
       if (activeFilter === 'all') {
         return true;
       }
@@ -167,7 +168,15 @@ export default function MailScreen() {
       }
       return true;
     });
-  }, [activeFilter, gmailEmails, archivedEmailIds]);
+
+    return filtered.sort((a, b) => {
+      const aPinned = pinnedEmailIds.includes(a.id);
+      const bPinned = pinnedEmailIds.includes(b.id);
+      if (aPinned && !bPinned) return -1;
+      if (!aPinned && bPinned) return 1;
+      return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
+    });
+  }, [activeFilter, gmailEmails, archivedEmailIds, pinnedEmailIds]);
 
   const gmailCategory = useMemo<MailCategory | null>(() => {
     if (filteredGmailEmails.length === 0) return null;

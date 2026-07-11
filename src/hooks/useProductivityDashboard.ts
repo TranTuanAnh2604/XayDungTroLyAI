@@ -112,15 +112,16 @@ export function useProductivityDashboard() {
     }, [load])
   );
 
-  // Lắng nghe sự kiện thay đổi task từ các tab khác để tự động load ngầm trước
   useEffect(() => {
-    const subscription = DeviceEventEmitter.addListener('tasks_changed', () => {
-      // Gọi load(true) ngầm ngay lập tức khi có task bị thay đổi (complete, add, edit, delete)
-      // Lúc này user có thể vẫn đang ở màn hình Tasks, khi quay lại Home thì dữ liệu ĐÃ tải xong!
+    const taskSubscription = DeviceEventEmitter.addListener('tasks_changed', () => {
+      load(true);
+    });
+    const eventSubscription = DeviceEventEmitter.addListener('events_changed', () => {
       load(true);
     });
     return () => {
-      subscription.remove();
+      taskSubscription.remove();
+      eventSubscription.remove();
     };
   }, [load]);
 

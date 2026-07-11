@@ -14,6 +14,7 @@ const MONTH_NAMES = [
 
 interface MonthCalendarProps {
   selectedDateId: string;
+  importantDates?: Set<string>;
   onSelect: (dateId: string) => void;
 }
 
@@ -24,7 +25,7 @@ function formatLocalDateId(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-export default function MonthCalendar({ selectedDateId, onSelect }: MonthCalendarProps) {
+export default function MonthCalendar({ selectedDateId, importantDates, onSelect }: MonthCalendarProps) {
   const { colors: COLORS } = useTheme();
   const typography = useMemo(() => getTypography(COLORS), [COLORS]);
   const styles = useMemo(() => createStyles(COLORS, typography), [COLORS, typography]);
@@ -124,6 +125,14 @@ export default function MonthCalendar({ selectedDateId, onSelect }: MonthCalenda
           <MaterialIcons name="keyboard-arrow-down" size={24} color={COLORS.onSurface} style={styles.dropdownIcon} />
         </Pressable>
         <View style={styles.navButtons}>
+          {selectedDateId !== todayId && (
+            <Pressable 
+              onPress={() => onSelect(todayId)} 
+              style={({ pressed }) => [styles.todayBtn, pressed && styles.todayBtnPressed]}
+            >
+              <MaterialIcons name="today" size={22} color={COLORS.primary} />
+            </Pressable>
+          )}
           <Pressable onPress={handlePrevMonth} style={({ pressed }) => [styles.navBtn, pressed && styles.navBtnPressed]}>
             <MaterialIcons name="chevron-left" size={24} color={COLORS.onSurface} />
           </Pressable>
@@ -147,18 +156,23 @@ export default function MonthCalendar({ selectedDateId, onSelect }: MonthCalenda
         {days.map((item) => {
           const isSelected = item.id === selectedDateId;
           const isToday = item.id === todayId;
+          const isImportant = importantDates?.has(item.id);
 
           let cellStyle: any = [styles.dayCell];
           let textStyle: any = [styles.dayText];
+          let dotStyle: any = [styles.importantDot];
 
           if (isToday) {
             cellStyle.push(styles.dayCellToday);
             textStyle.push(styles.dayTextToday);
+            dotStyle.push(styles.importantDotToday);
           } else if (isSelected) {
             cellStyle.push(styles.dayCellSelected);
             textStyle.push(styles.dayTextSelected);
+            dotStyle.push(styles.importantDotSelected);
           } else if (!item.isCurrentMonth) {
             textStyle.push(styles.dayTextDimmed);
+            dotStyle.push(styles.importantDotDimmed);
           }
 
           return (
@@ -168,6 +182,7 @@ export default function MonthCalendar({ selectedDateId, onSelect }: MonthCalenda
                 style={cellStyle}
               >
                 <Text style={textStyle}>{item.day}</Text>
+                {isImportant && <View style={dotStyle} />}
               </Pressable>
             </View>
           );
@@ -231,6 +246,17 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   navBtnPressed: {
     backgroundColor: COLORS.surfaceVariant,
   },
+  todayBtn: {
+    padding: 5,
+    borderRadius: 20,
+    backgroundColor: `${COLORS.primary}1A`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 4,
+  },
+  todayBtnPressed: {
+    backgroundColor: `${COLORS.primary}33`,
+  },
   weekdaysRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -286,7 +312,25 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     fontWeight: '700',
   },
   dayTextDimmed: {
-    color: COLORS.outlineVariant,
+    color: COLORS.textMuted,
+  },
+  importantDot: {
+    position: 'absolute',
+    bottom: 4,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.error,
+  },
+  importantDotSelected: {
+    backgroundColor: COLORS.primary,
+  },
+  importantDotToday: {
+    backgroundColor: COLORS.onPrimary,
+  },
+  importantDotDimmed: {
+    backgroundColor: COLORS.textMuted,
+    opacity: 0.5,
   },
   divider: {
     height: 1,

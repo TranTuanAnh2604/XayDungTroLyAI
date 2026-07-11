@@ -32,7 +32,7 @@ export const tasksApi = {
 
   async toggleTaskComplete(id: string): Promise<boolean> {
     const result = await apiPut<boolean>(`/api/Tasks/${id}/complete`, {});
-    // DeviceEventEmitter.emit('tasks_changed');
+    DeviceEventEmitter.emit('tasks_changed');
     return result;
   },
 
@@ -49,8 +49,8 @@ export const tasksApi = {
     if (dueDate) payload.DueDate = dueDate;
 
     const result = await apiPost<string>('/api/Tasks', payload);
-    // DeviceEventEmitter.emit('tasks_changed');
-    // DeviceEventEmitter.emit('events_changed');
+    DeviceEventEmitter.emit('tasks_changed');
+    DeviceEventEmitter.emit('events_changed');
     return result;
   },
 
@@ -68,15 +68,15 @@ export const tasksApi = {
     };
 
     const result = await apiPut<string>(`/api/Tasks/${id}`, payload);
-    // DeviceEventEmitter.emit('tasks_changed');
-    // DeviceEventEmitter.emit('events_changed');
+    DeviceEventEmitter.emit('tasks_changed');
+    DeviceEventEmitter.emit('events_changed');
     return result;
   },
 
   async deleteTask(id: string): Promise<string> {
     const result = await apiDelete<string>(`/api/Tasks/${id}`);
-    // DeviceEventEmitter.emit('tasks_changed');
-    // DeviceEventEmitter.emit('events_changed');
+    DeviceEventEmitter.emit('tasks_changed');
+    DeviceEventEmitter.emit('events_changed');
     return result;
   },
 
@@ -89,8 +89,8 @@ export const tasksApi = {
 
   async toggleTodoComplete(id: string): Promise<any> {
     const result = await apiPatch<any>(`/api/Todos/${id}/complete`);
-    // DeviceEventEmitter.emit('tasks_changed');
-    // DeviceEventEmitter.emit('events_changed');
+    DeviceEventEmitter.emit('tasks_changed');
+    DeviceEventEmitter.emit('events_changed');
     return result;
   },
 
@@ -102,8 +102,8 @@ export const tasksApi = {
       Completed: false,
       Source: 'manual',
     });
-    // DeviceEventEmitter.emit('tasks_changed');
-    // DeviceEventEmitter.emit('events_changed');
+    DeviceEventEmitter.emit('tasks_changed');
+    DeviceEventEmitter.emit('events_changed');
     return result;
   },
 
@@ -115,15 +115,15 @@ export const tasksApi = {
       Completed: data.completed ?? false,
       Source: data.source,
     });
-    // DeviceEventEmitter.emit('tasks_changed');
-    // DeviceEventEmitter.emit('events_changed');
+    DeviceEventEmitter.emit('tasks_changed');
+    DeviceEventEmitter.emit('events_changed');
     return result;
   },
 
   async deleteTodo(id: string): Promise<string> {
     const result = await apiDelete<string>(`/api/Todos/${id}`);
-    // DeviceEventEmitter.emit('tasks_changed');
-    // DeviceEventEmitter.emit('events_changed');
+    DeviceEventEmitter.emit('tasks_changed');
+    DeviceEventEmitter.emit('events_changed');
     return result;
   },
 };
