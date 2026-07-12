@@ -1,7 +1,7 @@
 import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import HomeGlassCard from './HomeGlassCard';
+import AppGlassCard from '../ui/AppGlassCard';
 import SkeletonBlock from './SkeletonBlock';
 import { useTheme } from '../../hooks/useTheme';
 import type { ProductivityTrendPoint } from '../../types/productivity';
@@ -29,7 +29,7 @@ export default function ProductivityTrendCard({
 
   if (skeleton || trend.length === 0) {
     return (
-      <HomeGlassCard variant="surface" padding={20} style={styles.card}>
+      <AppGlassCard variant="surface" padding={20} style={styles.card}>
         <SkeletonBlock height={14} width={160} borderRadius={7} style={{ marginBottom: 6 }} />
         <SkeletonBlock height={10} width={100} borderRadius={5} style={{ marginBottom: 18 }} />
         <View style={styles.skBars}>
@@ -37,14 +37,14 @@ export default function ProductivityTrendCard({
             <SkeletonBlock key={i} height={h} width={20} borderRadius={4} />
           ))}
         </View>
-      </HomeGlassCard>
+      </AppGlassCard>
     );
   }
 
   const maxScore = Math.max(...trend.map((p) => p.score), 1);
 
   return (
-    <HomeGlassCard variant="surface" padding={20} style={styles.card}>
+    <AppGlassCard variant="surface" padding={20} style={styles.card}>
       <Text style={styles.header}>Xu hướng hiệu suất</Text>
       <Text style={styles.subheader}>Điểm năng suất {trend.length} tuần gần nhất</Text>
 
@@ -87,7 +87,7 @@ export default function ProductivityTrendCard({
         <View style={[styles.legendDot, { backgroundColor: COLORS.primary }]} />
         <Text style={styles.legendText}>Điểm năng suất</Text>
       </View>
-    </HomeGlassCard>
+    </AppGlassCard>
   );
 }
 

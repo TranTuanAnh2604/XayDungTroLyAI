@@ -54,7 +54,7 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: RADIUS.full,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.outlineVariant,
     shadowColor: '#000',

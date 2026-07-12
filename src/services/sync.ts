@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiPost, apiGet, apiPut, apiDelete } from './api';
+import { syncOrchestrator } from './syncOrchestrator';
 
 let hasSyncedDeviceDataThisSession = false;
 const PENDING_SERVER_SYNC_EVENTS_KEY = '@app:events:pending_server_sync';
@@ -180,6 +181,7 @@ export async function fetchCalendarEvents(
 
 export async function createCalendarEvent(
   event: CalendarSyncRequest,
+  skipSync: boolean = false,
 ): Promise<CalendarSyncRequest> {
   console.log('Create Event Request:', {
     url: '/api/Calendar/events',
@@ -204,7 +206,11 @@ export async function createCalendarEvent(
       }
     }
 
-    return normalizeCalendarEvent({ ...event, id: event.id || `temp-${Date.now()}` });
+    const finalEvent = normalizeCalendarEvent({ ...event, id: event.id || `temp-${Date.now()}` });
+    if (!skipSync) {
+      await syncOrchestrator.onEventCreated(finalEvent, finalEvent.id || '');
+    }
+    return finalEvent;
   } catch (error: any) {
     if (error.response) {
       console.log('Create Event Error Response:', {
@@ -223,6 +229,7 @@ export async function createCalendarEvent(
 export async function updateCalendarEvent(
   eventId: string,
   event: CalendarSyncRequest,
+  skipSync: boolean = false,
 ): Promise<CalendarSyncRequest> {
   const response = await apiPut<
     | CalendarSyncRequest
@@ -241,10 +248,18 @@ export async function updateCalendarEvent(
       return normalizeCalendarEvent(response.data.event);
     }
 
-    return normalizeCalendarEvent(response.data);
+    const finalData = normalizeCalendarEvent(response.data);
+    if (!skipSync) {
+      await syncOrchestrator.onEventUpdated(eventId, finalData);
+    }
+    return finalData;
   }
 
-  return normalizeCalendarEvent(response);
+  const finalData = normalizeCalendarEvent(response);
+  if (!skipSync) {
+    await syncOrchestrator.onEventUpdated(eventId, finalData);
+  }
+  return finalData;
 }
 
 export async function getCalendarConflicts(): Promise<
@@ -286,11 +301,16 @@ export async function aiSuggestConflict(id: string | number, body?: any): Promis
 
 export async function deleteCalendarEvent(
   eventId: string,
+  skipSync: boolean = false,
+  existingEvent?: CalendarSyncRequest,
 ): Promise<void> {
   await apiDelete<{
     success?: boolean;
     message?: string;
   }>(`/api/Calendar/events/${eventId}`);
+  if (!skipSync && existingEvent) {
+    await syncOrchestrator.onEventDeleted(eventId, existingEvent);
+  }
 }
 
 // export async function syncCalendarsAndResolveConflicts(

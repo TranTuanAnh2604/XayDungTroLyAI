@@ -9,6 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -122,7 +123,7 @@ export default function EditProfileScreen() {
               >
                 <Text style={styles.tzLabel}>{opt.label}</Text>
                 {timezone === opt.value && (
-                  <View style={styles.tzCheck} />
+                  <MaterialIcons name="check" size={20} color={COLORS.primary} />
                 )}
               </Pressable>
             </View>
@@ -183,12 +184,6 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   },
   rowPressed: { backgroundColor: COLORS.surfaceContainerLow },
   tzLabel: { ...typography.bodyLg, color: COLORS.onSurface },
-  tzCheck: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: COLORS.primary,
-  },
   saveBtn: {
     marginTop: 32,
     paddingVertical: 16,

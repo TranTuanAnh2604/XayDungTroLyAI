@@ -13,8 +13,7 @@ import {
   Platform,
   ScrollView,
   Pressable,
-  RefreshControl,
-  DeviceEventEmitter
+  RefreshControl
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import TaskFilterChips from '../../components/tasks/TaskFilterChips';
@@ -33,15 +32,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import VoiceTaskModal from '../../components/tasks/VoiceTaskModal';
 import CreateTaskModal from '../../components/tasks/CreateTaskModal';
 import TaskDetailModal from '../../components/tasks/TaskDetailModal';
+import { useTasksList } from '../../hooks/useTasksList';
 import { useTheme } from '../../hooks/useTheme';
-import { detectEventType } from '../../utils/eventTypeDetection';
-
-let cachedTasks: ExtendedTaskItem[] | null = null;
-let cachedTodos: ExtendedTaskItem[] | null = null;
-let lastFetchTime = 0;
-let activeFetchPromise: Promise<void> | null = null;
-const CACHE_TTL_MS = 60 * 1000;
-
 export default function TasksScreen() {
   const { colors: COLORS } = useTheme();
   const typography = useMemo(() => getTypography(COLORS), [COLORS]);
@@ -50,197 +42,24 @@ export default function TasksScreen() {
   const insets = useSafeAreaInsets();
   const openSettings = useOpenSettings();
   const bottomChrome = getBottomNavReservedHeight(insets);
+  const [isModalVisible, setIsModalVisible] = useState(false);
   const [isVoiceModalVisible, setIsVoiceModalVisible] = useState(false);
 
-  const [tasks, setTasks] = useState<ExtendedTaskItem[]>(cachedTasks || []);
-  const [todos, setTodos] = useState<ExtendedTaskItem[]>(cachedTodos || []);
-  const [loading, setLoading] = useState<boolean>(!cachedTasks);
-  const [refreshing, setRefreshing] = useState<boolean>(false);
-  const [activeFilter, setActiveFilter] = useState<TaskFilterId>('all');
-
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<ExtendedTaskItem | null>(null);
-
-  const formatDateTime = (isoString?: string) => {
-    if (!isoString) return 'Chưa cập nhật';
-    const d = new Date(isoString);
-    return `${d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} ${d.toLocaleDateString('vi-VN')}`;
-  };
-
-  const fetchData = useCallback(async (force = false, silent = false, isRefresh = false) => {
-    const now = Date.now();
-    const isExpired = now - lastFetchTime > CACHE_TTL_MS;
-
-    if (!force && cachedTasks && cachedTodos && !isExpired) {
-      setTasks(cachedTasks);
-      setTodos(cachedTodos);
-      setLoading(false);
-      return;
-    }
-
-    if (activeFetchPromise) {
-      if (isRefresh) setRefreshing(true);
-      else if (!silent) setLoading(!cachedTasks);
-
-      await activeFetchPromise;
-
-      if (cachedTasks && cachedTodos) {
-        setTasks(cachedTasks);
-        setTodos(cachedTodos);
-      }
-      setLoading(false);
-      setRefreshing(false);
-      return;
-    }
-
-    if (isRefresh) {
-      setRefreshing(true);
-    } else if (!silent && (!cachedTasks || !cachedTodos)) {
-      setLoading(true);
-    }
-
-    activeFetchPromise = (async () => {
-      try {
-        const [tasksData, todosData] = await Promise.all([
-          tasksApi.getTasks(),
-          tasksApi.getTodos('all')
-        ]);
-
-        const rawTasks = Array.isArray(tasksData) ? tasksData : ((tasksData as any)?.data || []);
-        const rawTodos = Array.isArray(todosData) ? todosData : ((todosData as any)?.data || []);
-
-        const mappedTasks: ExtendedTaskItem[] = rawTasks.map((t: any) => {
-          const isHigh = t.priority === 'high' || t.priority === 3 || detectEventType(t.title || t.Title || '') === 'urgent';
-
-          let timeMeta = `Tạo: ${new Date(t.createdAt || t.CreatedAt || Date.now()).toLocaleDateString('vi-VN')}`;
-          if (t.dueDate || t.DueDate) {
-            timeMeta += ` • Hạn: ${new Date(t.dueDate || t.DueDate).toLocaleDateString('vi-VN')}`;
-          }
-
-          return {
-            id: t.id || t.Id,
-            title: t.title || t.Title,
-            meta: timeMeta,
-            description: t.description || t.Description || 'Không có mô tả',
-            priority: isHigh ? 'high' : 'normal',
-            completed: t.status === 'done',
-            itemType: 'task',
-            createdAt: t.createdAt || t.CreatedAt,
-            dueDate: t.dueDate || t.DueDate,
-            completedAt: t.completedAt || t.CompletedAt
-          };
-        });
-
-        const mappedTodos: ExtendedTaskItem[] = rawTodos.map((t: any) => {
-          let timeMeta = `Tạo: ${new Date(t.createdAt || t.CreatedAt || Date.now()).toLocaleDateString('vi-VN')}`;
-          if (t.dueDate || t.DueDate) {
-            timeMeta += ` • Hạn: ${new Date(t.dueDate || t.DueDate).toLocaleDateString('vi-VN')}`;
-          }
-
-          return {
-            id: t.id || t.Id,
-            title: t.title || t.Title,
-            meta: timeMeta,
-            description: t.description || t.Description || 'Không có mô tả',
-            priority: 'normal',
-            completed: t.completed || t.Completed || false,
-            itemType: 'todo',
-            createdAt: t.createdAt || t.CreatedAt,
-            dueDate: t.dueDate || t.DueDate,
-            completedAt: t.completedAt || t.CompletedAt
-          };
-        });
-
-        cachedTasks = mappedTasks;
-        cachedTodos = mappedTodos;
-        lastFetchTime = Date.now();
-      } catch (error: any) {
-        console.error('Lỗi kết nối API:', error.message);
-      }
-    })();
-
-    await activeFetchPromise;
-    activeFetchPromise = null;
-
-    if (cachedTasks && cachedTodos) {
-      setTasks(cachedTasks);
-      setTodos(cachedTodos);
-    }
-
-    setLoading(false);
-    setRefreshing(false);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchData(false, true);
-    }, [fetchData])
-  );
-
-  useEffect(() => {
-    const taskSub = DeviceEventEmitter.addListener('tasks_changed', () => {
-      fetchData(true, true);
-    });
-    const eventSub = DeviceEventEmitter.addListener('events_changed', () => {
-      fetchData(true, true);
-    });
-    return () => {
-      taskSub.remove();
-      eventSub.remove();
-    };
-  }, [fetchData]);
-
-  const handleToggleTask = useCallback((id: string, currentCompleted: boolean, itemType: 'task' | 'todo') => {
-    if (itemType === 'task') {
-      setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !currentCompleted, completedAt: !currentCompleted ? new Date().toISOString() : undefined } : t));
-    } else {
-      setTodos(prev => prev.map(t => t.id === id ? { ...t, completed: !currentCompleted, completedAt: !currentCompleted ? new Date().toISOString() : undefined } : t));
-    }
-
-    tasksApi[itemType === 'task' ? 'toggleTaskComplete' : 'toggleTodoComplete'](id)
-      .then(() => {
-        if (selectedItem && selectedItem.id === id) {
-          setSelectedItem(prev => prev ? { ...prev, completed: !currentCompleted, completedAt: !currentCompleted ? new Date().toISOString() : undefined } : null);
-        }
-        fetchData(false, true);
-      })
-      .catch((error) => {
-        console.error('Lỗi cập nhật trạng thái:', error);
-        fetchData(false, true);
-      });
-  }, [selectedItem, fetchData]);
-
-  const handleDeleteItem = useCallback((item: ExtendedTaskItem) => {
-    Alert.alert(
-      'Xác nhận xóa',
-      `Bạn có chắc chắn muốn xóa "${item.title}"? Hành động này không thể hoàn tác.`,
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Xóa bỏ',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setSelectedItem(null);
-              if (item.itemType === 'task') {
-                setTasks(prev => prev.filter(t => t.id !== item.id));
-                if (cachedTasks) cachedTasks = cachedTasks.filter(t => t.id !== item.id);
-                await tasksApi.deleteTask(item.id);
-              } else {
-                setTodos(prev => prev.filter(t => t.id !== item.id));
-                if (cachedTodos) cachedTodos = cachedTodos.filter(t => t.id !== item.id);
-                await tasksApi.deleteTodo(item.id);
-              }
-              await fetchData(false, true);
-            } catch (err) {
-              console.error('Lỗi khi xóa:', err);
-              Alert.alert('Thất bại', 'Không thể xóa tác vụ này vào lúc này.');
-            }
-          }
-        }
-      ]
-    );
-  }, [fetchData]);
+  const {
+    tasks,
+    todos,
+    loading,
+    refreshing,
+    activeFilter,
+    setActiveFilter,
+    selectedItem,
+    setSelectedItem,
+    fetchData,
+    handleToggleTask,
+    handleDeleteItem,
+    handleOptimisticCreate,
+    handleOptimisticUpdate
+  } = useTasksList();
 
   const progressData = useMemo(() => {
     const totalItems = tasks.length + todos.length;
@@ -348,15 +167,7 @@ export default function TasksScreen() {
         visible={isModalVisible}
         onClose={() => setIsModalVisible(false)}
         onSaved={() => fetchData(false, true)}
-        onOptimisticCreate={(task) => {
-          if (task.itemType === 'task') {
-            setTasks(prev => [task, ...prev]);
-            if (cachedTasks) cachedTasks = [task, ...cachedTasks];
-          } else {
-            setTodos(prev => [task, ...prev]);
-            if (cachedTodos) cachedTodos = [task, ...cachedTodos];
-          }
-        }}
+        onOptimisticCreate={handleOptimisticCreate}
         onVoicePress={() => setIsVoiceModalVisible(true)}
       />
 
@@ -365,18 +176,7 @@ export default function TasksScreen() {
         item={selectedItem}
         onClose={() => setSelectedItem(null)}
         onSaved={() => fetchData(false, true)}
-        onOptimisticUpdate={(updatedData) => {
-          if (updatedData.itemType === 'task') {
-            setTasks(prev => prev.map(t => t.id === updatedData.id ? { ...t, ...updatedData } : t));
-            if (cachedTasks) cachedTasks = cachedTasks.map(t => t.id === updatedData.id ? { ...t, ...updatedData } : t);
-          } else {
-            setTodos(prev => prev.map(t => t.id === updatedData.id ? { ...t, ...updatedData } : t));
-            if (cachedTodos) cachedTodos = cachedTodos.map(t => t.id === updatedData.id ? { ...t, ...updatedData } : t);
-          }
-          if (selectedItem && selectedItem.id === updatedData.id) {
-            setSelectedItem(prev => prev ? { ...prev, ...updatedData } : null);
-          }
-        }}
+        onOptimisticUpdate={handleOptimisticUpdate}
         onDelete={(item) => handleDeleteItem(item)}
         onToggleCompletion={(item) => handleToggleTask(item.id, item.completed, item.itemType)}
       />

@@ -51,7 +51,12 @@ export default function ChatComposer({
   return (
     <View style={styles.wrapper}>
       <View style={styles.inner}>
-      <IosGlassView
+        {quickActions?.length ? (
+          <View style={{ marginBottom: 4 }}>
+            <QuickActionChips actions={quickActions} onPress={onQuickAction} />
+          </View>
+        ) : null}
+        <IosGlassView
           variant="regular"
           fillOpacity={0.12}
           style={[styles.inputBar, focused && styles.inputBarFocused]}
@@ -103,9 +108,6 @@ export default function ChatComposer({
             <MaterialIcons name="send" size={22} color={COLORS.onPrimary} />
           </Pressable>
         </IosGlassView>
-        {quickActions?.length ? (
-          <QuickActionChips actions={quickActions} onPress={onQuickAction} />
-        ) : null}
       </View>
     </View>
   );

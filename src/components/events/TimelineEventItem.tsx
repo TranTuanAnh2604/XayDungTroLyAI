@@ -318,7 +318,7 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
   },
   markerUrgent: {
     borderWidth: 1,
@@ -412,7 +412,7 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     height: 32,
     borderRadius: 16,
     borderWidth: 2,
-    borderColor: COLORS.white,
+    borderColor: COLORS.surfaceContainerLowest,
   },
   avatarOverlap: {
     marginLeft: -8,

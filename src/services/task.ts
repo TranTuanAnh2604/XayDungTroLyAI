@@ -1,6 +1,6 @@
-// Thêm chữ apiPatch vào hàng import
 import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from './api';
 import { DeviceEventEmitter } from 'react-native';
+import { syncOrchestrator } from './syncOrchestrator';
 
 // --- DTOs ---
 export type TaskDto = {
@@ -36,7 +36,7 @@ export const tasksApi = {
     return result;
   },
 
-  async createTask(title: string, description?: string, priority: string = 'normal', dueDate?: string): Promise<string> {
+  async createTask(title: string, description?: string, priority: string = 'normal', dueDate?: string, skipSync: boolean = false): Promise<string> {
     let priorityLevel = 2;
     if (priority === 'high') priorityLevel = 3;
     if (priority === 'low') priorityLevel = 1;
@@ -51,10 +51,13 @@ export const tasksApi = {
     const result = await apiPost<string>('/api/Tasks', payload);
     DeviceEventEmitter.emit('tasks_changed');
     DeviceEventEmitter.emit('events_changed');
+    if (!skipSync) {
+      await syncOrchestrator.onTaskCreated(result, title, description, dueDate, false);
+    }
     return result;
   },
 
-  async updateTask(id: string, data: { title?: string; description?: string; priority?: string; dueDate?: string }): Promise<string> {
+  async updateTask(id: string, data: { title?: string; description?: string; priority?: string; dueDate?: string }, skipSync: boolean = false): Promise<string> {
     let priorityLevel: number | undefined;
     if (data.priority === 'high') priorityLevel = 3;
     if (data.priority === 'normal') priorityLevel = 2;
@@ -70,13 +73,19 @@ export const tasksApi = {
     const result = await apiPut<string>(`/api/Tasks/${id}`, payload);
     DeviceEventEmitter.emit('tasks_changed');
     DeviceEventEmitter.emit('events_changed');
+    if (!skipSync) {
+      await syncOrchestrator.onTaskUpdated(id, data, false);
+    }
     return result;
   },
 
-  async deleteTask(id: string): Promise<string> {
+  async deleteTask(id: string, skipSync: boolean = false): Promise<string> {
     const result = await apiDelete<string>(`/api/Tasks/${id}`);
     DeviceEventEmitter.emit('tasks_changed');
     DeviceEventEmitter.emit('events_changed');
+    if (!skipSync) {
+      await syncOrchestrator.onTaskDeleted(id);
+    }
     return result;
   },
 
@@ -94,7 +103,7 @@ export const tasksApi = {
     return result;
   },
 
-  async createTodo(title: string, description?: string, dueDate?: string): Promise<any> {
+  async createTodo(title: string, description?: string, dueDate?: string, skipSync: boolean = false): Promise<any> {
     const result = await apiPost<any>('/api/Todos', {
       Title: title,
       Description: description || '',
@@ -104,10 +113,13 @@ export const tasksApi = {
     });
     DeviceEventEmitter.emit('tasks_changed');
     DeviceEventEmitter.emit('events_changed');
+    if (!skipSync) {
+      await syncOrchestrator.onTaskCreated(result.Id || result.id || (typeof result === 'string' ? result : ''), title, description, dueDate, true);
+    }
     return result;
   },
 
-  async updateTodo(id: string, data: { title?: string; description?: string; dueDate?: string; completed?: boolean; source?: string }): Promise<string> {
+  async updateTodo(id: string, data: { title?: string; description?: string; dueDate?: string; completed?: boolean; source?: string }, skipSync: boolean = false): Promise<string> {
     const result = await apiPut<string>(`/api/Todos/${id}`, {
       Title: data.title,
       Description: data.description,
@@ -117,13 +129,19 @@ export const tasksApi = {
     });
     DeviceEventEmitter.emit('tasks_changed');
     DeviceEventEmitter.emit('events_changed');
+    if (!skipSync) {
+      await syncOrchestrator.onTaskUpdated(id, data, true);
+    }
     return result;
   },
 
-  async deleteTodo(id: string): Promise<string> {
+  async deleteTodo(id: string, skipSync: boolean = false): Promise<string> {
     const result = await apiDelete<string>(`/api/Todos/${id}`);
     DeviceEventEmitter.emit('tasks_changed');
     DeviceEventEmitter.emit('events_changed');
+    if (!skipSync) {
+      await syncOrchestrator.onTaskDeleted(id);
+    }
     return result;
   },
 };

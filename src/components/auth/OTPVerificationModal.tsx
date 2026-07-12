@@ -1,23 +1,17 @@
 import { getTypography } from '../../constants/typography';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
-  Modal,
   View,
   Text,
   Pressable,
-  KeyboardAvoidingView,
-  Platform,
   Alert,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OTPInput from '../ui/OTPInput';
 import PrimaryButton from '../ui/PrimaryButton';
-import { RADIUS } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
-
 import { resendOTP } from '../../services/auth';
-import IosGlassView from '../ui/IosGlassView';
+import AuthModalWrapper from './AuthModalWrapper';
 
 type OTPVerificationModalProps = {
   visible: boolean;
@@ -34,8 +28,7 @@ export default function OTPVerificationModal({
 }: OTPVerificationModalProps) {
   const { colors: COLORS } = useTheme();
   const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
-  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
-  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(COLORS, typography), [COLORS, typography]);
   const [otp, setOtp] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
@@ -53,11 +46,11 @@ export default function OTPVerificationModal({
     return () => clearInterval(interval);
   }, [resendTimer]);
 
-    useEffect(() => {
-      if (visible && !isVerifying) {
-        setOtp('');
-      }
-    }, [visible, isVerifying]);
+  useEffect(() => {
+    if (visible && !isVerifying) {
+      setOtp('');
+    }
+  }, [visible, isVerifying]);
 
   const handleVerify = async () => {
     if (otp.length !== 6) {
@@ -66,18 +59,13 @@ export default function OTPVerificationModal({
     }
 
     setIsVerifying(true);
-    console.log('🔐 handleVerify: Bắt đầu xác thực OTP', { otp });
-    
     try {
       await onVerify(otp);
-      console.log('✅ handleVerify: Xác thực thành công!');
     } catch (error) {
-      console.log('❌ handleVerify: Lỗi xác thực', error);
       const message = error instanceof Error ? error.message : 'Xác thực OTP thất bại.';
       Alert.alert('Lỗi', message);
     } finally {
       setIsVerifying(false);
-      console.log('🛑 handleVerify: Dừng loading');
     }
   };
 
@@ -112,152 +100,84 @@ export default function OTPVerificationModal({
     onClose?.();
   };
 
-  const maskedEmail = email.replace(/(.{2})(.*)(@.*)/, '$1***$3');
-
   return (
-    <Modal
+    <AuthModalWrapper
       visible={visible}
-      transparent={true}
-      animationType="fade"
-      onRequestClose={handleClose}
+      title="Xác thực OTP"
+      subtitle={
+        <Text style={styles.subtitle}>
+          Vui lòng nhập mã gồm 6 chữ số đã được gửi đến{'\n'}
+          <Text style={{ color: COLORS.onSurface, fontWeight: '500' }}>
+            {email}
+          </Text>
+        </Text>
+      }
+      onClose={handleClose}
     >
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <Pressable style={styles.backdrop} />
-        
-        <View style={styles.centerContent} pointerEvents="box-none">
-
-        <IosGlassView
-          style={[
-            styles.modalContent,
-            {
-              marginBottom: insets.bottom,
-              marginTop: insets.top,
-            },
-            ]}
-          >
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>Xác thực OTP</Text>
-            <Text style={styles.subtitle}>
-              Mã OTP đã được gửi đến {maskedEmail}
-            </Text>
-          </View>
-
-          {/* OTP Input */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Nhập mã OTP</Text>
-            <OTPInput
-              value={otp}
-              onChangeText={setOtp}
-              disabled={isVerifying || isResending}
-              style={styles.otpInputMargin}
-            />
-          </View>
-
-          {/* Verify Button */}
-          <PrimaryButton
-            label="Tiếp tục"
-            loading={isVerifying || otp.length !== 6 || isResending}
-            onPress={handleVerify}
-            style={styles.verifyButton}
-          />
-
-          {/* Resend Section */}
-          <View style={styles.resendSection}>
-            <Text style={styles.resendText}>
-              {resendTimer > 0
-                ? `Gửi lại mã sau ${resendTimer}s`
-                : 'Không nhận được mã?'}
-            </Text>
-            {resendTimer === 0 && (
-              <Pressable
-                onPress={handleResendOTP}
-                disabled={resendCount >= 3 || isResending}
-              >
-                <Text
-                  style={[
-                    styles.resendLink,
-                    (resendCount >= 3 || isResending) && styles.resendLinkDisabled,
-                  ]}
-                >
-                  {isResending ? 'Đang gửi...' : 'Gửi lại'}
-                </Text>
-              </Pressable>
-            )}
-          </View>
-
-          {/* Resend Count Info */}
-          {resendCount > 0 && (
-            <Text style={styles.countInfo}>
-              Lần gửi lại: {resendCount}/3
-            </Text>
-          )}
-
-          {/* Close Button */}
-          <Pressable
-            onPress={handleClose}
-            style={[styles.closeButton, (isVerifying || isResending) && styles.closeButtonDisabled]}
+      <View style={styles.form}>
+        {/* OTP Input */}
+        <View style={styles.inputContainer}>
+          <Text style={styles.label}>Nhập mã OTP</Text>
+          <OTPInput
+            value={otp}
+            onChangeText={setOtp}
             disabled={isVerifying || isResending}
-          >
-            <Text style={styles.closeText}>Đóng</Text>
-          </Pressable>
-        </IosGlassView>
+            style={styles.otpInputMargin}
+          />
         </View>
-      </KeyboardAvoidingView>
-    </Modal>
+
+        {/* Verify Button */}
+        <PrimaryButton
+          label="Tiếp tục"
+          loading={isVerifying || otp.length !== 6 || isResending}
+          onPress={handleVerify}
+          style={styles.verifyButton}
+        />
+
+        {/* Resend Section */}
+        <View style={styles.resendSection}>
+          <Text style={styles.resendText}>
+            {resendTimer > 0
+              ? `Gửi lại mã sau ${resendTimer}s`
+              : 'Không nhận được mã?'}
+          </Text>
+          {resendTimer === 0 && (
+            <Pressable
+              onPress={handleResendOTP}
+              disabled={resendCount >= 3 || isResending}
+            >
+              <Text
+                style={[
+                  styles.resendLink,
+                  (resendCount >= 3 || isResending) && styles.resendLinkDisabled,
+                ]}
+              >
+                {isResending ? 'Đang gửi...' : 'Gửi lại'}
+              </Text>
+            </Pressable>
+          )}
+        </View>
+
+        {/* Resend Count Info */}
+        {resendCount > 0 && (
+          <Text style={styles.countInfo}>
+            Lần gửi lại: {resendCount}/3
+          </Text>
+        )}
+      </View>
+    </AuthModalWrapper>
   );
 }
 
 const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-  },
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    zIndex: 10,
-  },
-  centerContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    width: '85%',
-    maxWidth: 380,
-    backgroundColor: COLORS.surface,
-    borderRadius: 32,
-    paddingHorizontal: 24,
-    paddingVertical: 32,
-    marginHorizontal: 'auto',
-    elevation: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.18,
-    shadowRadius: 40,
-    zIndex: 100,
-  },
-  header: {
-    marginBottom: 32,
-  },
-  title: {
-    ...typography.headlineMd,
-    color: COLORS.onSurface,
-    marginBottom: 4,
-    textAlign: 'center',
+  form: {
+    width: '100%',
   },
   subtitle: {
     ...typography.bodyMd,
     color: COLORS.onSurfaceVariant,
     textAlign: 'center',
+    marginBottom: 24,
   },
   inputContainer: {
     marginBottom: 32,

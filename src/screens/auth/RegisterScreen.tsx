@@ -15,7 +15,7 @@ import AuthHeroBranding from '../../components/auth/AuthHeroBranding';
 import OTPVerificationModal from '../../components/auth/OTPVerificationModal';
 import BorderTextInput from '../../components/ui/BorderTextInput';
 import DividerWithLabel from '../../components/ui/DividerWithLabel';
-import GlassCard from '../../components/ui/GlassCard';
+import AppGlassCard from '../../components/ui/AppGlassCard';
 import MeshBackground from '../../components/ui/MeshBackground';
 import PasswordInput from '../../components/ui/PasswordInput';
 import PrimaryButton from '../../components/ui/PrimaryButton';
@@ -168,7 +168,7 @@ export default function RegisterScreen({ navigation }: Props) {
           <View style={styles.inner}>
             <AuthHeroBranding />
 
-            <GlassCard tone="register">
+            <AppGlassCard variant="ai" padding={32}>
               <View style={styles.cardHeader}>
                 <Text style={styles.cardTitle}>Tạo tài khoản</Text>
                 <Text style={styles.cardSubtitle}>
@@ -248,7 +248,7 @@ export default function RegisterScreen({ navigation }: Props) {
                   </Text>
                 </Text>
               </View>
-            </GlassCard>
+            </AppGlassCard>
 
             <Text style={styles.copyright}>{APP_COPYRIGHT}</Text>
           </View>

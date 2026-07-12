@@ -1,7 +1,7 @@
 import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import HomeGlassCard from './HomeGlassCard';
+import AppGlassCard from '../ui/AppGlassCard';
 import SkeletonBlock from './SkeletonBlock';
 import { useTheme } from '../../hooks/useTheme';
 import type { GoalProgress } from '../../types/home';
@@ -21,19 +21,19 @@ export default function GoalProgressCard({
 
   if (skeleton) {
     return (
-      <HomeGlassCard variant="surface" padding={20} style={styles.card}>
+      <AppGlassCard variant="surface" padding={20} style={styles.card}>
         <SkeletonBlock height={14} width={140} borderRadius={7} style={{ marginBottom: 8 }} />
         <SkeletonBlock height={11} width="70%" borderRadius={5} style={{ marginBottom: 20 }} />
         <SkeletonBlock height={10} borderRadius={5} style={{ marginBottom: 10 }} />
         <SkeletonBlock height={12} width="55%" borderRadius={6} />
-      </HomeGlassCard>
+      </AppGlassCard>
     );
   }
 
   const percent = Math.round(progress.completedPercent);
 
   return (
-    <HomeGlassCard variant="surface" padding={20} style={styles.card}>
+    <AppGlassCard variant="surface" padding={20} style={styles.card}>
       <View style={styles.row}>
         <View>
           <Text style={styles.header}>Mục tiêu cá nhân</Text>
@@ -49,14 +49,12 @@ export default function GoalProgressCard({
       </View>
 
       <Text style={styles.detail}>{progress.detail}</Text>
-    </HomeGlassCard>
+    </AppGlassCard>
   );
 }
 
 const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
-  card: {
-    marginBottom: 16,
-  },
+  card: {},
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',

@@ -24,6 +24,7 @@ const EVENT_TYPE_KEYWORDS: EventTypeKeywords = {
     'gấp',
     'đến hạn',
     'báo cáo',
+    'quan trọng',
     // English
     'urgent',
     'critical',
@@ -31,6 +32,7 @@ const EVENT_TYPE_KEYWORDS: EventTypeKeywords = {
     'report',
     'emergency',
     'asap',
+    'important',
   ],
   meeting: [
     // Vietnamese
@@ -39,6 +41,7 @@ const EVENT_TYPE_KEYWORDS: EventTypeKeywords = {
     'online',
     'hội thảo',
     'tham dự',
+    'gọi',
     // English
     'meeting',
     'call',

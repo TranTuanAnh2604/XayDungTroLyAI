@@ -17,12 +17,12 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { TopAppBar } from '../../components/navigation';
 import { getTopAppBarHeight, SCROLL_CONTENT_GAP } from '../../constants/layout';
 import DividerWithLabel from '../../components/ui/DividerWithLabel';
-import GlassCard from '../../components/ui/GlassCard';
+import AppGlassCard from '../../components/ui/AppGlassCard';
 import MeshBackground from '../../components/ui/MeshBackground';
 import PrimaryButton from '../../components/ui/PrimaryButton';
 import SocialLoginButton from '../../components/ui/SocialLoginButton';
-import UnderlineTextInput from '../../components/ui/UnderlineTextInput';
-import { MaterialIcons } from '@expo/vector-icons';
+import BorderTextInput from '../../components/ui/BorderTextInput';
+import PasswordInput from '../../components/ui/PasswordInput';
 import { useTheme } from '../../hooks/useTheme';
 
 import { SPACING } from '../../constants/spacing';
@@ -215,10 +215,10 @@ const openForgotPassword = () => {
               </Text>
             </View>
 
-            <GlassCard>
+            <AppGlassCard variant="ai" padding={32}>
               <AppLogo size={32} style={styles.cardLogo} />
 
-              <UnderlineTextInput
+              <BorderTextInput
                 label="Email"
                 value={email}
                 onChangeText={setEmail}
@@ -231,37 +231,23 @@ const openForgotPassword = () => {
 
               <View style={styles.fieldGap} />
 
-              <UnderlineTextInput
+              <PasswordInput
                 label="Mật khẩu"
                 value={password}
                 onChangeText={setPassword}
                 placeholder="••••••••"
-                secureTextEntry={!showPassword}
                 autoComplete="password"
                 textContentType="password"
-                labelRight={
-                  <View style={styles.passwordLabelRight}>
-                    <Pressable
-                      onPress={() => setShowPassword((value) => !value)}
-                      hitSlop={8}
-                      accessibilityRole="button"
-                      accessibilityLabel={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-                    >
-                      <MaterialIcons
-                        name={showPassword ? 'visibility-off' : 'visibility'}
-                        size={20}
-                        color={showPassword ? COLORS.primary : COLORS.outline}
-                      />
-                    </Pressable>
-                    <Text
-                      style={styles.forgotLink}
-                      onPress={openForgotPassword}
-                    >
-                      Quên mật khẩu?
-                    </Text>
-                  </View>
-                }
               />
+              
+              <View style={styles.forgotContainer}>
+                <Text
+                  style={styles.forgotLink}
+                  onPress={openForgotPassword}
+                >
+                  Quên mật khẩu?
+                </Text>
+              </View>
 
               <View style={styles.buttonGap} />
 
@@ -277,7 +263,7 @@ const openForgotPassword = () => {
                 label="Tiếp tục với Google"
                 onPress={handleGoogleLogin}
               />
-            </GlassCard>
+            </AppGlassCard>
 
             <View style={styles.footer}>
               <Text style={styles.footerText}>
@@ -362,14 +348,14 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     height: 24,
   },
   buttonGap: {
-    height: 24,
+    height: 16,
+  },
+  forgotContainer: {
+    alignItems: 'flex-end',
+    marginTop: 8,
   },
   forgotLink: {
     ...typography.linkSmall,
-  },
-  passwordLabelRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
   },
   footer: {
     marginTop: 32,

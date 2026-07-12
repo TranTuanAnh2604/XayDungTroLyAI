@@ -1,7 +1,7 @@
 import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import HomeGlassCard from './HomeGlassCard';
+import AppGlassCard from '../ui/AppGlassCard';
 import SkeletonBlock from './SkeletonBlock';
 import { useTheme } from '../../hooks/useTheme';
 import type { WeeklyTimeCategory } from '../../types/home';
@@ -21,7 +21,7 @@ export default function WeeklyTimeStatsCard({
 
   if (skeleton) {
     return (
-      <HomeGlassCard variant="surface" padding={20} style={styles.card}>
+      <AppGlassCard variant="surface" padding={20} style={styles.card}>
         <SkeletonBlock height={14} width={160} borderRadius={7} style={{ marginBottom: 6 }} />
         <SkeletonBlock height={11} width={120} borderRadius={5} style={{ marginBottom: 18 }} />
         {[1, 2, 3].map((i) => (
@@ -30,14 +30,14 @@ export default function WeeklyTimeStatsCard({
             <SkeletonBlock height={6} width="45%" borderRadius={3} />
           </View>
         ))}
-      </HomeGlassCard>
+      </AppGlassCard>
     );
   }
 
   const totalHours = categories.reduce((sum, category) => sum + category.hours, 0);
 
   return (
-    <HomeGlassCard variant="surface" padding={20} style={styles.card}>
+    <AppGlassCard variant="surface" padding={20} style={styles.card}>
       <Text style={styles.header}>Thống kê thời gian tuần</Text>
       <Text style={styles.subheader}>Tổng {totalHours} giờ dành cho công việc</Text>
 
@@ -68,14 +68,12 @@ export default function WeeklyTimeStatsCard({
           );
         })}
       </View>
-    </HomeGlassCard>
+    </AppGlassCard>
   );
 }
 
 const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
-  card: {
-    marginBottom: 16,
-  },
+  card: {},
   header: {
     ...typography.headlineMd,
     marginBottom: 6,

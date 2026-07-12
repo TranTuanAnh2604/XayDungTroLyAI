@@ -2,7 +2,7 @@ import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import HomeGlassCard from './HomeGlassCard';
+import AppGlassCard from '../ui/AppGlassCard';
 import SkeletonBlock from './SkeletonBlock';
 import { useTheme } from '../../hooks/useTheme';
 import { RADIUS } from '../../constants/theme';
@@ -30,12 +30,12 @@ export default function ProductivityScoreCard({
 
   if (skeleton || !report) {
     return (
-      <HomeGlassCard variant="surface" padding={20} style={styles.card}>
+      <AppGlassCard variant="surface" padding={20} style={styles.card}>
         <SkeletonBlock height={12} width={120} borderRadius={6} style={styles.skRow} />
         <SkeletonBlock height={48} width={80} borderRadius={8} style={styles.skRow} />
         <SkeletonBlock height={10} width="60%" borderRadius={5} style={styles.skRow} />
         <SkeletonBlock height={8} borderRadius={4} style={styles.skRow} />
-      </HomeGlassCard>
+      </AppGlassCard>
     );
   }
 
@@ -44,7 +44,7 @@ export default function ProductivityScoreCard({
   const color = scoreColor(score, COLORS);
 
   return (
-    <HomeGlassCard variant="surface" padding={20} style={styles.card}>
+    <AppGlassCard variant="surface" padding={20} style={styles.card}>
       <View style={styles.header}>
         <Text style={styles.title}>Hiệu suất tuần</Text>
         {report.weeklyPerformance ? (
@@ -88,7 +88,7 @@ export default function ProductivityScoreCard({
           <Text style={styles.statLabel}>Tập trung</Text>
         </View>
       </View>
-    </HomeGlassCard>
+    </AppGlassCard>
   );
 }
 

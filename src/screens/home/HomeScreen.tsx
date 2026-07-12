@@ -199,7 +199,7 @@ export default function HomeScreen() {
       ) : null}
 
       {latestReport || isLoading ? (
-        <>
+        <View style={styles.dashboardGroup}>
           <ProductivityScoreCard report={latestReport} skeleton={isLoading && !latestReport} />
           <WeeklyTimeStatsCard
             categories={weeklyCategories}
@@ -212,7 +212,7 @@ export default function HomeScreen() {
             />
           ) : null}
           <AiInsightsCard report={latestReport} skeleton={isLoading && !latestReport} />
-        </>
+        </View>
       ) : null}
 
       {trend.length > 0 || isLoading ? (
@@ -226,6 +226,9 @@ export default function HomeScreen() {
 
 const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   greeting: {},
+  dashboardGroup: {
+    gap: 16,
+  },
   greetingTitle: {
     ...typography.displayLgMobile,
     color: COLORS.onBackground,

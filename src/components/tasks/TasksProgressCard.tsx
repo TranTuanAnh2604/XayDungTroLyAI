@@ -2,7 +2,7 @@ import { getTypography } from '../../constants/typography';
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import HomeGlassCard from '../home/HomeGlassCard';
+import AppGlassCard from '../ui/AppGlassCard';
 import { useTheme } from '../../hooks/useTheme';
 
 import type { TasksProgress } from '../../types/tasks';
@@ -32,7 +32,7 @@ export default function TasksProgressCard({ progress }: TasksProgressCardProps) 
   });
 
   return (
-    <HomeGlassCard variant="ai" padding={20}>
+    <AppGlassCard variant="ai" padding={20}>
       <View style={styles.sparkle}>
         <MaterialIcons name="auto-awesome" size={24} color={COLORS.secondary} />
       </View>
@@ -41,7 +41,7 @@ export default function TasksProgressCard({ progress }: TasksProgressCardProps) 
       <View style={styles.track}>
         <Animated.View style={[styles.fill, { width: barWidth }]} />
       </View>
-    </HomeGlassCard>
+    </AppGlassCard>
   );
 }
 

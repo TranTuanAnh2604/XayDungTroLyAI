@@ -2,7 +2,7 @@ import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import HomeGlassCard from './HomeGlassCard';
+import AppGlassCard from '../ui/AppGlassCard';
 import { useTheme } from '../../hooks/useTheme';
 
 import type { DaySummary } from '../../types/home';
@@ -18,7 +18,7 @@ export default function DaySummaryCard({ summary }: DaySummaryCardProps) {
   const steps = [1, 2, 3];
 
   return (
-    <HomeGlassCard variant="ai" padding={20}>
+    <AppGlassCard variant="ai" padding={20}>
       <View style={styles.sparkle}>
         <MaterialIcons name="auto-awesome" size={24} color={COLORS.secondary} />
       </View>
@@ -47,7 +47,7 @@ export default function DaySummaryCard({ summary }: DaySummaryCardProps) {
           />
         ))}
       </View>
-    </HomeGlassCard>
+    </AppGlassCard>
   );
 }
 

@@ -2,7 +2,7 @@ import { getTypography } from '../../constants/typography';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import HomeGlassCard from './HomeGlassCard';
+import AppGlassCard from '../ui/AppGlassCard';
 import SkeletonBlock from './SkeletonBlock';
 import { useTheme } from '../../hooks/useTheme';
 import type { ProductivityReport } from '../../types/productivity';
@@ -34,17 +34,17 @@ export default function AiInsightsCard({ report, skeleton = false }: AiInsightsC
   const styles = React.useMemo(() => createStyles(COLORS, typography, isDark), [COLORS, typography, isDark]);
   if (skeleton || !report) {
     return (
-      <HomeGlassCard variant='ai' padding={20}>
+      <AppGlassCard variant='ai' padding={20}>
         <SkeletonBlock height={12} width={140} borderRadius={6} style={{ marginBottom: 12 }} />
         <SkeletonBlock height={14} borderRadius={7} style={{ marginBottom: 8 }} />
         <SkeletonBlock height={14} width='80%' borderRadius={7} style={{ marginBottom: 8 }} />
         <SkeletonBlock height={14} width='65%' borderRadius={7} style={{ marginBottom: 8 }} />
-      </HomeGlassCard>
+      </AppGlassCard>
     );
   }
   const hasInsights = (report.strengths?.length ?? 0) > 0 || (report.weaknesses?.length ?? 0) > 0 || (report.suggestions?.length ?? 0) > 0;
   return (
-    <HomeGlassCard variant='ai' padding={20}>
+    <AppGlassCard variant='ai' padding={20}>
       <MaterialIcons name='auto-awesome' size={22} color={COLORS.secondary + '66'} style={styles.sparkle} />
       <View style={styles.labelRow}>
         <View style={styles.dot} />
@@ -60,7 +60,7 @@ export default function AiInsightsCard({ report, skeleton = false }: AiInsightsC
         </View>
       ) : null}
       {!report.aiSummary && !hasInsights ? (<Text style={styles.empty}>Chưa có phân tích AI cho tuần này.</Text>) : null}
-    </HomeGlassCard>
+    </AppGlassCard>
   );
 }
 const createStyles = (COLORS: any, typography: any, isDark: boolean) => StyleSheet.create({

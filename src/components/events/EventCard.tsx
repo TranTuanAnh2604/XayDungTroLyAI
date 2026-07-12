@@ -19,31 +19,31 @@ export default function EventCard({ event, onEdit }: EventCardProps) {
     switch (event.type) {
       case 'urgent':
         return {
-          bgColor: '#FDE4E4', // Light pink/red
-          iconColor: '#E53935',
+          bgColor: `${COLORS.danger}1A`,
+          iconColor: COLORS.danger,
           iconName: 'priority-high' as const,
         };
       case 'meeting':
         return {
-          bgColor: '#FCE4D6', // Light orange/peach
-          iconColor: '#E65100',
+          bgColor: `${COLORS.warning}1A`,
+          iconColor: COLORS.warning,
           iconName: 'group' as const,
         };
       case 'break':
         return {
-          bgColor: '#F5F5F5', // Light gray
-          iconColor: '#757575',
+          bgColor: COLORS.surfaceContainerHigh,
+          iconColor: COLORS.textSecondary,
           iconName: 'free-breakfast' as const,
         };
       case 'task':
       default:
         return {
-          bgColor: '#E8F0FE', // Light blue
-          iconColor: '#1A73E8',
+          bgColor: `${COLORS.primary}1A`,
+          iconColor: COLORS.primary,
           iconName: 'event' as const,
         };
     }
-  }, [event.type]);
+  }, [event.type, COLORS]);
 
   return (
     <Pressable 

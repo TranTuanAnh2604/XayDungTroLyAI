@@ -41,7 +41,7 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   wrapper: {
     maxWidth: '85%',
     alignSelf: 'flex-start',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   bubble: {
     padding: 16,
