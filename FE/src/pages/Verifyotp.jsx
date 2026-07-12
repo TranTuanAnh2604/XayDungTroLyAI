@@ -92,9 +92,9 @@ export default function VerifyOTP() {
 
         try {
             const res = await verifyOtp(gmail, code)
-            localStorage.setItem('accessToken', res.data.accessToken)
-            localStorage.setItem('refreshToken', res.data.refreshToken)
-            localStorage.setItem('userName', res.data.name)
+            localStorage.setItem('accessToken', res.data.data.accessToken)
+            localStorage.setItem('refreshToken', res.data.data.refreshToken)
+            localStorage.setItem('userName', res.data.data.name)
             setSuccess(true)
             setTimeout(() => navigate('/dashboard'), 1200)
         } catch (err) {

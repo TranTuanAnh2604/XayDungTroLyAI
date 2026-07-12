@@ -148,10 +148,15 @@ namespace Assistant.Controllers
                     Name = googleUser.Name ?? "Google User",
                     Email = googleUser.Email,
                     PasswordHash = "GOOGLE_SSO_NO_PASSWORD",
-                    Timezone = "Asia/Ho_Chi_Minh"
+                    Timezone = "Asia/Ho_Chi_Minh",
+                    IsEmailVerified = true
                 };
                 _context.Users.Add(user);
                 await _context.SaveChangesAsync();
+            }
+            else if (!user.IsEmailVerified)
+            {
+                user.IsEmailVerified = true;
             }
 
             var accessToken = GenerateJwtToken(user);
