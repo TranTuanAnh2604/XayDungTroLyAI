@@ -55,7 +55,7 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   scroll: {
     gap: 8,
     paddingBottom: 8,
-    marginBottom: 24,
+    marginBottom: 0,
   },
   chip: {
     paddingHorizontal: 16,

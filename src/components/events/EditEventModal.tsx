@@ -359,22 +359,24 @@ export default function EditEventModal({
 
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-            <Pressable
-              onPress={handleEdit}
-              style={[styles.button, submitting && styles.buttonDisabled]}
-              disabled={submitting}
-            >
-              <Text style={styles.buttonText}>{submitting ? 'Đang cập nhật...' : 'Cập nhật sự kiện'}</Text>
-            </Pressable>
-            {onDelete ? (
+            <View style={styles.buttonGroup}>
               <Pressable
-                onPress={handleDelete}
-                style={[styles.deleteButton, submitting && styles.buttonDisabled]}
+                onPress={handleEdit}
+                style={[styles.button, submitting && styles.buttonDisabled]}
                 disabled={submitting}
               >
-                <Text style={styles.deleteButtonText}>Xóa sự kiện</Text>
+                <Text style={styles.buttonText}>{submitting ? 'Đang cập nhật...' : 'Cập nhật sự kiện'}</Text>
               </Pressable>
-            ) : null}
+              {onDelete ? (
+                <Pressable
+                  onPress={handleDelete}
+                  style={[styles.deleteButton, submitting && styles.buttonDisabled]}
+                  disabled={submitting}
+                >
+                  <Text style={styles.deleteButtonText}>Xóa sự kiện</Text>
+                </Pressable>
+              ) : null}
+            </View>
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -423,19 +425,22 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   },
   form: {
     paddingBottom: 32,
+    gap: 20,
   },
   switchRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginVertical: 16,
+    paddingVertical: 8,
   },
   switchLabel: {
     ...typography.bodyMd,
     color: COLORS.onSurface,
   },
+  buttonGroup: {
+    gap: 12,
+  },
   button: {
-    marginTop: 8,
     paddingVertical: 14,
     borderRadius: 16,
     backgroundColor: COLORS.primary,
@@ -445,7 +450,6 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     backgroundColor: `${COLORS.primary}88`,
   },
   deleteButton: {
-    marginTop: 12,
     paddingVertical: 14,
     borderRadius: 16,
     backgroundColor: COLORS.error,
@@ -473,7 +477,6 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.outlineVariant,
-    marginBottom: 16,
   },
   label: {
     ...typography.labelCaps,

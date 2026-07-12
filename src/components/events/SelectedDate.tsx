@@ -34,7 +34,7 @@ export default function SelectedDate({ selectedDateId }: SelectedDateProps) {
 const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   container: {
     paddingHorizontal: 16,
-    marginBottom: 16,
+    marginBottom: 0,
   },
   dateText: {
     ...typography.bodyLg,

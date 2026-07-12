@@ -362,12 +362,13 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   },
   form: {
     paddingBottom: 32,
+    gap: 20,
   },
   switchRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginVertical: 16,
+    paddingVertical: 8,
   },
   switchLabel: {
     ...typography.bodyMd,
@@ -400,7 +401,6 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.outlineVariant,
-    marginBottom: 16,
   },
   label: {
     ...typography.labelCaps,

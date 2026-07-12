@@ -293,16 +293,17 @@ export default function TasksScreen() {
     >
       <TasksProgressCard progress={progressData} />
 
-      <TaskFilterChips
-        filters={TASK_FILTERS}
-        activeId={activeFilter}
-        onChange={setActiveFilter}
-      />
+      <View style={styles.listGroup}>
+        <TaskFilterChips
+          filters={TASK_FILTERS}
+          activeId={activeFilter}
+          onChange={setActiveFilter}
+        />
 
-      {loading ? (
-        <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 32 }} />
-      ) : (
-        <View style={styles.container}>
+        {loading ? (
+          <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 32 }} />
+        ) : (
+          <View style={styles.container}>
 
           {filteredTasks.length > 0 && (
             <View style={styles.section}>
@@ -341,6 +342,7 @@ export default function TasksScreen() {
           )}
         </View>
       )}
+      </View>
 
       <CreateTaskModal
         visible={isModalVisible}
@@ -390,6 +392,7 @@ export default function TasksScreen() {
 
 const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   container: { gap: 16 },
+  listGroup: { width: '100%', gap: 8 },
   section: { marginBottom: 8 },
   sectionLabel: { ...typography.labelCaps, letterSpacing: 1.5, marginBottom: 8, color: COLORS.textSecondary },
   emptyContainer: { paddingVertical: 32, alignItems: 'center' },

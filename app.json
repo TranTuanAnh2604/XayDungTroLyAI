@@ -45,6 +45,10 @@
         }
       ]
     ],
+    "notification": {
+      "icon": "./assets/notification-icon.png",
+      "color": "#faf8ff"
+    },
     "ios": {
       "supportsTablet": true
     },

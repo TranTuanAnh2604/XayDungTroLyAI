@@ -59,7 +59,7 @@ export default function UnderlineTextInput({
         {...rest}
         value={value}
         style={styles.input}
-        placeholderTextColor={`${COLORS.outlineVariant}80`}
+        placeholderTextColor={COLORS.textMuted}
         onFocus={(e) => {
           setFocused(true);
           animateBorder(true);

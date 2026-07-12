@@ -40,7 +40,7 @@ export default function BorderTextInput({
         {...rest}
         value={value}
         style={[styles.input, active && styles.inputActive, style]}
-        placeholderTextColor={`${COLORS.outlineVariant}80`}
+        placeholderTextColor={COLORS.textMuted}
         onFocus={(e) => {
           setFocused(true);
           onFocus?.(e);
@@ -62,7 +62,7 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   label: {
     ...typography.labelCaps,

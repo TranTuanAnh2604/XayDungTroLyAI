@@ -746,7 +746,8 @@ export default function EventsScreen() {
         onSelect={setSelectedDateId}
       />
 
-      <SelectedDate selectedDateId={selectedDateId} />
+      <View style={styles.listGroup}>
+        <SelectedDate selectedDateId={selectedDateId} />
 
       {/* <EventsInsightCard insight={EVENTS_INSIGHT} /> */}
 
@@ -904,6 +905,7 @@ export default function EventsScreen() {
           }}
         />
       )}
+      </View>
 
       <EditEventModal
         visible={isEditModalOpen}
@@ -1124,6 +1126,7 @@ export default function EventsScreen() {
 }
 
 const createStyles = (COLORS: any) => StyleSheet.create({
+  listGroup: { width: '100%', gap: 16 },
   messageContainer: {
     justifyContent: 'center',
     alignItems: 'center',

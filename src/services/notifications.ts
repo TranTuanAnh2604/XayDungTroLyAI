@@ -97,8 +97,8 @@ function inferReminderEventType(title: string, isAllDay = false): ReminderEventT
 
 function buildReminderContent(title: string, reminderMinutes: number) {
   return {
-    title: 'Upcoming Event',
-    body: `${title || 'Event'} starts in ${reminderMinutes} minutes.`,
+    title: 'Sự kiện sắp diễn ra',
+    body: `${title || 'Sự kiện'} sẽ bắt đầu sau ${reminderMinutes} phút.`,
   };
 }
 
