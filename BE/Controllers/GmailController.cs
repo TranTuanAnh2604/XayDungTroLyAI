@@ -68,7 +68,7 @@ namespace Assistant.Controllers
 
         // 2. LẤY DANH SÁCH GMAIL (inbox) — đặt TRONG class
         [HttpGet("inbox")]
-        public async Task<IActionResult> GetInbox([FromQuery] int maxResults = 15)
+        public async Task<IActionResult> GetInbox([FromQuery] int maxResults = 15, [FromQuery] string category = "primary")
         {
             var userId = GetUserId();
 
@@ -81,7 +81,7 @@ namespace Assistant.Controllers
             try
             {
                 var accessToken = await _gmailService.GetNewAccessTokenAsync(googleTokenMemory.Value);
-                var gmails = await _gmailService.GetInboxGmailsAsync(accessToken, maxResults);
+                var gmails = await _gmailService.GetInboxGmailsAsync(accessToken, maxResults, category);
                 return Ok(new ApiResponse<List<Assistant.DTOs.GmailDto>>(gmails, "Thành công"));
             }
             catch (Exception ex)
@@ -135,16 +135,32 @@ namespace Assistant.Controllers
                 if (!gmails.Any())
                     return Ok(new ApiResponse<string>("Không có gmail mới trong 24h qua."));
 
+                // Lấy danh sách email đã sync trước đó của user này
+                var syncedIds = await _context.UserMemories
+                    .Where(m => m.UserId == userId && m.Category == "SyncedGmail")
+                    .Select(m => m.Key)
+                    .ToListAsync();
+                var syncedSet = new HashSet<string>(syncedIds);
+
                 int addedTasks = 0;
+                int skippedDuplicates = 0;
+
                 foreach (var gmail in gmails)
                 {
+                    // Bỏ qua nếu email này đã được xử lý ở lần sync trước
+                    if (syncedSet.Contains(gmail.Id))
+                    {
+                        skippedDuplicates++;
+                        continue;
+                    }
+
                     var prompt = $@"
 Thời gian hiện tại của hệ thống: {today:dd/MM/yyyy HH:mm}
 Nhiệm vụ: Đọc đoạn tóm tắt Gmail sau và trích xuất xem có lịch hẹn, deadline, lịch thi, hay công việc cụ thể nào không.
 - Priority: Đánh giá độ ưu tiên (1: Thấp, 2: Trung bình, 3: Cao, 4: Khẩn cấp).
 - DueDate: Định dạng chuẩn ISO ""yyyy-MM-ddTHH:mm:ss"". Nếu gmail chỉ nói ngày (ví dụ: ngày mai, thứ hai tuần sau) mà không nói giờ, hãy tự định dạng về lúc 08:00:00 của ngày đó.
 
-Gmail nội dung: ""{gmail}""
+Gmail nội dung: ""{gmail.Snippet}""
 
 RÀO CẢN BẢO MẬT:
 - Nếu nội dung gmail KHÔNG chứa bất kỳ lịch trình, deadline hay việc cần làm nào, bắt buộc trả về duy nhất cặp dấu ngoặc nhọn rỗng: {{}}
@@ -158,8 +174,21 @@ RÀO CẢN BẢO MẬT:
 }}
 ";
                     var aiResult = await _aiService.ChatAsync(prompt);
-                    _logger.LogInformation("=== AI RAW RESPONSE cho gmail '{Gmail}': {Raw}", gmail, aiResult);
+                    _logger.LogInformation("=== AI RAW RESPONSE cho gmail '{Gmail}': {Raw}", gmail.Snippet, aiResult);
                     var cleanedJson = CleanJsonString(aiResult);
+
+                    // Đánh dấu email này đã được xử lý, dù có tạo task hay không (tránh xử lý AI lại lần sau)
+                    _context.UserMemories.Add(new UserMemory
+                    {
+                        Id = Guid.NewGuid(),
+                        UserId = userId,
+                        Category = "SyncedGmail",
+                        Key = gmail.Id,
+                        Value = "synced",
+                        Source = "system",
+                        CreatedAt = today,
+                        UpdatedAt = today
+                    });
 
                     if (cleanedJson != "{}")
                     {
@@ -195,9 +224,10 @@ RÀO CẢN BẢO MẬT:
                     }
                 }
 
-                if (addedTasks > 0) await _context.SaveChangesAsync();
+                await _context.SaveChangesAsync();
 
-                return Ok(new ApiResponse<string>($"Đồng bộ hoàn tất! AI đã thêm {addedTasks} công việc mới."));
+                return Ok(new ApiResponse<string>(
+                    $"Đồng bộ hoàn tất! AI đã thêm {addedTasks} công việc mới. Bỏ qua {skippedDuplicates} email đã đồng bộ trước đó."));
             }
             catch (Exception ex)
             {
@@ -281,7 +311,7 @@ Yêu cầu:
             try
             {
                 var accessToken = await _gmailService.GetNewAccessTokenAsync(googleTokenMemory.Value);
-                var gmails = await _gmailService.GetInboxGmailsAsync(accessToken, maxResults);
+                var gmails = await _gmailService.GetInboxGmailsAsync(accessToken, maxResults, "primary");
 
                 if (gmails == null || gmails.Count == 0)
                     return Ok(new ApiResponse<List<GmailSummaryItemDto>>(new List<GmailSummaryItemDto>(), "Không có email nào."));

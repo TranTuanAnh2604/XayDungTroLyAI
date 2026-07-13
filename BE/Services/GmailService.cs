@@ -48,22 +48,23 @@ namespace Assistant.Services
         }
 
         // 2. Kéo gmail mới nhất trong 24h (dùng cho auto-sync)
-        public async Task<List<string>> GetRecentGmailsAsync(string accessToken)
+        public async Task<List<RecentGmailItem>> GetRecentGmailsAsync(string accessToken, string category = "primary")
         {
-            var gmailSnippets = new List<string>();
+            var result = new List<RecentGmailItem>();
             using var client = new HttpClient();
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-            // ✅ Sửa URL đúng
+            var q = category?.ToLower() == "all" ? "newer_than:1d" : $"newer_than:1d category:{category?.ToLower() ?? "primary"}";
+
             var response = await client.GetAsync(
-                "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5&q=newer_than:1d");
-            if (!response.IsSuccessStatusCode) return gmailSnippets;
+                $"https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10&labelIds=INBOX&q={Uri.EscapeDataString(q)}");
+            if (!response.IsSuccessStatusCode) return result;
 
             var responseString = await response.Content.ReadAsStringAsync();
             using var doc = JsonDocument.Parse(responseString);
 
             if (!doc.RootElement.TryGetProperty("messages", out var messagesProperty))
-                return gmailSnippets;
+                return result;
 
             foreach (var msg in messagesProperty.EnumerateArray())
             {
@@ -74,21 +75,40 @@ namespace Assistant.Services
                 {
                     var detailString = await detailResponse.Content.ReadAsStringAsync();
                     using var detailDoc = JsonDocument.Parse(detailString);
-                    gmailSnippets.Add(detailDoc.RootElement.GetProperty("snippet").GetString()!);
+                    result.Add(new RecentGmailItem
+                    {
+                        Id = msgId,
+                        Snippet = detailDoc.RootElement.GetProperty("snippet").GetString()!
+                    });
                 }
             }
-            return gmailSnippets;
+            return result;
         }
 
-        // 3. Lấy danh sách gmail inbox
-        public async Task<List<GmailDto>> GetInboxGmailsAsync(string accessToken, int maxResults = 10)
+        // 3. Lấy danh sách gmail inbox (đã thêm filter category để chỉ lấy email "chính")
+        public async Task<List<GmailDto>> GetInboxGmailsAsync(string accessToken, int maxResults = 10, string category = "primary")
         {
             var result = new List<GmailDto>();
             using var client = new HttpClient();
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-            var listRes = await client.GetAsync(
-                $"https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults={maxResults}&labelIds=INBOX");
+            // Build query lọc theo category (primary/promotions/social/updates/forums), "all" = không lọc
+            var q = category?.ToLower() switch
+            {
+                "primary" => "category:primary",
+                "promotions" => "category:promotions",
+                "social" => "category:social",
+                "updates" => "category:updates",
+                "forums" => "category:forums",
+                "all" => "",
+                _ => "category:primary"
+            };
+
+            var url = $"https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults={maxResults}&labelIds=INBOX";
+            if (!string.IsNullOrEmpty(q))
+                url += $"&q={Uri.EscapeDataString(q)}";
+
+            var listRes = await client.GetAsync(url);
 
             var listStr = await listRes.Content.ReadAsStringAsync();
             Console.WriteLine($"=== Gmail API Status: {listRes.StatusCode} ===");
@@ -277,5 +297,11 @@ namespace Assistant.Services
                 }
             }
         }
+    }
+
+    public class RecentGmailItem
+    {
+        public string Id { get; set; } = null!;
+        public string Snippet { get; set; } = null!;
     }
 }

@@ -34,7 +34,7 @@ namespace Assistant.Controllers
         {
             var userId = GetUserId();
             var memories = await _context.UserMemories
-                .Where(m => m.UserId == userId && m.Category != "OAuth")
+                .Where(m => m.UserId == userId && m.Category != "OAuth" && m.Category != "SyncedGmail")
                 .OrderByDescending(m => m.UpdatedAt)
                 .Select(m => new
                 {
