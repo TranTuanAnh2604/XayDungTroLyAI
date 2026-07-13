@@ -25,7 +25,7 @@ namespace Assistant.Services
             string url = "https://api.groq.com/openai/v1/chat/completions";
             var requestBody = new
             {
-                model = "llama-3.1-8b-instant",
+                model = "openai/gpt-oss-20b",
                 messages = new[]
                 {
                     new
@@ -35,7 +35,8 @@ namespace Assistant.Services
                     },
                     new { role = "user", content = prompt }
                 },
-                temperature = 0.7
+                temperature = 0.7,
+                reasoning_effort = "low"
             };
 
             var content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
@@ -132,13 +133,14 @@ namespace Assistant.Services
 
             var requestBody = new
             {
-                model = "llama-3.1-8b-instant",
+                model = "openai/gpt-oss-20b",
                 messages = new[]
                 {
             new { role = "system", content = systemPrompt },
             new { role = "user", content = prompt }
         },
-                temperature = 0.3
+                temperature = 0.3,
+                reasoning_effort = "low"
             };
 
             var content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
@@ -188,13 +190,14 @@ namespace Assistant.Services
 
             var requestBody = new
             {
-                model = "llama-3.1-8b-instant",
+                model = "openai/gpt-oss-20b",
                 messages = new[]
                 {
             new { role = "system", content = systemPrompt },
             new { role = "user", content = trimmedText }
         },
-                temperature = 0.2
+                temperature = 0.2,
+                reasoning_effort = "low"
             };
 
             var content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
@@ -285,11 +288,12 @@ namespace Assistant.Services
             // Lượt 1: cho AI quyền tự quyết có cần gọi tool không
             var firstRequest = new
             {
-                model = "llama-3.1-8b-instant",
+                model = "openai/gpt-oss-20b",
                 messages,
                 tools,
                 tool_choice = "auto",
-                temperature = 0.3
+                temperature = 0.3,
+                reasoning_effort = "low"
             };
 
             var firstRes = await _httpClient.PostAsync(url,
@@ -303,9 +307,10 @@ namespace Assistant.Services
                 {
                     var fallbackRequest = new
                     {
-                        model = "llama-3.1-8b-instant",
+                        model = "openai/gpt-oss-20b",
                         messages,
-                        temperature = 0.3
+                        temperature = 0.3,
+                        reasoning_effort = "low"
                     };
                     var fallbackRes = await _httpClient.PostAsync(url,
                         new StringContent(JsonSerializer.Serialize(fallbackRequest), Encoding.UTF8, "application/json"));
@@ -363,11 +368,12 @@ namespace Assistant.Services
             // Lượt 2: AI đọc kết quả search thật rồi trả lời cuối cùng
             var secondRequest = new
             {
-                model = "llama-3.1-8b-instant",
+                model = "openai/gpt-oss-20b",
                 messages,
                 temperature = 0.3,
                 max_completion_tokens = 2048,
-                response_format = new { type = "json_object" }   // ← thêm dòng này
+                reasoning_effort = "low",
+                response_format = new { type = "json_object" }
             };
             var secondRes = await _httpClient.PostAsync(url,
                 new StringContent(JsonSerializer.Serialize(secondRequest), Encoding.UTF8, "application/json"));

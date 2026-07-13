@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
-import { getInboxGmails, getGmailDetail, summarizeGmail, summarizeAllGmails } from "../services/gmailService";
+import { getInboxGmails, getGmailDetail, summarizeGmail, summarizeAllGmails, autoSyncGmail } from "../services/gmailService";
 
 export default function Gmail() {
     const [gmails, setGmails] = useState([]);
@@ -20,6 +20,10 @@ export default function Gmail() {
     const [allSummaries, setAllSummaries] = useState([]);
     const [isLoadingAllSummaries, setIsLoadingAllSummaries] = useState(false);
     const [allSummaryError, setAllSummaryError] = useState("");
+
+    // --- ĐỒNG BỘ: Gmail thành Task/Lịch ---
+    const [isSyncing, setIsSyncing] = useState(false);
+    const [syncResult, setSyncResult] = useState(null); // { type: "success" | "error", message: string }
 
     const handleSelectGmail = async (gmail) => {
         if (gmail.isUnread) {
@@ -79,6 +83,25 @@ export default function Gmail() {
             setAllSummaryError("Đã xảy ra lỗi khi tóm tắt toàn bộ email.");
         } finally {
             setIsLoadingAllSummaries(false);
+        }
+    };
+
+    // --- ĐỒNG BỘ: gọi API auto-sync, hiển thị banner kết quả ---
+    const handleAutoSync = async () => {
+        setIsSyncing(true);
+        setSyncResult(null);
+        try {
+            const res = await autoSyncGmail();
+            setSyncResult({
+                type: res.success !== false ? "success" : "error",
+                message: res.messenger || "Đồng bộ hoàn tất.",
+            });
+        } catch {
+            setSyncResult({ type: "error", message: "Đã xảy ra lỗi khi đồng bộ Gmail." });
+        } finally {
+            setIsSyncing(false);
+            // Tự ẩn thông báo sau 5 giây
+            setTimeout(() => setSyncResult(null), 5000);
         }
     };
 
@@ -288,11 +311,45 @@ export default function Gmail() {
                                         </div>
 
                                         <div className="w-px h-[24px] bg-[#c6c6cd]"></div>
+
+                                        {/* ĐỒNG BỘ: Gmail thành Task/Lịch */}
+                                        <button
+                                            onClick={handleAutoSync}
+                                            disabled={isSyncing || gmails.length === 0}
+                                            title="Quét Gmail 24h gần nhất và tự tạo Task/Lịch"
+                                            className="flex items-center gap-[6px] px-[13px] py-[7px] rounded-lg text-[13px] font-semibold text-white transition-all hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
+                                            style={{ background: "linear-gradient(135deg, #16a34a, #22c55e)" }}
+                                        >
+                                            {isSyncing ? (
+                                                <svg className="animate-spin w-[15px] h-[15px]" viewBox="0 0 24 24" fill="none">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                                                </svg>
+                                            ) : (
+                                                <span className="material-symbols-outlined text-[16px]">sync</span>
+                                            )}
+                                            <span>{isSyncing ? "Đang đồng bộ..." : "Đồng bộ Task"}</span>
+                                        </button>
                                     </div>
                                 </div>
 
                                 {/* Gmail Body */}
                                 <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-[24px] flex flex-col gap-[20px]">
+
+                                    {/* ĐỒNG BỘ: Banner kết quả */}
+                                    {syncResult && (
+                                        <div
+                                            className={`rounded-xl border p-[14px] flex items-center gap-[10px] shrink-0 ${syncResult.type === "success"
+                                                    ? "bg-[#f0fdf4] border-[#bbf7d0] text-[#15803d]"
+                                                    : "bg-[#fef2f2] border-[#fecaca] text-[#d85a30]"
+                                                }`}
+                                        >
+                                            <span className="material-symbols-outlined text-[18px]">
+                                                {syncResult.type === "success" ? "check_circle" : "error_outline"}
+                                            </span>
+                                            <span className="text-[14px] font-medium">{syncResult.message}</span>
+                                        </div>
+                                    )}
 
                                     {/* Panel tóm tắt AI */}
                                     {(summary || summaryError || isSummarizing) && (

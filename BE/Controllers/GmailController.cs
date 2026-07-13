@@ -18,12 +18,14 @@ namespace Assistant.Controllers
         private readonly AppDbContext _context;
         private readonly GmailService _gmailService;
         private readonly GroqService _aiService;
+        private readonly ILogger<GmailController> _logger;
 
-        public GmailController(AppDbContext context, GmailService gmailService, GroqService aiService)
+        public GmailController(AppDbContext context, GmailService gmailService, GroqService aiService, ILogger<GmailController> logger)
         {
             _context = context;
             _gmailService = gmailService;
             _aiService = aiService;
+            _logger = logger;
         }
 
         private Guid GetUserId() => Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -156,13 +158,15 @@ RÀO CẢN BẢO MẬT:
 }}
 ";
                     var aiResult = await _aiService.ChatAsync(prompt);
+                    _logger.LogInformation("=== AI RAW RESPONSE cho gmail '{Gmail}': {Raw}", gmail, aiResult);
                     var cleanedJson = CleanJsonString(aiResult);
 
                     if (cleanedJson != "{}")
                     {
                         try
                         {
-                            var extractedTask = JsonSerializer.Deserialize<ExtractedGmailTaskDto>(cleanedJson);
+                            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                            var extractedTask = JsonSerializer.Deserialize<ExtractedGmailTaskDto>(cleanedJson, options);
 
                             if (extractedTask != null && !string.IsNullOrEmpty(extractedTask.Title))
                             {
@@ -174,14 +178,20 @@ RÀO CẢN BẢO MẬT:
                                     Description = "Tự động trích xuất từ hòm thư điện tử",
                                     Status = "pending",
                                     Priority = (byte)(extractedTask.Priority >= 1 && extractedTask.Priority <= 4 ? extractedTask.Priority : 2),
-                                    DueDate = extractedTask.DueDate ?? today.AddDays(1),
+                                    DueDate = extractedTask.DueDate.HasValue
+                                    ? DateTime.SpecifyKind(extractedTask.DueDate.Value, DateTimeKind.Utc)
+                                    : today.AddDays(1),
                                     InputMethod = "ai",
                                     CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc)
                                 });
                                 addedTasks++;
                             }
                         }
-                        catch (JsonException) { continue; }
+                        catch (JsonException ex)
+                        {
+                            _logger.LogWarning("Parse JSON thất bại cho gmail: {Json}, lỗi: {Error}", cleanedJson, ex.Message);
+                            continue;
+                        }
                     }
                 }
 
