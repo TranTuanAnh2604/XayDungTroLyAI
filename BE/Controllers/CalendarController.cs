@@ -30,16 +30,17 @@ namespace Assistant.Controllers
             if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
 
             var query = _db.CalendarEvents.Where(e => e.UserId == userId);
+            var taskQuery = _db.Tasks.Where(t => t.UserId == userId && t.DueDate != null);
 
             if (year.HasValue && month.HasValue)
             {
                 var start = DateTime.SpecifyKind(new DateTime(year.Value, month.Value, 1), DateTimeKind.Utc);
                 var end = DateTime.SpecifyKind(start.AddMonths(1), DateTimeKind.Utc);
                 query = query.Where(e => e.StartTime < end && e.EndTime >= start);
+                taskQuery = taskQuery.Where(t => t.DueDate < end && t.DueDate >= start);
             }
 
             var events = await query
-                .OrderBy(e => e.StartTime)
                 .Select(e => new CalendarEventDto
                 {
                     Id = e.Id,
@@ -54,7 +55,25 @@ namespace Assistant.Controllers
                 })
                 .ToListAsync();
 
-            return Ok(events);
+            // Gộp thêm Task có deadline — hiển thị theo DueDate, không phải ngày tạo
+            var taskEvents = await taskQuery
+                .Select(t => new CalendarEventDto
+                {
+                    Id = t.Id,
+                    Title = t.Title,
+                    Description = t.Description,
+                    StartTime = t.DueDate!.Value,
+                    EndTime = t.DueDate!.Value.AddMinutes(30),
+                    Location = null,
+                    Source = "task",           // FE dùng field này để nhận diện & đổi icon/không cho sửa như event thường
+                    IsAllDay = false,
+                    Priority = t.Priority == 3 ? 0 : t.Priority == 1 ? 2 : 1, // map Task(1=Low,2=Normal,3=Urgent) -> Calendar(0=Urgent,1=Normal,2=Low)
+                })
+                .ToListAsync();
+
+            var merged = events.Concat(taskEvents).OrderBy(e => e.StartTime).ToList();
+
+            return Ok(merged);
         }
 
         [HttpGet("{id:guid}")]

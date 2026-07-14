@@ -797,7 +797,7 @@ export default function Calendar() {
                                                 return (
                                                     <div
                                                         key={j}
-                                                        onClick={(e) => openEdit(ev, e)}
+                                                        onClick={(e) => ev.source === 'task' ? e.stopPropagation() : openEdit(ev, e)}
                                                         className={`px-2 py-1 rounded text-xs font-medium truncate mb-1 cursor-pointer transition-colors flex items-center gap-1 ${priority.style}`}
                                                         title={ev.title}
                                                     >
