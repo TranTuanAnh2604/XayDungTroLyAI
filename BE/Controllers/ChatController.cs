@@ -339,7 +339,12 @@ namespace Assistant.Controllers
             {
                 sb.AppendLine("\n-- Thông tin đã ghi nhớ về người dùng --");
                 foreach (var m in memories)
-                    sb.AppendLine($"- {m.Category}/{m.Key}: {m.Value}");
+                {
+                    if (m.Category == "Survey" && MemoryController.SurveyKeys.TryGetValue(m.Key, out var label))
+                        sb.AppendLine($"- {label}: {m.Value}");
+                    else
+                        sb.AppendLine($"- {m.Category}/{m.Key}: {m.Value}");
+                }
             }
 
             sb.AppendLine("=== HẾT DỮ LIỆU ===\n");

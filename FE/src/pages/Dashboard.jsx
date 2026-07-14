@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import Sidebar from "../components/Sidebar";
 import { getTasks } from "../services/taskService";
 import { getNotifications } from "../services/notificationService";
+import SurveyPopup from "../components/SurveyPopup";
+import api from "../services/api";
 
 export default function Dashboard() {
     const searchWrapperRef = useRef(null);
@@ -13,6 +15,21 @@ export default function Dashboard() {
     const [tasks, setTasks] = useState([]);
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [showSurvey, setShowSurvey] = useState(false);
+
+    useEffect(() => {
+        const checkSurvey = async () => {
+            try {
+                const res = await api.get("/memory/survey");
+                if (!res?.data?.data?.completed) {
+                    setShowSurvey(true);
+                }
+            } catch (err) {
+                console.error("Lỗi kiểm tra khảo sát:", err);
+            }
+        };
+        checkSurvey();
+    }, []);
 
     useEffect(() => {
         const fetchAll = async () => {
@@ -110,6 +127,12 @@ export default function Dashboard() {
     return (
         <div className="bg-[#f8f9ff] text-[#0b1c30] min-h-screen flex antialiased" style={{ fontFamily: "Inter, sans-serif" }}>
             <Sidebar />
+
+            <SurveyPopup
+                isOpen={showSurvey}
+                onClose={() => setShowSurvey(false)}
+                onSaved={() => setShowSurvey(false)}
+            />
 
             <main className="flex-1 flex flex-col min-w-0 md:ml-[280px]">
                 {/* Header */}

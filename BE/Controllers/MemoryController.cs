@@ -145,5 +145,86 @@ namespace Assistant.Controllers
 
             return Ok(new ApiResponse<bool>(true, "Đã xóa!"));
         }
+
+        // Các Key cố định cho khảo sát cá nhân hóa
+        internal static readonly Dictionary<string, string> SurveyKeys = new()
+        {
+            ["SupportAreas"] = "Lĩnh vực AI hỗ trợ chính",
+            ["ResponseStyle"] = "Phong cách trả lời mong muốn",
+            ["Priorities"] = "Ưu tiên khi lập kế hoạch/gợi ý",
+            ["Traits"] = "Đặc điểm làm việc của người dùng",
+            ["ProactiveSupport"] = "Cách AI nên chủ động hỗ trợ"
+        };
+
+        // GET /api/memory/survey — lấy câu trả lời khảo sát đã lưu (để prefill popup)
+        [HttpGet("survey")]
+        public async Task<IActionResult> GetSurvey()
+        {
+            var userId = GetUserId();
+            var rows = await _context.UserMemories
+                .Where(m => m.UserId == userId && m.Category == "Survey")
+                .ToListAsync();
+
+            var result = new Dictionary<string, string>();
+            foreach (var key in SurveyKeys.Keys)
+            {
+                var row = rows.FirstOrDefault(r => r.Key == key);
+                result[key] = row?.Value ?? "";
+            }
+
+            bool completed = rows.Any();
+
+            return Ok(new ApiResponse<object>(new { answers = result, completed }, "Lấy khảo sát thành công!"));
+        }
+
+        // POST /api/memory/survey — lưu/cập nhật câu trả lời khảo sát
+        [HttpPost("survey")]
+        public async Task<IActionResult> SaveSurvey([FromBody] SurveyDto dto)
+        {
+            var userId = GetUserId();
+            var now = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc);
+
+            var values = new Dictionary<string, string>
+            {
+                ["SupportAreas"] = string.Join(", ", dto.SupportAreas ?? new()),
+                ["ResponseStyle"] = dto.ResponseStyle ?? "",
+                ["Priorities"] = string.Join(", ", dto.Priorities ?? new()),
+                ["Traits"] = string.Join(", ", dto.Traits ?? new()),
+                ["ProactiveSupport"] = string.Join(", ", dto.ProactiveSupport ?? new())
+            };
+
+            foreach (var kv in values)
+            {
+                if (string.IsNullOrWhiteSpace(kv.Value)) continue; // bỏ qua câu không trả lời
+
+                var existing = await _context.UserMemories.FirstOrDefaultAsync(m =>
+                    m.UserId == userId && m.Category == "Survey" && m.Key == kv.Key);
+
+                if (existing != null)
+                {
+                    existing.Value = kv.Value;
+                    existing.Source = "survey";
+                    existing.UpdatedAt = now;
+                }
+                else
+                {
+                    _context.UserMemories.Add(new UserMemory
+                    {
+                        Id = Guid.NewGuid(),
+                        UserId = userId,
+                        Category = "Survey",
+                        Key = kv.Key,
+                        Value = kv.Value,
+                        Source = "survey",
+                        CreatedAt = now,
+                        UpdatedAt = now
+                    });
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new ApiResponse<bool>(true, "Đã lưu khảo sát cá nhân hóa!"));
+        }
     }
 }
