@@ -35,7 +35,7 @@ export default function MailDetailModal({
   }
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.container}>
           <View style={styles.header}>

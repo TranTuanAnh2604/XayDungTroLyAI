@@ -50,7 +50,11 @@
       "color": "#faf8ff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "Ứng dụng cần tính năng nhận diện giọng nói để tương tác.",
+        "NSMicrophoneUsageDescription": "Ứng dụng cần sử dụng micro để nhận diện giọng nói của bạn."
+      }
     },
     "android": {
       "permissions": [
@@ -58,7 +62,18 @@
         "READ_CALENDAR",
         "WRITE_CALENDAR",
         "POST_NOTIFICATIONS",
-        "RECORD_AUDIO"
+        "RECORD_AUDIO",
+        "android.permission.READ_CALENDAR",
+        "android.permission.WRITE_CALENDAR",
+        "android.permission.RECORD_AUDIO",
+        "READ_CONTACTS",
+        "READ_CALENDAR",
+        "WRITE_CALENDAR",
+        "POST_NOTIFICATIONS",
+        "RECORD_AUDIO",
+        "android.permission.READ_CALENDAR",
+        "android.permission.WRITE_CALENDAR",
+        "android.permission.RECORD_AUDIO"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -75,6 +90,15 @@
     "extra": {
       "eas": {
         "projectId": "13865e83-6289-4fa4-b987-3f8490ae0ada"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/13865e83-6289-4fa4-b987-3f8490ae0ada",
+      "requestHeaders": {
+        "expo-channel-name": "production"
       }
     }
   }

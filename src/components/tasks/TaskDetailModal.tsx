@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import TaskModalContainer from './ui/TaskModalContainer';
-import TaskFormLayout from './ui/TaskFormLayout';
+import ModalHeader from './ui/ModalHeader';
+import ModalFooter from './ui/ModalFooter';
 import TaskFormFields, { TaskFormData } from './ui/TaskFormFields';
 import { tasksApi } from '../../services/task';
 import type { ExtendedTaskItem } from '../../types/tasks';
 import { useTheme } from '../../hooks/useTheme';
-import { RADIUS } from '../../constants/theme';
-import { getTypography } from '../../constants/typography';
 
 interface TaskDetailModalProps {
   item: ExtendedTaskItem | null;
@@ -29,8 +28,7 @@ export default function TaskDetailModal({
   onToggleCompletion,
 }: TaskDetailModalProps) {
   const { colors: COLORS } = useTheme();
-  const typography = useMemo(() => getTypography(COLORS), [COLORS]);
-  const s = useMemo(() => createStyles(COLORS, typography), [COLORS, typography]);
+  const s = useMemo(() => createStyles(COLORS), [COLORS]);
 
   const [isEditMode, setIsEditMode] = useState(false);
   const [formData, setFormData] = useState<TaskFormData>({
@@ -113,79 +111,69 @@ export default function TaskDetailModal({
     <TouchableOpacity
       style={[s.statusBadge, item.completed && s.statusBadgeDone]}
       onPress={() => onToggleCompletion(item)}
+      activeOpacity={0.7}
     >
       <Text style={[s.statusText, item.completed && s.statusTextDone]}>
-        {item.completed ? '✓ Hoàn thành' : '○ Đang xử lý'}
+        {item.completed ? 'Hoàn thành' : 'Đang xử lý'}
       </Text>
     </TouchableOpacity>
   );
 
-  const renderFooter = () => {
-    if (isEditMode) {
-      return (
-        <View style={s.actionRow}>
-          <TouchableOpacity style={s.cancelBtn} onPress={() => setIsEditMode(false)} disabled={isSubmitting}>
-            <Text style={s.cancelBtnText}>Hủy</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[s.submitBtn, !formData.title.trim() && s.submitBtnDisabled]}
-            onPress={handleUpdate}
-            disabled={!formData.title.trim() || isSubmitting}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator size="small" color={COLORS.onPrimary} />
-            ) : (
-              <Text style={s.submitBtnText}>Lưu thay đổi</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
-    return (
-      <View style={s.actionRow}>
-        <TouchableOpacity style={s.deleteBtn} onPress={() => onDelete(item)}>
-          <Text style={s.deleteBtnText}>Xóa</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={s.editBtn} onPress={() => setIsEditMode(true)}>
-          <Text style={s.editBtnText}>Chỉnh sửa</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
   return (
     <TaskModalContainer visible={visible} onClose={handleClose}>
-      <TaskFormLayout
-        title={item.itemType === 'task' ? '🔥 CÔNG VIỆC' : '✅ VIỆC CẦN LÀM'}
-        headerRight={headerRight}
-        footer={renderFooter()}
-      >
-        <TaskFormFields
-          data={formData}
-          onChange={(updates) => setFormData((prev) => ({ ...prev, ...updates }))}
-          isReadOnly={!isEditMode}
+      <ModalHeader
+        title="✏️ Chi tiết"
+        subtitle="Chỉnh sửa hoặc cập nhật trạng thái"
+        rightElement={headerRight}
+        onClose={handleClose}
+      />
+      
+      <TaskFormFields
+        data={formData}
+        onChange={(updates) => setFormData((prev) => ({ ...prev, ...updates }))}
+        isReadOnly={!isEditMode}
+      />
+
+      {isEditMode ? (
+        <ModalFooter
+          primaryLabel="Lưu thay đổi"
+          onPrimaryPress={handleUpdate}
+          secondaryLabel="Hủy"
+          onSecondaryPress={() => setIsEditMode(false)}
+          isPrimaryDisabled={!formData.title.trim()}
+          isSubmitting={isSubmitting}
         />
-      </TaskFormLayout>
+      ) : (
+        <ModalFooter
+          primaryLabel="Chỉnh sửa"
+          onPrimaryPress={() => setIsEditMode(true)}
+          secondaryLabel="Xóa"
+          onSecondaryPress={() => onDelete(item)}
+          secondaryType="danger"
+        />
+      )}
     </TaskModalContainer>
   );
 }
 
-const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
-  statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: RADIUS.full, backgroundColor: COLORS.errorTint || `${COLORS.error}1A` },
-  statusBadgeDone: { backgroundColor: `${COLORS.primary}1A` },
-  statusText: { fontSize: 11, fontWeight: '700', color: COLORS.error },
-  statusTextDone: { color: COLORS.primary },
-
-  actionRow: { flexDirection: 'row', gap: 12, width: '100%', alignItems: 'center' },
-  cancelBtn: { paddingVertical: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
-  cancelBtnText: { ...typography.bodyLg, color: COLORS.textSecondary, fontWeight: '600' },
-  submitBtn: { flex: 1, backgroundColor: COLORS.primary, paddingVertical: 14, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
-  submitBtnDisabled: { backgroundColor: COLORS.outlineVariant },
-  submitBtnText: { ...typography.bodyLg, color: COLORS.onPrimary, fontWeight: '700' },
-
-  deleteBtn: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: RADIUS.md, backgroundColor: COLORS.surfaceVariant, alignItems: 'center', justifyContent: 'center' },
-  deleteBtnText: { ...typography.bodyLg, color: COLORS.error, fontWeight: '600' },
-  editBtn: { flex: 1, backgroundColor: COLORS.primary, paddingVertical: 14, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
-  editBtnText: { ...typography.bodyLg, color: COLORS.onPrimary, fontWeight: '700' },
+const createStyles = (COLORS: any) => StyleSheet.create({
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    height: 28,
+    borderRadius: 999,
+    backgroundColor: '#FFF5F5',
+    justifyContent: 'center',
+  },
+  statusBadgeDone: {
+    backgroundColor: `${COLORS.primary}1A`,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FF3B30',
+  },
+  statusTextDone: {
+    color: COLORS.primary,
+  },
 });

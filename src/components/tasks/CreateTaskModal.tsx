@@ -1,12 +1,10 @@
-import React, { useState, useMemo } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import { View } from 'react-native';
 import TaskModalContainer from './ui/TaskModalContainer';
-import TaskFormLayout from './ui/TaskFormLayout';
+import ModalHeader from './ui/ModalHeader';
+import ModalFooter from './ui/ModalFooter';
 import TaskFormFields, { TaskFormData } from './ui/TaskFormFields';
 import { tasksApi } from '../../services/task';
-import { useTheme } from '../../hooks/useTheme';
-import { RADIUS } from '../../constants/theme';
-import { getTypography } from '../../constants/typography';
 
 interface CreateTaskModalProps {
   visible: boolean;
@@ -17,10 +15,6 @@ interface CreateTaskModalProps {
 }
 
 export default function CreateTaskModal({ visible, onClose, onSaved, onOptimisticCreate, onVoicePress }: CreateTaskModalProps) {
-  const { colors: COLORS } = useTheme();
-  const typography = useMemo(() => getTypography(COLORS), [COLORS]);
-  const s = useMemo(() => createStyles(COLORS, typography), [COLORS, typography]);
-
   const [formData, setFormData] = useState<TaskFormData>({
     type: 'task',
     title: '',
@@ -47,7 +41,8 @@ export default function CreateTaskModal({ visible, onClose, onSaved, onOptimisti
 
   const handleCreate = async () => {
     if (!formData.title.trim() || !formData.dueDate) return;
-    
+    setIsSubmitting(true);
+
     const optimisticId = `opt-${Date.now()}`;
     const optimisticTask = {
       id: optimisticId,
@@ -64,7 +59,7 @@ export default function CreateTaskModal({ visible, onClose, onSaved, onOptimisti
     if (onOptimisticCreate) {
       onOptimisticCreate(optimisticTask);
     }
-    
+
     resetForm();
     onClose();
 
@@ -87,57 +82,38 @@ export default function CreateTaskModal({ visible, onClose, onSaved, onOptimisti
       onSaved();
     } catch (error) {
       console.error('Lỗi không thể tạo mới:', error);
-      onSaved(); // Triggers a reload to fix UI if creation failed
+      onSaved();
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const renderFooter = () => (
-    <View style={s.actionRow}>
-      <TouchableOpacity
-        style={s.voiceShortcut}
-        onPress={() => {
+  return (
+    <TaskModalContainer visible={visible} onClose={handleClose}>
+      <ModalHeader
+        title="🔥 Công việc mới"
+        subtitle="Quản lý công việc nhanh chóng và hiệu quả"
+        onClose={handleClose}
+      />
+      
+      <TaskFormFields
+        data={formData}
+        onChange={(updates) => setFormData((prev) => ({ ...prev, ...updates }))}
+        onVoicePress={() => {
           onClose();
           onVoicePress();
         }}
-      >
-        <Text style={s.voiceShortcutText}>🎙️</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={s.cancelBtn} onPress={handleClose} disabled={isSubmitting}>
-        <Text style={s.cancelBtnText}>Hủy</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[s.submitBtn, (!formData.title.trim() || !formData.dueDate) && s.submitBtnDisabled]}
-        onPress={handleCreate}
-        disabled={!formData.title.trim() || !formData.dueDate || isSubmitting}
-      >
-        {isSubmitting ? (
-          <ActivityIndicator size="small" color={COLORS.onPrimary} />
-        ) : (
-          <Text style={s.submitBtnText}>Tạo ngay</Text>
-        )}
-      </TouchableOpacity>
-    </View>
-  );
-
-  return (
-    <TaskModalContainer visible={visible} onClose={handleClose}>
-      <TaskFormLayout title="Thêm công việc mới" footer={renderFooter()}>
-        <TaskFormFields
-          data={formData}
-          onChange={(updates) => setFormData((prev) => ({ ...prev, ...updates }))}
-        />
-      </TaskFormLayout>
+      />
+      
+      <ModalFooter
+        primaryLabel="Tạo công việc"
+        onPrimaryPress={handleCreate}
+        secondaryLabel="Hủy"
+        onSecondaryPress={handleClose}
+        isPrimaryDisabled={!formData.title.trim() || !formData.dueDate}
+        isSubmitting={isSubmitting}
+        secondaryType="cancel"
+      />
     </TaskModalContainer>
   );
 }
-
-const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
-  actionRow: { flexDirection: 'row', gap: 12, width: '100%', alignItems: 'center' },
-  cancelBtn: { paddingVertical: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
-  cancelBtnText: { ...typography.bodyLg, color: COLORS.textSecondary, fontWeight: '600' },
-  submitBtn: { flex: 1, backgroundColor: COLORS.primary, paddingVertical: 14, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
-  submitBtnDisabled: { backgroundColor: COLORS.outlineVariant },
-  submitBtnText: { ...typography.bodyLg, color: COLORS.onPrimary, fontWeight: '700' },
-  voiceShortcut: { alignItems: 'center', justifyContent: 'center', paddingVertical: 14, paddingHorizontal: 12, backgroundColor: `${COLORS.primary}1A`, borderRadius: RADIUS.full },
-  voiceShortcutText: { color: COLORS.primary, fontSize: 18, fontWeight: '600' },
-});

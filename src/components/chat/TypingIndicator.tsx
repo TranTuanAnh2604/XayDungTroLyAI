@@ -61,7 +61,7 @@ export default function TypingIndicator() {
 
   return (
     <View style={styles.wrapper}>
-      <MessageLabel text={`${APP_NAME} đang soạn thảo`} showLogo />
+      {/* <MessageLabel text={`${APP_NAME} đang soạn thảo`} showLogo /> */}
       <View style={styles.bubble}>
         <Animated.View style={[styles.dot, dotStyle(dot1)]} />
         <Animated.View style={[styles.dot, dotStyle(dot2)]} />

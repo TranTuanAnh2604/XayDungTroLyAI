@@ -12,7 +12,7 @@ import { RADIUS } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
 import type { MailFilterId } from '../../types/mail';
 
-type FilterOption = { id: MailFilterId; label: string };
+type FilterOption = { id: MailFilterId; label: string; count?: number };
 
 type MailFilterBarProps = {
   filters: FilterOption[];
@@ -91,8 +91,15 @@ export default function MailFilterBar({
                 key={filter.id}
                 onLayout={onLayoutItem(filter.id)}
                 onPress={() => onChange?.(filter.id)}
-                style={styles.chip}
+                style={[styles.chip, filter.count !== undefined && filter.count > 0 && styles.chipWithCount]}
               >
+                {filter.count !== undefined && filter.count > 0 && (
+                  <View style={[styles.badge, active && styles.badgeActive]}>
+                    <Text style={[styles.badgeText, active && styles.badgeTextActive]}>
+                      {filter.count}
+                    </Text>
+                  </View>
+                )}
                 <Text style={[styles.label, active && styles.labelActive]}>
                   {filter.label}
                 </Text>
@@ -126,9 +133,33 @@ const createStyles = (COLORS: any) => StyleSheet.create({
     gap: 16,
   },
   chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 6,
     zIndex: 1,
+  },
+  chipWithCount: {
+    gap: 6,
+  },
+  badge: {
+    backgroundColor: COLORS.surfaceVariant,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: RADIUS.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeActive: {
+    backgroundColor: COLORS.primary,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.onSurfaceVariant,
+  },
+  badgeTextActive: {
+    color: COLORS.onPrimary,
   },
   label: {
     fontSize: 14,

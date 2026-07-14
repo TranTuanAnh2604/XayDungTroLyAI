@@ -20,7 +20,6 @@ export const TASKS_PROGRESS: TasksProgress = {
 export const TASK_FILTERS: { id: TaskFilterId; label: string }[] = [
   { id: 'all', label: 'Tất cả' },
   { id: 'today', label: 'Hôm nay' },
-  { id: 'project', label: 'Dự án' },
   { id: 'priority', label: 'Ưu tiên' },
 ];
 

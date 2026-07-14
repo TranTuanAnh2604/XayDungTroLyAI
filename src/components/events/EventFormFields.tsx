@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable, Switch, Platform } from 'react-native';
+import { View, Text, StyleSheet, Switch, Platform } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import BorderTextInput from '../ui/BorderTextInput';
+import InputField from '../tasks/ui/InputField';
+import DatePickerCard from '../tasks/ui/DatePickerCard';
 import { useTheme } from '../../hooks/useTheme';
 import { getTypography } from '../../constants/typography';
 import { formatDisplayDateValue, mergeDateAndTime, normalizeDateValue } from '../../utils/date';
@@ -52,21 +53,21 @@ export default function EventFormFields({
   const styles = useMemo(() => createStyles(COLORS, typography), [COLORS, typography]);
 
   return (
-    <>
-      <BorderTextInput
+    <View style={styles.container}>
+      <InputField
         label="Tiêu đề"
         value={title}
         onChangeText={setTitle}
         placeholder="Nhập tiêu đề sự kiện"
       />
-      <BorderTextInput
+      <InputField
         label="Mô tả"
         value={description}
         onChangeText={setDescription}
         placeholder="Nhập mô tả"
-        multiline
+        isTextArea
       />
-      <BorderTextInput
+      <InputField
         label="Địa điểm"
         value={location}
         onChangeText={setLocation}
@@ -74,7 +75,7 @@ export default function EventFormFields({
       />
       
       {setSource && (
-        <BorderTextInput
+        <InputField
           label="Nguồn"
           value={source ?? ''}
           onChangeText={setSource}
@@ -82,31 +83,24 @@ export default function EventFormFields({
         />
       )}
 
-      <Pressable
-        style={styles.pickerRow}
+      <DatePickerCard
+        label="Bắt đầu"
+        valueText={formatDisplayDateValue(startDate)}
         onPress={() => setShowStartDatePicker(true)}
-      >
-        <View>
-          <Text style={styles.label}>Bắt đầu</Text>
-          <Text style={styles.pickerValue}>{formatDisplayDateValue(startDate)}</Text>
-        </View>
-        <Text style={styles.actionLabel}>Chọn</Text>
-      </Pressable>
+        iconName="clock-outline"
+      />
       
-      <Pressable
-        style={styles.pickerRow}
+      <DatePickerCard
+        label="Kết thúc"
+        valueText={formatDisplayDateValue(endDate)}
         onPress={() => setShowEndDatePicker(true)}
-      >
-        <View>
-          <Text style={styles.label}>Kết thúc</Text>
-          <Text style={styles.pickerValue}>{formatDisplayDateValue(endDate)}</Text>
-        </View>
-        <Text style={styles.actionLabel}>Chọn</Text>
-      </Pressable>
+        iconName="clock-check-outline"
+      />
 
       {showStartDatePicker ? (
         <DateTimePicker
           value={startDate}
+          minimumDate={new Date()}
           mode="date"
           display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
           onChange={(event, selectedDate) => {
@@ -144,6 +138,7 @@ export default function EventFormFields({
       {showEndDatePicker ? (
         <DateTimePicker
           value={endDate}
+          minimumDate={new Date()}
           mode="date"
           display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
           onChange={(event, selectedDate) => {
@@ -189,47 +184,28 @@ export default function EventFormFields({
       </View>
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
-    </>
+    </View>
   );
 }
 
 const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
+  container: {
+    paddingTop: 8,
+  },
   switchRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 8,
+    marginBottom: 8,
   },
   switchLabel: {
     ...typography.bodyMd,
     color: COLORS.onSurface,
   },
-  actionLabel: {
-    ...typography.bodyMd,
-    color: COLORS.primary,
-    fontWeight: '700',
-  },
-  pickerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.outlineVariant,
-  },
-  label: {
-    ...typography.labelCaps,
-    color: COLORS.onSurface,
-    marginBottom: 4,
-  },
-  pickerValue: {
-    ...typography.bodyLg,
-    color: COLORS.onSurface,
-    marginTop: 4,
-  },
   errorText: {
     color: COLORS.error ?? '#B91C1C',
-    marginTop: 10,
+    marginTop: 4,
     marginBottom: 8,
     fontSize: 14,
     textAlign: 'center',

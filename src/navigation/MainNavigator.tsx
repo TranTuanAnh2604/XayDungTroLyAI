@@ -85,6 +85,7 @@ export default function MainNavigator() {
       <AnimatedPagerView
         ref={pagerRef}
         style={{ flex: 1 }}
+        scrollEnabled={false}
         initialPage={TAB_ORDER.indexOf(activeTab)}
         onPageScroll={Animated.event(
           [{ nativeEvent: { position: positionAnimated, offset: offsetAnimated } }],

@@ -1,9 +1,10 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform, Animated, PanResponder } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '../../hooks/useTheme';
 import { getTypography } from '../../constants/typography';
+import { useCalendarCollapseGesture, ROW_HEIGHT, MONTH_VIEW_HEIGHT, WEEK_VIEW_HEIGHT } from '../../hooks/useCalendarCollapseGesture';
 
 const WEEKDAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
@@ -47,6 +48,9 @@ export default function MonthCalendar({ selectedDateId, importantDates, onSelect
         setViewDate(d);
       }
     }
+    // Automatically expand to month view if selected date is in a different month
+    // or we want it to expand whenever the date changes externally.
+    // For now, let's keep week view unless they change the month.
   }, [selectedDateId]);
 
   const generateMonthGrid = () => {
@@ -96,18 +100,42 @@ export default function MonthCalendar({ selectedDateId, importantDates, onSelect
       });
     }
 
-    return days;
+    // Nhóm thành các mảng tuần (mỗi mảng 7 ngày)
+    const weeks = [];
+    for (let i = 0; i < days.length; i += 7) {
+      weeks.push(days.slice(i, i + 7));
+    }
+
+    return { days, weeks };
   };
 
-  const days = useMemo(generateMonthGrid, [viewDate]);
-  
+  const { days, weeks } = useMemo(generateMonthGrid, [viewDate]);
+
   const todayId = useMemo(() => formatLocalDateId(new Date()), []);
 
+  const selectedWeekIndex = useMemo(() => {
+    let index = days.findIndex(d => d.id === selectedDateId);
+    if (index === -1) {
+      index = days.findIndex(d => d.id === todayId);
+      if (index === -1) index = 0;
+    }
+    return Math.floor(index / 7);
+  }, [days, selectedDateId, todayId]);
+
+  const {
+    heightAnim,
+    gridTranslateY,
+    panResponder,
+    expandToMonth
+  } = useCalendarCollapseGesture(selectedWeekIndex);
+
   const handlePrevMonth = () => {
+    expandToMonth();
     setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1));
   };
 
   const handleNextMonth = () => {
+    expandToMonth();
     setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1));
   };
 
@@ -115,8 +143,8 @@ export default function MonthCalendar({ selectedDateId, importantDates, onSelect
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable 
-          style={styles.headerLeft} 
+        <Pressable
+          style={styles.headerLeft}
           onPress={() => setShowDatePicker(true)}
         >
           <Text style={styles.headerTitle}>
@@ -126,8 +154,11 @@ export default function MonthCalendar({ selectedDateId, importantDates, onSelect
         </Pressable>
         <View style={styles.navButtons}>
           {selectedDateId !== todayId && (
-            <Pressable 
-              onPress={() => onSelect(todayId)} 
+            <Pressable
+              onPress={() => {
+                expandToMonth();
+                onSelect(todayId);
+              }}
               style={({ pressed }) => [styles.todayBtn, pressed && styles.todayBtnPressed]}
             >
               <MaterialIcons name="today" size={22} color={COLORS.primary} />
@@ -151,45 +182,62 @@ export default function MonthCalendar({ selectedDateId, importantDates, onSelect
         ))}
       </View>
 
-      {/* Grid */}
-      <View style={styles.grid}>
-        {days.map((item) => {
-          const isSelected = item.id === selectedDateId;
-          const isToday = item.id === todayId;
-          const isImportant = importantDates?.has(item.id);
+      {/* Grid Container */}
+      <View style={{ zIndex: 1, backgroundColor: COLORS.surface }}>
+        <Animated.View style={[styles.gridWrapper, { height: heightAnim }]}>
+          <Animated.View style={[styles.grid, { transform: [{ translateY: gridTranslateY }] }]}>
+            {weeks.map((week, weekIdx) => {
+              return (
+                <View 
+                  key={weekIdx} 
+                  style={styles.weekRow}
+                >
+                  {week.map((item) => {
+                    const isSelected = item.id === selectedDateId;
+                    const isToday = item.id === todayId;
+                    const isImportant = importantDates?.has(item.id);
 
-          let cellStyle: any = [styles.dayCell];
-          let textStyle: any = [styles.dayText];
-          let dotStyle: any = [styles.importantDot];
+                    let cellStyle: any = [styles.dayCell];
+                    let textStyle: any = [styles.dayText];
+                    let dotStyle: any = [styles.importantDot];
 
-          if (isToday) {
-            cellStyle.push(styles.dayCellToday);
-            textStyle.push(styles.dayTextToday);
-            dotStyle.push(styles.importantDotToday);
-          } else if (isSelected) {
-            cellStyle.push(styles.dayCellSelected);
-            textStyle.push(styles.dayTextSelected);
-            dotStyle.push(styles.importantDotSelected);
-          } else if (!item.isCurrentMonth) {
-            textStyle.push(styles.dayTextDimmed);
-            dotStyle.push(styles.importantDotDimmed);
-          }
+                    if (isToday) {
+                      cellStyle.push(styles.dayCellToday);
+                      textStyle.push(styles.dayTextToday);
+                      dotStyle.push(styles.importantDotToday);
+                    } else if (isSelected) {
+                      cellStyle.push(styles.dayCellSelected);
+                      textStyle.push(styles.dayTextSelected);
+                      dotStyle.push(styles.importantDotSelected);
+                    } else if (!item.isCurrentMonth) {
+                      textStyle.push(styles.dayTextDimmed);
+                      dotStyle.push(styles.importantDotDimmed);
+                    }
 
-          return (
-            <View key={item.id} style={styles.dayCellContainer}>
-              <Pressable
-                onPress={() => onSelect(item.id)}
-                style={cellStyle}
-              >
-                <Text style={textStyle}>{item.day}</Text>
-                {isImportant && <View style={dotStyle} />}
-              </Pressable>
-            </View>
-          );
-        })}
+                    return (
+                      <View key={item.id} style={styles.dayCellContainer}>
+                        <Pressable
+                          onPress={() => {
+                            if (!item.isCurrentMonth) expandToMonth();
+                            onSelect(item.id);
+                          }}
+                          style={cellStyle}
+                        >
+                          <Text style={textStyle}>{item.day}</Text>
+                          {isImportant && <View style={dotStyle} />}
+                        </Pressable>
+                      </View>
+                    );
+                  })}
+                </View>
+              );
+            })}
+          </Animated.View>
+        </Animated.View>
+        <View style={styles.dividerArea} {...panResponder.panHandlers}>
+          <View style={styles.divider} />
+        </View>
       </View>
-      
-      <View style={styles.divider} />
 
       {showDatePicker && (
         <DateTimePicker
@@ -271,18 +319,22 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     color: COLORS.textSecondary,
     letterSpacing: 0.5,
   },
+  gridWrapper: {
+    overflow: 'hidden', // Quan trọng để cắt những hàng tuần bay ra ngoài
+  },
   grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
     paddingHorizontal: 8,
+  },
+  weekRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
   },
   dayCellContainer: {
     width: '14.28%', // 100% / 7
-    aspectRatio: 1,
+    height: ROW_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
   },
   dayCell: {
     width: 40,
@@ -332,13 +384,15 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     backgroundColor: COLORS.textMuted,
     opacity: 0.5,
   },
+  dividerArea: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   divider: {
-    height: 1,
+    height: 4,
     backgroundColor: COLORS.outlineVariant,
-    width: 60,
-    alignSelf: 'center',
-    marginTop: 8,
-    marginBottom: 16,
-    borderRadius: 1,
+    width: 40,
+    borderRadius: 2,
   }
 });

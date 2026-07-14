@@ -17,7 +17,7 @@ export default function UserMessageBubble({ content }: UserMessageBubbleProps) {
   const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   return (
     <View style={styles.wrapper}>
-      <MessageLabel text="Bạn" align="right" />
+      {/* <MessageLabel text="Bạn" align="right" /> */}
       <Pressable style={({ pressed }) => [pressed && styles.pressed]}>
         <LinearGradient
           colors={[COLORS.chatUserGradientStart, COLORS.chatUserGradientEnd]}

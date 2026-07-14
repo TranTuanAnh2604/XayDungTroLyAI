@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, Pressable, StyleSheet } from 'react-native';
+import React from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { RADIUS } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
@@ -12,38 +12,16 @@ type TasksFABProps = {
 export default function TasksFAB({ onPress, bottomOffset = 96 }: TasksFABProps) {
   const { colors: COLORS } = useTheme();
   const styles = React.useMemo(() => createStyles(COLORS), [COLORS]);
-  const floatAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim, {
-          toValue: -8,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatAnim, {
-          toValue: 0,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [floatAnim]);
 
   return (
-    <Animated.View
-      style={[styles.wrapper, { bottom: bottomOffset, transform: [{ translateY: floatAnim }] }]}
-    >
+    <View style={[styles.wrapper, { bottom: bottomOffset }]}>
       <Pressable
         onPress={onPress}
         style={({ pressed }) => [styles.fab, pressed && styles.pressed]}
       >
         <MaterialIcons name="add" size={28} color={COLORS.onPrimary} />
       </Pressable>
-    </Animated.View>
+    </View>
   );
 }
 

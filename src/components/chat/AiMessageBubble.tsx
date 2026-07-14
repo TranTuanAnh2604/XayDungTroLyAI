@@ -22,7 +22,7 @@ export default function AiMessageBubble({
   const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
   return (
     <View style={styles.wrapper}>
-      <MessageLabel text={label} showLogo />
+      {/* <MessageLabel text={label} showLogo /> */}
       <Pressable style={({ pressed }) => [pressed && styles.pressed]}>
         <LinearGradient
           colors={[COLORS.chatAiGradientStart, COLORS.chatAiGradientEnd]}

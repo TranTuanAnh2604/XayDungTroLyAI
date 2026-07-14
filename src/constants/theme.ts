@@ -41,7 +41,7 @@ export const LIGHT_COLORS = {
   primaryShadow: 'rgba(53, 37, 205, 0.2)',
   secondaryAiGlow: 'rgba(129, 39, 207, 0.15)',
   cardShadow: 'rgba(31, 38, 135, 0.07)',
-  glassBorder: 'rgba(255, 255, 255, 0.3)',
+  glassBorder: 'rgba(0, 0, 0, 0.08)',
   glassBackground: 'rgba(255, 255, 255, 0.7)',
   meshPurple: 'rgba(129, 39, 207, 0.05)',
   meshPrimary: 'rgba(53, 37, 205, 0.08)',

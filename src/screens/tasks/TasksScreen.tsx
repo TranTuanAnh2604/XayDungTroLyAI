@@ -28,6 +28,7 @@ import { RADIUS } from '../../constants/theme';
 import type { TaskFilterId, TaskPriority, ExtendedTaskItem } from '../../types/tasks';
 import { useOpenSettings } from '../../hooks/useOpenSettings';
 import { tasksApi } from '../../services/task';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import VoiceTaskModal from '../../components/tasks/VoiceTaskModal';
 import CreateTaskModal from '../../components/tasks/CreateTaskModal';
@@ -113,11 +114,13 @@ export default function TasksScreen() {
       <TasksProgressCard progress={progressData} />
 
       <View style={styles.listGroup}>
-        <TaskFilterChips
-          filters={TASK_FILTERS}
-          activeId={activeFilter}
-          onChange={setActiveFilter}
-        />
+        <View style={styles.filterWrapper}>
+          <TaskFilterChips
+            filters={TASK_FILTERS}
+            activeId={activeFilter}
+            onChange={setActiveFilter}
+          />
+        </View>
 
         {loading ? (
           <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 32 }} />
@@ -126,7 +129,9 @@ export default function TasksScreen() {
 
           {filteredTasks.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Công việc ưu tiên (Tasks)</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionLabel}>Công việc ưu tiên</Text>
+              </View>
               {filteredTasks.map((task, index) => (
                 <TaskListItem
                   key={`task-${task.id}`}
@@ -134,6 +139,7 @@ export default function TasksScreen() {
                   index={index}
                   onToggle={(id) => handleToggleTask(id, task.completed, 'task')}
                   onPress={() => setSelectedItem(task)}
+                  onDelete={() => handleDeleteItem(task)}
                 />
               ))}
             </View>
@@ -141,7 +147,9 @@ export default function TasksScreen() {
 
           {filteredTodos.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Việc cần làm hôm nay (Todos)</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionLabel}>Việc cần làm hôm nay</Text>
+              </View>
               {filteredTodos.map((todo, index) => (
                 <TaskListItem
                   key={`todo-${todo.id}`}
@@ -149,6 +157,7 @@ export default function TasksScreen() {
                   index={index}
                   onToggle={(id) => handleToggleTask(id, todo.completed, 'todo')}
                   onPress={() => setSelectedItem(todo)}
+                  onDelete={() => handleDeleteItem(todo)}
                 />
               ))}
             </View>
@@ -156,6 +165,7 @@ export default function TasksScreen() {
 
           {filteredTasks.length === 0 && filteredTodos.length === 0 && (
             <View style={styles.emptyContainer}>
+              <MaterialCommunityIcons name="text-box-search-outline" size={64} color={COLORS.outlineVariant} />
               <Text style={styles.emptyText}>Không có công việc nào trong danh mục này.</Text>
             </View>
           )}
@@ -192,9 +202,11 @@ export default function TasksScreen() {
 
 const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   container: { gap: 16 },
-  listGroup: { width: '100%', gap: 8 },
-  section: { marginBottom: 8 },
-  sectionLabel: { ...typography.labelCaps, letterSpacing: 1.5, marginBottom: 8, color: COLORS.textSecondary },
-  emptyContainer: { paddingVertical: 32, alignItems: 'center' },
-  emptyText: { ...typography.bodyMd, color: COLORS.textSecondary, fontStyle: 'italic' },
+  listGroup: { width: '100%', gap: 16 },
+  filterWrapper: { marginTop: -4 },
+  section: { marginBottom: 16 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  sectionLabel: { ...typography.titleMd, fontSize: 20, fontWeight: '700', color: COLORS.onSurface },
+  emptyContainer: { paddingVertical: 48, alignItems: 'center', justifyContent: 'center', gap: 16 },
+  emptyText: { ...typography.bodyLg, color: COLORS.textSecondary, fontStyle: 'italic', textAlign: 'center' },
 });

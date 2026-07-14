@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+
 import {
   Text, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, Platform, NativeModules,
@@ -13,7 +15,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { getTypography } from '../../constants/typography';
 import { RADIUS } from '../../constants/theme';
 import TaskModalContainer from './ui/TaskModalContainer';
-import TaskFormLayout from './ui/TaskFormLayout';
+import ModalHeader from './ui/ModalHeader';
 import TaskFormFields from './ui/TaskFormFields';
 
 type VoiceState = 'idle' | 'listening' | 'processing' | 'preview' | 'error';
@@ -132,7 +134,7 @@ export default function VoiceTaskModal({ visible, onClose, onSaved }: Props) {
   const resetAll = async () => {
     // Chỉ abort nếu đang thực sự listening để tránh lỗi 'aborted'
     if (voiceStateRef.current === 'listening') {
-      try { ExpoSpeechRecognitionModule.abort(); } catch {}
+      try { ExpoSpeechRecognitionModule.abort(); } catch { }
     }
     isProcessingRef.current = false;
     transcriptRef.current = '';
@@ -148,7 +150,7 @@ export default function VoiceTaskModal({ visible, onClose, onSaved }: Props) {
       console.log('[VoiceTaskModal] Already listening. Ignoring duplicate start.');
       return;
     }
-    
+
     try {
       const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       console.log('[VoiceTaskModal] Permission status:', permission.granted);
@@ -165,15 +167,15 @@ export default function VoiceTaskModal({ visible, onClose, onSaved }: Props) {
         setVoiceState('error');
         return;
       }
-      
+
       isProcessingRef.current = false;
       transcriptRef.current = '';
       setTranscript('');
       setParsed(null);
       setErrorMsg('');
-      
+
       console.log('[VoiceTaskModal] Calling ExpoSpeechRecognitionModule.start()...');
-      ExpoSpeechRecognitionModule.start({ 
+      ExpoSpeechRecognitionModule.start({
         lang: 'vi-VN',
         interimResults: true,
         continuous: false,
@@ -213,9 +215,20 @@ export default function VoiceTaskModal({ visible, onClose, onSaved }: Props) {
         return (
           <View style={s.centerBlock}>
             <Text style={s.hint}>Nói tên công việc bạn cần làm</Text>
-            <Text style={s.example}>💡 "Họp nhóm thứ 2, quan trọng"</Text>
-            <TouchableOpacity style={s.micBtn} onPress={handleStartListening} activeOpacity={0.8}>
-              <Text style={s.micIcon}>🎙️</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 40, opacity: 0.8 }}>
+              <MaterialCommunityIcons name="lightbulb-on" size={16} color="#fbbf24" />
+              <Text style={{ fontSize: 15, color: COLORS.onSurfaceVariant, fontStyle: 'italic' }}>"Họp nhóm thứ 2, quan trọng"</Text>
+            </View>
+            <TouchableOpacity
+              style={s.micBtn}
+              onPress={handleStartListening}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons
+                name="microphone"
+                size={28}
+                color="#fff"
+              />
             </TouchableOpacity>
             <Text style={s.tapHint}>Nhấn để bắt đầu</Text>
           </View>
@@ -224,15 +237,26 @@ export default function VoiceTaskModal({ visible, onClose, onSaved }: Props) {
       case 'listening':
         return (
           <View style={s.centerBlock}>
-            <Text style={s.listeningLabel}>🔴 Đang nghe...</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 40 }}>
+              <MaterialCommunityIcons name="record-circle" size={16} color="#ef4444" />
+              <Text style={{ fontSize: 16, color: COLORS.error, fontWeight: '600', opacity: 0.9 }}>Đang nghe...</Text>
+            </View>
             <View style={s.transcriptBox}>
               <Text style={s.transcriptText}>
                 {transcript || 'Hãy nói công việc cần làm...'}
               </Text>
             </View>
             <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-              <TouchableOpacity style={s.micBtnStop} onPress={handleStopListening} activeOpacity={0.8}>
-                <Text style={s.micIcon}>⏹️</Text>
+              <TouchableOpacity
+                style={s.micBtnStop}
+                onPress={handleStopListening}
+                activeOpacity={0.8}
+              >
+                <MaterialCommunityIcons
+                  name="stop-circle"
+                  size={28}
+                  color="#fff"
+                />
               </TouchableOpacity>
             </Animated.View>
             <Text style={s.tapHint}>Nhấn để dừng</Text>
@@ -277,7 +301,7 @@ export default function VoiceTaskModal({ visible, onClose, onSaved }: Props) {
       case 'error':
         return (
           <View style={s.centerBlock}>
-            <Text style={s.errorIcon}>⚠️</Text>
+            <MaterialCommunityIcons name="alert-circle-outline" size={48} color="#ef4444" style={{ marginBottom: 16 }} />
             <Text style={s.errorText}>{errorMsg}</Text>
           </View>
         );
@@ -313,12 +337,12 @@ export default function VoiceTaskModal({ visible, onClose, onSaved }: Props) {
 
   return (
     <TaskModalContainer visible={visible} onClose={onClose}>
-      <TaskFormLayout
+      <ModalHeader
         title={voiceState === 'preview' ? 'Xác nhận công việc' : 'Nhập bằng giọng nói'}
-        footer={renderFooter()}
-      >
-        {renderBody()}
-      </TaskFormLayout>
+        subtitle={voiceState === 'preview' ? 'Vui lòng kiểm tra lại thông tin' : 'Đọc yêu cầu của bạn để tạo công việc'}
+      />
+      {renderBody()}
+      {renderFooter()}
     </TaskModalContainer>
   );
 }
@@ -341,7 +365,7 @@ const createStyles = (COLORS: any, typography: any) =>
     loadingText: { ...typography.bodyMd, color: COLORS.textSecondary, fontStyle: 'italic' },
     errorIcon: { fontSize: 48, marginBottom: 16 },
     errorText: { ...typography.bodyLg, color: COLORS.error, textAlign: 'center', marginBottom: 24, paddingHorizontal: 16 },
-    
+
     actionRow: { flexDirection: 'row', gap: 12, width: '100%' },
     retryBtn: { flex: 1, paddingVertical: 14, borderRadius: RADIUS.md, backgroundColor: COLORS.surfaceVariant, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.outlineVariant },
     retryText: { ...typography.bodyLg, color: COLORS.onSurface, fontWeight: '600' },

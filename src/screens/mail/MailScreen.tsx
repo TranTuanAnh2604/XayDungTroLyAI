@@ -47,7 +47,7 @@ export default function MailScreen() {
   const openSettings = useOpenSettings();
   const { user } = useAuth();
   const { profile } = useProfile();
-  const [activeFilter, setActiveFilter] = useState<MailFilterId>('all');
+  const [activeFilter, setActiveFilter] = useState<MailFilterId>('important');
   const [viewMode, setViewMode] = useState<'inbox' | 'dashboard'>('inbox');
   const [isConnecting, setIsConnecting] = useState(false);
   const [gmailEmails, setGmailEmails] = useState<GmailEmail[]>([]);
@@ -103,7 +103,7 @@ export default function MailScreen() {
     isPinned: pinnedEmailIds.includes(email.id),
   });
 
-  const isImportantEmail = (email: GmailEmail) => {
+  const isImportantEmail = React.useCallback((email: GmailEmail) => {
     if (!email.isRead) {
       return true;
     }
@@ -133,15 +133,31 @@ export default function MailScreen() {
       email.sender,
       email.subject ?? '',
       email.content,
-      email.aiAnalysis.summary,
-      email.aiAnalysis.keyPoints,
+      email.aiAnalysis?.summary,
+      email.aiAnalysis?.keyPoints,
     ]
       .filter(Boolean)
       .join(' ')
       .toLowerCase();
 
     return importantKeywords.some((keyword) => text.includes(keyword));
-  };
+  }, []);
+
+  const importantCount = useMemo(() => {
+    return gmailEmails.filter(isImportantEmail).length;
+  }, [gmailEmails, isImportantEmail]);
+
+  const dynamicFilters = useMemo(() => {
+    return MAIL_FILTERS.map((f) => {
+      if (f.id === 'important') {
+        return {
+          ...f,
+          count: importantCount,
+        };
+      }
+      return f;
+    });
+  }, [importantCount]);
 
   const filteredGmailEmails = useMemo(() => {
     if (gmailEmails.length === 0) return [];
@@ -490,7 +506,7 @@ export default function MailScreen() {
 
           <View style={styles.listSection}>
             <MailFilterBar
-              filters={MAIL_FILTERS}
+              filters={dynamicFilters}
               activeId={activeFilter}
               onChange={setActiveFilter}
             />

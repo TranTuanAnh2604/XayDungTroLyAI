@@ -95,7 +95,7 @@ const createStyles = (COLORS: any) => StyleSheet.create({
   },
   wrapperSurface: {
     borderRadius: RADIUS.aiCard,
-    borderColor: `${COLORS.outlineVariant}80`,
+    borderColor: COLORS.outline,
     backgroundColor: COLORS.surfaceContainerLowest,
   },
   blurDefault: {

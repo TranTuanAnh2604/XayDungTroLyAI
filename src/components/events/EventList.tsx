@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import EventCard from './EventCard';
 import type { TimelineEvent } from '../../types/events';
 
@@ -10,11 +10,7 @@ interface EventListProps {
 
 export default function EventList({ events, onEdit }: EventListProps) {
   return (
-    <ScrollView 
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={styles.contentContainer}>
       {events.map((event) => (
         <EventCard 
           key={event.id} 
@@ -22,14 +18,11 @@ export default function EventList({ events, onEdit }: EventListProps) {
           onEdit={onEdit ? () => onEdit(event.id) : undefined}
         />
       ))}
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   contentContainer: {
     paddingHorizontal: 16,
     paddingBottom: 24,

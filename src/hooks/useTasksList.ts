@@ -73,7 +73,7 @@ export function useTasksList() {
             id: t.id || t.Id,
             title: t.title || t.Title,
             meta: timeMeta,
-            description: t.description || t.Description || 'Không có mô tả',
+            description: t.description || t.Description || '',
             priority: isHigh ? 'high' : 'normal',
             completed: t.status === 'done',
             itemType: 'task',
@@ -93,7 +93,7 @@ export function useTasksList() {
             id: t.id || t.Id,
             title: t.title || t.Title,
             meta: timeMeta,
-            description: t.description || t.Description || 'Không có mô tả',
+            description: t.description || t.Description || '',
             priority: 'normal',
             completed: t.completed || t.Completed || false,
             itemType: 'todo',
@@ -125,7 +125,7 @@ export function useTasksList() {
 
   useFocusEffect(
     useCallback(() => {
-      fetchData(false, true);
+      fetchData(true, true);
     }, [fetchData])
   );
 
@@ -143,22 +143,33 @@ export function useTasksList() {
   }, [fetchData]);
 
   const handleToggleTask = useCallback((id: string, currentCompleted: boolean, itemType: 'task' | 'todo') => {
+    const newCompleted = !currentCompleted;
+    const completedAt = newCompleted ? new Date().toISOString() : undefined;
+
     if (itemType === 'task') {
-      setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !currentCompleted, completedAt: !currentCompleted ? new Date().toISOString() : undefined } : t));
+      setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: newCompleted, completedAt } : t));
+      if (cachedTasks) cachedTasks = cachedTasks.map(t => t.id === id ? { ...t, completed: newCompleted, completedAt } : t);
     } else {
-      setTodos(prev => prev.map(t => t.id === id ? { ...t, completed: !currentCompleted, completedAt: !currentCompleted ? new Date().toISOString() : undefined } : t));
+      setTodos(prev => prev.map(t => t.id === id ? { ...t, completed: newCompleted, completedAt } : t));
+      if (cachedTodos) cachedTodos = cachedTodos.map(t => t.id === id ? { ...t, completed: newCompleted, completedAt } : t);
     }
 
     tasksApi[itemType === 'task' ? 'toggleTaskComplete' : 'toggleTodoComplete'](id)
       .then(() => {
         if (selectedItem && selectedItem.id === id) {
-          setSelectedItem(prev => prev ? { ...prev, completed: !currentCompleted, completedAt: !currentCompleted ? new Date().toISOString() : undefined } : null);
+          setSelectedItem(prev => prev ? { ...prev, completed: newCompleted, completedAt } : null);
         }
-        fetchData(false, true);
+        fetchData(true, true); // Bắt buộc tải lại để đồng bộ với server
       })
       .catch((error) => {
         console.error('Lỗi cập nhật trạng thái:', error);
-        fetchData(false, true);
+        // Hoàn tác nếu lỗi
+        if (itemType === 'task') {
+          if (cachedTasks) cachedTasks = cachedTasks.map(t => t.id === id ? { ...t, completed: currentCompleted, completedAt: undefined } : t);
+        } else {
+          if (cachedTodos) cachedTodos = cachedTodos.map(t => t.id === id ? { ...t, completed: currentCompleted, completedAt: undefined } : t);
+        }
+        fetchData(true, true);
       });
   }, [selectedItem, fetchData]);
 

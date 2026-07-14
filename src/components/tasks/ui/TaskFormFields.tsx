@@ -1,17 +1,14 @@
-import React, { useMemo, useState } from 'react';
-import {
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import React, { useState } from 'react';
+import { View, StyleSheet, Platform, TouchableOpacity } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../../hooks/useTheme';
-import { RADIUS } from '../../../constants/theme';
-import { getTypography } from '../../../constants/typography';
 import { detectEventType } from '../../../utils/eventTypeDetection';
+
+import SegmentedControl from './SegmentedControl';
+import InputField from './InputField';
+import PrioritySelector from './PrioritySelector';
+import DatePickerCard from './DatePickerCard';
 
 export type TaskFormData = {
   type: 'task' | 'todo';
@@ -25,16 +22,16 @@ interface TaskFormFieldsProps {
   data: TaskFormData;
   onChange?: (data: Partial<TaskFormData>) => void;
   isReadOnly?: boolean;
+  onVoicePress?: () => void;
 }
 
 export default function TaskFormFields({
   data,
   onChange,
   isReadOnly = false,
+  onVoicePress,
 }: TaskFormFieldsProps) {
   const { colors: COLORS } = useTheme();
-  const typography = useMemo(() => getTypography(COLORS), [COLORS]);
-  const styles = useMemo(() => createStyles(COLORS, typography), [COLORS]);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   const update = (updates: Partial<TaskFormData>) => {
@@ -43,239 +40,112 @@ export default function TaskFormFields({
     }
   };
 
+  const handleTitleChange = (text: string) => {
+    const updates: Partial<TaskFormData> = { title: text };
+    if (detectEventType(text) === 'urgent' && data.priority !== 'high' && data.type === 'task') {
+      updates.priority = 'high';
+    }
+    update(updates);
+  };
+
+  const handlePriorityChange = (priority: 'normal' | 'high' | 'low') => {
+    const updates: Partial<TaskFormData> = { priority: priority as 'normal' | 'high' };
+    if (priority === 'normal' && data.title.includes(' (Khẩn cấp)')) {
+      updates.title = data.title.replace(' (Khẩn cấp)', '');
+    } else if (priority === 'high' && detectEventType(data.title) !== 'urgent') {
+      updates.title = data.title.trim() + ' (Khẩn cấp)';
+    }
+    update(updates);
+  };
+
   return (
     <View style={styles.container}>
-      <View style={styles.typeSelectorRow}>
-        <TouchableOpacity
-          style={[styles.typeBtn, data.type === 'task' && styles.typeBtnActive]}
-          onPress={() => update({ type: 'task' })}
-          disabled={isReadOnly}
-        >
-          <Text
-            style={[
-              styles.typeBtnText,
-              data.type === 'task' && styles.typeBtnTextActive,
-            ]}
-          >
-            Tasks (Quan trọng)
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.typeBtn, data.type === 'todo' && styles.typeBtnActive]}
-          onPress={() => update({ type: 'todo' })}
-          disabled={isReadOnly}
-        >
-          <Text
-            style={[
-              styles.typeBtnText,
-              data.type === 'todo' && styles.typeBtnTextActive,
-            ]}
-          >
-            Todos (Hàng ngày)
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <TextInput
-        style={styles.input}
-        placeholder="Tiêu đề công việc..."
-        placeholderTextColor={COLORS.outline}
-        value={data.title}
-        onChangeText={(text) => {
-          const updates: Partial<TaskFormData> = { title: text };
-          if (detectEventType(text) === 'urgent' && data.priority !== 'high' && data.type === 'task') {
-            updates.priority = 'high';
-          }
-          update(updates);
-        }}
-        editable={!isReadOnly}
+      <SegmentedControl
+        options={[
+          { label: 'Tasks', value: 'task' },
+          { label: 'Todos', value: 'todo' },
+        ]}
+        selectedValue={data.type}
+        onValueChange={(val) => update({ type: val as 'task' | 'todo' })}
+        disabled={isReadOnly}
       />
 
-      <TextInput
-        style={[styles.input, styles.textArea]}
+      <View style={styles.titleRow}>
+        <View style={styles.titleInputWrapper}>
+          <InputField
+            label="Tiêu đề"
+            placeholder="Tiêu đề công việc..."
+            value={data.title}
+            onChangeText={handleTitleChange}
+            editable={!isReadOnly}
+          />
+        </View>
+        {onVoicePress && (
+          <TouchableOpacity style={[styles.voiceBtn, { backgroundColor: `${COLORS.primary}1A` }]} onPress={onVoicePress} activeOpacity={0.7}>
+            <MaterialCommunityIcons name="microphone" size={24} color={COLORS.primary} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <InputField
+        label="Mô tả"
         placeholder="Mô tả hoặc ghi chú..."
-        placeholderTextColor={COLORS.outline}
         value={data.description}
         onChangeText={(description) => update({ description })}
-        multiline
-        numberOfLines={3}
+        isTextArea
         editable={!isReadOnly}
       />
 
       {data.type === 'task' && (
-        <View style={styles.priorityRow}>
-          <Text style={styles.priorityLabel}>Ưu tiên:</Text>
-          <TouchableOpacity
-            style={[
-              styles.prioBadge,
-              data.priority === 'normal' && styles.prioBadgeActive,
-            ]}
-            onPress={() => {
-              const updates: Partial<TaskFormData> = { priority: 'normal' };
-              if (data.title.includes(' (Khẩn cấp)')) {
-                updates.title = data.title.replace(' (Khẩn cấp)', '');
-              }
-              update(updates);
-            }}
-            disabled={isReadOnly}
-          >
-            <Text
-              style={
-                data.priority === 'normal'
-                  ? styles.prioTextActive
-                  : styles.prioText
-              }
-            >
-              Thường
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.prioBadge,
-              styles.prioHigh,
-              data.priority === 'high' && styles.prioBadgeHighActive,
-            ]}
-            onPress={() => {
-              const updates: Partial<TaskFormData> = { priority: 'high' };
-              if (detectEventType(data.title) !== 'urgent') {
-                updates.title = data.title.trim() + ' (Khẩn cấp)';
-              }
-              update(updates);
-            }}
-            disabled={isReadOnly}
-          >
-            <Text
-              style={
-                data.priority === 'high'
-                  ? styles.prioTextActive
-                  : styles.prioTextHigh
-              }
-            >
-              Cao
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <PrioritySelector
+          label="Mức ưu tiên"
+          selectedPriority={data.priority}
+          onPriorityChange={handlePriorityChange}
+          disabled={isReadOnly}
+        />
       )}
 
-      <View style={styles.datePickerRow}>
-        <Text style={styles.priorityLabel}>
-          Đến hạn: <Text style={{ color: COLORS.error }}>*</Text>
-        </Text>
-        <TouchableOpacity
-          style={styles.dateBtn}
-          onPress={() => setShowDatePicker(true)}
-          disabled={isReadOnly}
-        >
-          <Text
-            style={
-              data.dueDate ? styles.dateBtnTextActive : styles.dateBtnText
-            }
-          >
-            {data.dueDate
-              ? data.dueDate.toLocaleDateString('vi-VN')
-              : 'Chọn ngày'}
-          </Text>
-        </TouchableOpacity>
+      <DatePickerCard
+        label="Ngày hết hạn"
+        date={data.dueDate}
+        onPress={() => setShowDatePicker(true)}
+        disabled={isReadOnly}
+      />
 
-        {showDatePicker && !isReadOnly && (
-          <DateTimePicker
-            value={data.dueDate || new Date()}
-            mode="date"
-            display="default"
-            onChange={(event, selectedDate) => {
-              setShowDatePicker(Platform.OS === 'ios');
-              if (selectedDate) update({ dueDate: selectedDate });
-            }}
-          />
-        )}
-      </View>
+      {showDatePicker && !isReadOnly && (
+        <DateTimePicker
+          value={data.dueDate || new Date()}
+          minimumDate={new Date()}
+          mode="date"
+          display="default"
+          onChange={(event, selectedDate) => {
+            setShowDatePicker(Platform.OS === 'ios');
+            if (selectedDate) update({ dueDate: selectedDate });
+          }}
+        />
+      )}
     </View>
   );
 }
 
-const createStyles = (COLORS: any, typography: any) =>
-  StyleSheet.create({
-    container: { gap: 12 },
-    typeSelectorRow: { flexDirection: 'row', gap: 12, marginBottom: 4 },
-    typeBtn: {
-      flex: 1,
-      paddingVertical: 10,
-      borderRadius: RADIUS.md,
-      backgroundColor: COLORS.surfaceVariant,
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: 'transparent',
-    },
-    typeBtnActive: {
-      backgroundColor: `${COLORS.primary}1A`,
-      borderColor: COLORS.primary,
-    },
-    typeBtnText: {
-      fontSize: 13,
-      fontWeight: '600',
-      color: COLORS.textSecondary,
-    },
-    typeBtnTextActive: { color: COLORS.primary },
-    input: {
-      backgroundColor: COLORS.surfaceVariant,
-      borderRadius: RADIUS.md,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      color: COLORS.onSurface,
-      fontSize: 14,
-      borderWidth: 1,
-      borderColor: COLORS.outlineVariant,
-    },
-    textArea: { height: 80, textAlignVertical: 'top' },
-    priorityRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      marginTop: 4,
-    },
-    priorityLabel: {
-      fontSize: 13,
-      color: COLORS.textSecondary,
-      fontWeight: '600',
-    },
-    prioBadge: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: RADIUS.sm,
-      backgroundColor: COLORS.surfaceVariant,
-    },
-    prioBadgeActive: { backgroundColor: COLORS.primary },
-    prioHigh: { backgroundColor: COLORS.errorTint || `${COLORS.error}1A` },
-    prioBadgeHighActive: { backgroundColor: COLORS.error },
-    prioText: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '600' },
-    prioTextHigh: { color: COLORS.error, fontSize: 12, fontWeight: '600' },
-    prioTextActive: {
-      color: COLORS.onPrimary,
-      fontSize: 12,
-      fontWeight: '700',
-    },
-    datePickerRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      marginTop: 4,
-    },
-    dateBtn: {
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: RADIUS.sm,
-      backgroundColor: COLORS.surfaceVariant,
-      borderWidth: 1,
-      borderColor: COLORS.outlineVariant,
-    },
-    dateBtnText: {
-      color: COLORS.textSecondary,
-      fontSize: 13,
-      fontWeight: '600',
-    },
-    dateBtnTextActive: {
-      color: COLORS.primary,
-      fontSize: 13,
-      fontWeight: '700',
-    },
-  });
+const styles = StyleSheet.create({
+  container: {
+    paddingTop: 8,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  titleInputWrapper: {
+    flex: 1,
+  },
+  voiceBtn: {
+    marginTop: 27, 
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

@@ -11,6 +11,9 @@ import {
   ActivityIndicator,
   TouchableWithoutFeedback,
   Dimensions,
+  PanResponder,
+  Linking,
+  DeviceEventEmitter,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ChatComposer from '../../components/chat/ChatComposer';
@@ -34,12 +37,13 @@ import type { ChatMessage, QuickAction, ChatActionMessage } from '../../types/ch
 import { useOpenSettings } from '../../hooks/useOpenSettings';
 import { MaterialIcons } from '@expo/vector-icons';
 import { RADIUS } from '../../constants/theme';
-import { 
-  chat as chatService, 
-  getSessions, 
-  getSessionMessages, 
+import {
+  chat as chatService,
+  getSessions,
+  getSessionMessages,
   deleteSession,
-  createNewSession
+  createNewSession,
+  markActionExecuted
 } from '../../services/chat';
 
 type ChatScreenProps = {
@@ -53,10 +57,10 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
   const { colors: COLORS } = useTheme();
   const typography = useMemo(() => getTypography(COLORS), [COLORS]);
   const styles = useMemo(() => createStyles(COLORS, typography), [COLORS, typography]);
-  
+
   const insets = useSafeAreaInsets();
   const openSettings = useOpenSettings();
-  
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   // ─── Hai session ID với vai trò KHÁC NHAU ─────────────────────────────────
   // 1. currentChatSessionRef: sessionId thực sự đang dùng để gửi/nhận tin nhắn.
@@ -68,12 +72,22 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
 
   // Timer tự động reset sau action
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
+
+  // Cờ đánh dấu cần load lại danh sách session khi mở sidebar
+  const shouldReloadSessionsRef = useRef(true);
+
+  // Ref cho ScrollView để cuộn xuống cuối
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  // Track trạng thái animation bàn phím để fix lỗi giật khựng
+  const isKeyboardAnimating = useRef(false);
+
   // -- Sidebar State --
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [sessions, setSessions] = useState<any[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const sidebarAnim = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
+  const backdropAnim = useRef(new Animated.Value(0)).current;
 
   const headerHeight = getTopAppBarHeight(insets);
   const bottomNavReserved = getBottomNavReservedHeight(insets);
@@ -127,19 +141,25 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
   // -- Bàn phím --
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', (e) => {
+      isKeyboardAnimating.current = true;
       Animated.timing(keyboardOffset, {
         toValue: e.endCoordinates.height - insets.bottom,
         duration: 250,
         useNativeDriver: false,
-      }).start();
+      }).start(() => {
+        isKeyboardAnimating.current = false;
+      });
     });
 
     const hide = Keyboard.addListener('keyboardDidHide', () => {
+      isKeyboardAnimating.current = true;
       Animated.timing(keyboardOffset, {
         toValue: composerBottom,
         duration: 250,
         useNativeDriver: false,
-      }).start();
+      }).start(() => {
+        isKeyboardAnimating.current = false;
+      });
     });
 
     return () => {
@@ -173,18 +193,40 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
         const { sessionId } = await createNewSession();
         targetSessionId = sessionId;
         currentChatSessionRef.current = sessionId;
+        shouldReloadSessionsRef.current = true; // Đánh dấu cần load lại khi tạo session mới
       }
 
       // Gọi API với targetSessionId
       const result = await chatService(text, targetSessionId);
-      
+
       // Cập nhật lại nếu BE có thay đổi
       if (result.sessionId) {
         currentChatSessionRef.current = result.sessionId;
       }
 
       if (result.kind === 'action') {
-        // 1. Hiển thị tin nhắn action thành công
+        // Tự động chạy action ngầm
+        const executeSilentAction = async () => {
+          try {
+            if (result.deepLink) {
+              const canOpen = await Linking.canOpenURL(result.deepLink);
+              if (canOpen) {
+                await Linking.openURL(result.deepLink);
+                await markActionExecuted(result.actionId);
+                return;
+              }
+            }
+            if (result.fallbackUrl) {
+              await Linking.openURL(result.fallbackUrl);
+              await markActionExecuted(result.actionId);
+            }
+          } catch (err) {
+            console.log('Không thể mở app:', err);
+          }
+        };
+        executeSilentAction();
+
+        // 1. Hiển thị tin nhắn dạng bình thường
         setMessages(prev => [
           ...prev.filter(m => m.role !== 'typing'),
           {
@@ -200,6 +242,10 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
         // We no longer automatically reset the session after an action message.
         // The action message will stay in the chat history.
       } else {
+        if (result.taskCreated) {
+          DeviceEventEmitter.emit('tasks_changed');
+          DeviceEventEmitter.emit('events_changed');
+        }
         setMessages(prev => [
           ...prev.filter(m => m.role !== 'typing'),
           { id: `ai-${Date.now()}`, role: 'ai', content: result.answer }
@@ -211,7 +257,7 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
         { id: `err-${Date.now()}`, role: 'ai', content: err?.message || 'Có lỗi xảy ra' }
       ]);
     }
-  // handleSend không còn phụ thuộc vào activeSessionId — loại bỏ dependency vòng lặp
+    // handleSend không còn phụ thuộc vào activeSessionId — loại bỏ dependency vòng lặp
   }, []);
 
   const handleQuickAction = useCallback((action: QuickAction) => {
@@ -233,21 +279,44 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
   // -- Sidebar Logic --
   const openSidebar = () => {
     setIsSidebarOpen(true);
-    setLoadingSessions(true);
-    getSessions().then(setSessions).finally(() => setLoadingSessions(false));
-    Animated.timing(sidebarAnim, {
-      toValue: 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
+
+    if (shouldReloadSessionsRef.current) {
+      setLoadingSessions(true);
+      getSessions()
+        .then(data => {
+          setSessions(data);
+          shouldReloadSessionsRef.current = false;
+        })
+        .finally(() => setLoadingSessions(false));
+    }
+
+    Animated.parallel([
+      Animated.timing(sidebarAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(backdropAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      })
+    ]).start();
   };
 
   const closeSidebar = () => {
-    Animated.timing(sidebarAnim, {
-      toValue: -SIDEBAR_WIDTH,
-      duration: 300,
-      useNativeDriver: true,
-    }).start(() => setIsSidebarOpen(false));
+    Animated.parallel([
+      Animated.timing(sidebarAnim, {
+        toValue: -SIDEBAR_WIDTH,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(backdropAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      })
+    ]).start(() => setIsSidebarOpen(false));
   };
 
   const handleDeleteSession = async (id: string) => {
@@ -266,32 +335,63 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
     }
   };
 
+  // Dùng ref để đảm bảo luôn gọi hàm openSidebar mới nhất mà không bị kẹt closure
+  const openSidebarRef = useRef(openSidebar);
+  openSidebarRef.current = openSidebar;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponderCapture: (evt, gestureState) => {
+        // Tăng độ nhạy bằng cách giảm ngưỡng dx
+        const isHorizontalSwipe = Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.5;
+        const isSwipeRight = gestureState.dx > 5;
+        return isHorizontalSwipe && isSwipeRight;
+      },
+      onPanResponderTerminationRequest: () => false, // Không nhường quyền điều khiển gesture cho view khác (vd: ScrollView)
+      onPanResponderRelease: (evt, gestureState) => {
+        if (gestureState.dx > 20 || gestureState.vx > 0.3) {
+          openSidebarRef.current();
+        }
+      },
+      onPanResponderTerminate: (evt, gestureState) => {
+        if (gestureState.dx > 20 || gestureState.vx > 0.3) {
+          openSidebarRef.current();
+        }
+      },
+    })
+  ).current;
+
   return (
-    <View style={styles.root}>
-      <TopAppBar 
-        onSettingsPress={openSettings} 
+    <View style={styles.root} {...panResponder.panHandlers}>
+      <TopAppBar
+        onSettingsPress={openSettings}
         leftActions={
-          <MaterialIcons 
-            name="menu" 
-            size={24} 
-            color={COLORS.primary} 
-            onPress={openSidebar} 
+          <MaterialIcons
+            name="menu"
+            size={24}
+            color={COLORS.primary}
+            onPress={openSidebar}
           />
         }
       />
 
       <View style={styles.flex}>
         <ScrollView
+          ref={scrollViewRef}
           style={styles.scroll}
           contentContainerStyle={[
             styles.content,
             {
               paddingTop: headerHeight + SCROLL_CONTENT_GAP,
-              paddingBottom: CHAT_COMPOSER_HEIGHT + composerBottom + SCROLL_CONTENT_GAP,
+              paddingBottom: CHAT_COMPOSER_HEIGHT + SCROLL_CONTENT_GAP,
             },
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          onContentSizeChange={() => {
+            scrollViewRef.current?.scrollToEnd({ animated: !isKeyboardAnimating.current });
+          }}
         >
           {messages.length === 0 && (
             <ChatStatusBanner
@@ -300,6 +400,8 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
             />
           )}
           <ChatMessageList messages={messages} />
+          {/* Spacer bù không gian cho bàn phím/composer */}
+          <Animated.View style={{ height: keyboardOffset }} />
         </ScrollView>
 
         <Animated.View style={[styles.composer, { bottom: keyboardOffset }]}>
@@ -311,12 +413,12 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
           />
         </Animated.View>
       </View>
-    
+
       {/* Sidebar Modal */}
       <Modal visible={isSidebarOpen} transparent animationType="none" onRequestClose={closeSidebar}>
         <View style={styles.sidebarOverlay}>
           <TouchableWithoutFeedback onPress={closeSidebar}>
-            <View style={styles.sidebarBackdrop} />
+            <Animated.View style={[styles.sidebarBackdrop, { opacity: backdropAnim }]} />
           </TouchableWithoutFeedback>
           <Animated.View style={[styles.sidebarContent, { transform: [{ translateX: sidebarAnim }] }]}>
             <View style={styles.sidebarHeader}>
@@ -330,8 +432,8 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
                 <ActivityIndicator size="small" color={COLORS.primary} style={{ marginTop: 20 }} />
               ) : (
                 sessions.map(s => (
-                  <TouchableOpacity 
-                    key={s.id} 
+                  <TouchableOpacity
+                    key={s.id}
                     style={[styles.sidebarItem, activeSessionId === s.id && styles.sidebarItemActive]}
                     onPress={() => {
                       // Hủy timer reset nếu đang chạy
@@ -352,7 +454,7 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
                         {new Date(s.createdAt || s.CreatedAt).toLocaleDateString('vi-VN')}
                       </Text>
                     </View>
-                    <TouchableOpacity onPress={() => handleDeleteSession(s.id)} hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+                    <TouchableOpacity onPress={() => handleDeleteSession(s.id)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                       <MaterialIcons name="delete-outline" size={20} color={COLORS.error} />
                     </TouchableOpacity>
                   </TouchableOpacity>
@@ -394,21 +496,21 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   // Sidebar Styles
   sidebarOverlay: { flex: 1, flexDirection: 'row' },
   sidebarBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
-  sidebarContent: { 
+  sidebarContent: {
     width: SIDEBAR_WIDTH, height: '100%', backgroundColor: COLORS.surface,
     paddingTop: 48, shadowColor: '#000', shadowOffset: { width: 4, height: 0 },
-    shadowOpacity: 0.1, shadowRadius: 12, elevation: 10 
+    shadowOpacity: 0.1, shadowRadius: 12, elevation: 10
   },
-  sidebarHeader: { 
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
-    paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: COLORS.outlineVariant 
+  sidebarHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: COLORS.outlineVariant
   },
   sidebarTitle: { ...typography.headlineMd, fontSize: 18, fontWeight: '700', color: COLORS.onSurface },
   sidebarNewBtn: { backgroundColor: COLORS.primary, padding: 6, borderRadius: RADIUS.md },
   sidebarList: { flex: 1 },
-  sidebarItem: { 
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', 
-    paddingVertical: 12, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: COLORS.outlineVariant 
+  sidebarItem: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 12, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: COLORS.outlineVariant
   },
   sidebarItemActive: { backgroundColor: COLORS.primaryContainer },
   sidebarItemTextWrap: { flex: 1, paddingRight: 8 },

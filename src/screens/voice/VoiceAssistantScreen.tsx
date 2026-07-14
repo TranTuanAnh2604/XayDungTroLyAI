@@ -10,10 +10,9 @@ import AmbientParticles from '../../components/voice/AmbientParticles';
 import AiCoreVisualizer from '../../components/voice/AiCoreVisualizer';
 import TranscriptionDisplay from '../../components/voice/TranscriptionDisplay';
 import VoiceCommandGrid from '../../components/voice/VoiceCommandGrid';
-import VoiceInsightCard from '../../components/voice/VoiceInsightCard';
 import { TabScreenLayout, TopAppBar } from '../../components/navigation';
 import { SCROLL_BOTTOM_EXTRA } from '../../constants/layout';
-import { VOICE_BRAND, VOICE_COMMANDS, VOICE_INSIGHT } from '../../data/voiceMock';
+import { VOICE_BRAND, VOICE_COMMANDS } from '../../data/voiceMock';
 import type { VoiceCommand } from '../../types/voice';
 import { useOpenSettings } from '../../hooks/useOpenSettings';
 import { chat, markActionExecuted } from '../../services/chat';
@@ -271,7 +270,6 @@ export default function VoiceAssistantScreen({
         />
 
         <VoiceCommandGrid commands={VOICE_COMMANDS} onPress={handleCommand} />
-        <VoiceInsightCard insight={VOICE_INSIGHT} />
       </TabScreenLayout>
     </View>
   );

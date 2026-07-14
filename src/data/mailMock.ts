@@ -6,10 +6,10 @@ export const MAIL_BRAND = {
 };
 
 export const MAIL_FILTERS: { id: MailFilterId; label: string }[] = [
+  { id: 'important', label: 'Quan trọng' },
   { id: 'all', label: 'Tất cả' },
   { id: 'unread', label: 'Chưa đọc' },
   { id: 'recent', label: 'Gần đây' },
-  { id: 'important', label: 'Quan trọng' },
 ];
 
 export const MAIL_AI_SUMMARY: MailAiSummary = {

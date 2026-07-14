@@ -216,8 +216,6 @@ const openForgotPassword = () => {
             </View>
 
             <AppGlassCard variant="ai" padding={32}>
-              <AppLogo size={32} style={styles.cardLogo} />
-
               <BorderTextInput
                 label="Email"
                 value={email}
@@ -327,13 +325,6 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   },
   heroLogo: {
     marginBottom: 20,
-  },
-  cardLogo: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    zIndex: 1,
-    opacity: 0.85,
   },
   heroTitle: {
     ...typography.displayLgMobile,

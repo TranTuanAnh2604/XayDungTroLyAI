@@ -1,18 +1,8 @@
-import { getTypography } from '../../constants/typography';
 import React, { useEffect, useState } from 'react';
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-  Text,
-} from 'react-native';
-import { useTheme } from '../../hooks/useTheme';
-
+import { Alert } from 'react-native';
+import TaskModalContainer from '../tasks/ui/TaskModalContainer';
+import ModalHeader from '../tasks/ui/ModalHeader';
+import ModalFooter from '../tasks/ui/ModalFooter';
 import { normalizeDateValue, safeISOString } from '../../utils/date';
 import EventFormFields from './EventFormFields';
 import type { CalendarSyncRequest } from '../../services/sync';
@@ -25,8 +15,6 @@ type EditEventModalProps = {
   onDelete?: (eventId: string) => Promise<void>;
 };
 
-
-
 export default function EditEventModal({
   visible,
   event,
@@ -34,11 +22,6 @@ export default function EditEventModal({
   onEdit,
   onDelete,
 }: EditEventModalProps) {
-  const { colors: COLORS } = useTheme();
-  const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
-  const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
-  // Snapshot of the moment the popup was opened. Captured once so the default
-  // displayed for missing/invalid times does not drift while the modal is open.
   const openedAtRef = React.useRef<Date>(new Date());
 
   const [title, setTitle] = useState('');
@@ -56,7 +39,6 @@ export default function EditEventModal({
 
   useEffect(() => {
     if (!visible || !event) return;
-    // Capture the open timestamp once so it stays stable during the session.
     const now = new Date();
     openedAtRef.current = now;
 
@@ -66,7 +48,6 @@ export default function EditEventModal({
     setTitle(event.title || '');
     setDescription(event.description || '');
     setLocation(event.location || '');
-    // Use the event's saved times when valid; fall back to the open timestamp.
     const startValue = startDateTime ?? now;
     setStartDate(startValue);
     setEndDate(endDateTime ?? new Date(startValue.getTime() + 60 * 60 * 1000));
@@ -78,7 +59,6 @@ export default function EditEventModal({
     setError(null);
   }, [visible, event]);
 
-  // Reset state when modal is closed so stale values are cleared.
   useEffect(() => {
     if (visible) return;
     const resetTo = new Date();
@@ -155,7 +135,6 @@ export default function EditEventModal({
   };
 
   const handleDelete = async () => {
-    console.log('FULL event object:', JSON.stringify(event, null, 2));
     if (!event?.id || !onDelete) {
       return;
     }
@@ -188,131 +167,35 @@ export default function EditEventModal({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.backdrop}
-      >
-        <View style={styles.container}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Chỉnh sửa sự kiện</Text>
-            <Pressable onPress={onClose} style={styles.closeButton}>
-              <Text style={styles.closeButtonText}>Đóng</Text>
-            </Pressable>
-          </View>
-
-          <ScrollView
-            contentContainerStyle={styles.form}
-            showsVerticalScrollIndicator={false}
-          >
-            <EventFormFields
-              title={title} setTitle={setTitle}
-              description={description} setDescription={setDescription}
-              location={location} setLocation={setLocation}
-              startDate={startDate} setStartDate={setStartDate}
-              endDate={endDate} setEndDate={setEndDate}
-              isAllDay={isAllDay} setIsAllDay={setIsAllDay}
-              showStartDatePicker={showStartDatePicker} setShowStartDatePicker={setShowStartDatePicker}
-              showStartTimePicker={showStartTimePicker} setShowStartTimePicker={setShowStartTimePicker}
-              showEndDatePicker={showEndDatePicker} setShowEndDatePicker={setShowEndDatePicker}
-              showEndTimePicker={showEndTimePicker} setShowEndTimePicker={setShowEndTimePicker}
-              error={error}
-            />
-
-            <View style={styles.buttonGroup}>
-              <Pressable
-                onPress={handleEdit}
-                style={[styles.button, submitting && styles.buttonDisabled]}
-                disabled={submitting}
-              >
-                <Text style={styles.buttonText}>{submitting ? 'Đang cập nhật...' : 'Cập nhật sự kiện'}</Text>
-              </Pressable>
-              {onDelete ? (
-                <Pressable
-                  onPress={handleDelete}
-                  style={[styles.deleteButton, submitting && styles.buttonDisabled]}
-                  disabled={submitting}
-                >
-                  <Text style={styles.deleteButtonText}>Xóa sự kiện</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+    <TaskModalContainer visible={visible} onClose={onClose}>
+      <ModalHeader
+        title="Chỉnh sửa sự kiện"
+        onClose={onClose}
+      />
+      
+      <EventFormFields
+        title={title} setTitle={setTitle}
+        description={description} setDescription={setDescription}
+        location={location} setLocation={setLocation}
+        startDate={startDate} setStartDate={setStartDate}
+        endDate={endDate} setEndDate={setEndDate}
+        isAllDay={isAllDay} setIsAllDay={setIsAllDay}
+        showStartDatePicker={showStartDatePicker} setShowStartDatePicker={setShowStartDatePicker}
+        showStartTimePicker={showStartTimePicker} setShowStartTimePicker={setShowStartTimePicker}
+        showEndDatePicker={showEndDatePicker} setShowEndDatePicker={setShowEndDatePicker}
+        showEndTimePicker={showEndTimePicker} setShowEndTimePicker={setShowEndTimePicker}
+        error={error}
+      />
+      
+      <ModalFooter
+        primaryLabel={submitting ? 'Đang cập nhật...' : 'Cập nhật sự kiện'}
+        onPrimaryPress={handleEdit}
+        secondaryLabel={onDelete ? 'Xóa sự kiện' : 'Đóng'}
+        onSecondaryPress={onDelete ? handleDelete : onClose}
+        secondaryType={onDelete ? 'danger' : 'cancel'}
+        isPrimaryDisabled={submitting}
+        isSubmitting={submitting}
+      />
+    </TaskModalContainer>
   );
 }
-
-const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.35)',
-  },
-  container: {
-    maxHeight: '90%',
-    width: '100%',
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 12,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  title: {
-    ...typography.headlineSm,
-    color: COLORS.onSurface,
-  },
-  closeButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: COLORS.primary,
-    borderRadius: 999,
-  },
-  closeButtonText: {
-    color: COLORS.onPrimary,
-    fontWeight: '700',
-  },
-  form: {
-    paddingBottom: 32,
-    gap: 20,
-  },
-  buttonGroup: {
-    gap: 12,
-  },
-  button: {
-    paddingVertical: 14,
-    borderRadius: 16,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-  },
-  buttonDisabled: {
-    backgroundColor: `${COLORS.primary}88`,
-  },
-  deleteButton: {
-    paddingVertical: 14,
-    borderRadius: 16,
-    backgroundColor: COLORS.error,
-    alignItems: 'center',
-  },
-  deleteButtonText: {
-    color: COLORS.onPrimary,
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  buttonText: {
-    color: COLORS.onPrimary,
-    fontWeight: '700',
-    fontSize: 15,
-  },
-});

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
+  Keyboard,
   Pressable,
   StyleSheet,
   TextInput,
@@ -46,6 +47,7 @@ export default function ChatComposer({
     if (!trimmed) return;
     onSend?.(trimmed);
     setText('');
+    Keyboard.dismiss();
   };
 
   return (

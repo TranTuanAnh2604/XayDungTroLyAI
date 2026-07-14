@@ -4,7 +4,6 @@ import AiMessageBubble from './AiMessageBubble';
 import SummaryCardMessage from './SummaryCardMessage';
 import TypingIndicator from './TypingIndicator';
 import UserMessageBubble from './UserMessageBubble';
-import ActionMessageBubble from './ActionMessageBubble';
 import type { ChatMessage, ChatActionMessage } from '../../types/chat';
 
 type ChatMessageListProps = {
@@ -26,16 +25,7 @@ export default function ChatMessageList({ messages }: ChatMessageListProps) {
             return <TypingIndicator key={message.id} />;
           case 'action':
             const actionMsg = message as ChatActionMessage;
-            return (
-              <ActionMessageBubble
-                key={actionMsg.id}
-                content={actionMsg.content}
-                actionId={actionMsg.actionId}
-                appName={actionMsg.appName}
-                deepLink={actionMsg.deepLink}
-                fallbackUrl={actionMsg.fallbackUrl}
-              />
-            );
+            return <AiMessageBubble key={actionMsg.id} content={actionMsg.content} />;
           default:
             return null;
         }
