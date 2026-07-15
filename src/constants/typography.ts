@@ -9,29 +9,29 @@ export const FONT_FAMILY = {
 
 export const getTypography = (COLORS: ThemeColors) => ({
   displayLgMobile: {
-    fontSize: 32,
-    lineHeight: 40,
+    fontSize: 28,
+    lineHeight: 36,
     letterSpacing: -0.64,
     fontWeight: '600',
     color: COLORS.onSurface,
   } as TextStyle,
   headlineMd: {
-    fontSize: 24,
-    lineHeight: 32,
+    fontSize: 20,
+    lineHeight: 28,
     letterSpacing: -0.24,
     fontWeight: '600',
     color: COLORS.onSurface,
   } as TextStyle,
   headlineSm: {
-    fontSize: 18,
-    lineHeight: 24,
+    fontSize: 16,
+    lineHeight: 22,
     letterSpacing: -0.18,
     fontWeight: '600',
     color: COLORS.onSurface,
   } as TextStyle,
   statLg: {
-    fontSize: 30,
-    lineHeight: 36,
+    fontSize: 24,
+    lineHeight: 30,
     fontWeight: '700',
     color: COLORS.onSurface,
   } as TextStyle,

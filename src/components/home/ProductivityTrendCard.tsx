@@ -92,7 +92,9 @@ export default function ProductivityTrendCard({
 }
 
 const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
-  card: {},
+  card: {
+    flex: 1,
+  },
   header: {
     ...typography.headlineMd,
     marginBottom: 4,
@@ -106,7 +108,7 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 6,
-    height: 120,
+    height: 80,
   },
   barCol: {
     flex: 1,

@@ -111,9 +111,9 @@ export default function TasksScreen() {
         )
       }}
     >
-      <TasksProgressCard progress={progressData} />
-
       <View style={styles.listGroup}>
+        <TasksProgressCard progress={progressData} />
+
         <View style={styles.filterWrapper}>
           <TaskFilterChips
             filters={TASK_FILTERS}

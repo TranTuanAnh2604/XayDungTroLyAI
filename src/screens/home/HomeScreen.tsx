@@ -7,7 +7,14 @@ import {
   StyleSheet,
   Text,
   View,
+  ScrollView,
+  Dimensions,
 } from 'react-native';
+
+const windowWidth = Dimensions.get('window').width;
+const cardWidth = Math.min(windowWidth - 32, 512); // clamp to max content width if on tablet
+import { useNavigation } from '@react-navigation/native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TabScreenLayout, TopAppBar } from '../../components/navigation';
 import {
@@ -15,14 +22,14 @@ import {
   SCROLL_BOTTOM_EXTRA,
 } from '../../constants/layout';
 import { HOME_USER } from '../../data/homeMock';
-import GoalProgressCard from '../../components/home/GoalProgressCard';
 import WeeklyTimeStatsCard from '../../components/home/WeeklyTimeStatsCard';
 import ProductivityScoreCard from '../../components/home/ProductivityScoreCard';
-import AiInsightsCard from '../../components/home/AiInsightsCard';
 import ProductivityTrendCard from '../../components/home/ProductivityTrendCard';
+import AppGlassCard from '../../components/ui/AppGlassCard';
 import { useTheme } from '../../hooks/useTheme';
 import { useOpenSettings } from '../../hooks/useOpenSettings';
 import { useProductivityDashboard } from '../../hooks/useProductivityDashboard';
+import { useTasksList } from '../../hooks/useTasksList';
 import { useProfile } from '../../hooks/useProfile';
 import {
   fetchDeviceCalendarEvents,
@@ -85,6 +92,11 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const openSettings = useOpenSettings();
   const { profile } = useProfile();
+  const navigation = useNavigation<any>();
+  const { tasks, todos, fetchData } = useTasksList();
+  
+  const [activeCardIndex, setActiveCardIndex] = React.useState(0);
+  const scrollRef = React.useRef<ScrollView>(null);
 
   const hour = new Date().getHours();
   let dynamicGreeting = 'Chào buổi sáng';
@@ -94,6 +106,12 @@ export default function HomeScreen() {
     dynamicGreeting = 'Chào buổi tối';
   }
   const displayName = profile?.name || HOME_USER.name;
+  
+  const todayStr = new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'long' });
+  const pendingTodos = todos.filter(t => !t.completed).length;
+  const pendingTasks = tasks.filter(t => !t.completed).length;
+  const totalPending = pendingTodos + pendingTasks;
+  const dynamicSummary = totalPending > 0 ? `Bạn có ${totalPending} công việc hôm nay.` : 'Bạn không có việc nào chưa hoàn thành.';
 
   const {
     latestReport,
@@ -160,8 +178,9 @@ export default function HomeScreen() {
   };
 
   const handleRefresh = useCallback(async () => {
+    fetchData(true);
     await refresh();
-  }, [refresh]);
+  }, [refresh, fetchData]);
 
   const handleGenerate = useCallback(async () => {
     await generateReport();
@@ -182,11 +201,39 @@ export default function HomeScreen() {
         ),
       }}
     >
-      <View style={styles.greeting}>
-        <Text style={styles.greetingTitle}>
-          {dynamicGreeting}, {displayName}.
-        </Text>
-        <Text style={styles.greetingSubtitle}>{HOME_USER.subtitle}</Text>
+      <View style={styles.topSection}>
+        <View style={styles.greeting}>
+          <Text style={styles.greetingTitle}>
+            {dynamicGreeting}, {displayName}.
+          </Text>
+          <Text style={styles.greetingDate}>{todayStr}</Text>
+          <Text style={styles.greetingSubtitle}>{dynamicSummary}</Text>
+        </View>
+        
+        {totalPending > 0 && (
+          <>
+            <View style={styles.divider} />
+            <View style={styles.agendaSection}>
+              <View style={styles.agendaHeader}>
+                <Text style={styles.agendaTitle}>Hôm nay</Text>
+                <Pressable onPress={() => navigation.navigate('Main', { tab: 'tasks' })}>
+                  <Text style={styles.agendaViewAll}>Xem tất cả</Text>
+                </Pressable>
+              </View>
+              {[...todos.filter(t => !t.completed), ...tasks.filter(t => !t.completed)].slice(0, 3).map((item, idx) => (
+                <AppGlassCard key={item.id || idx} variant="surface" padding={12} style={styles.agendaCard}>
+                  <View style={styles.agendaRow}>
+                    <MaterialIcons name={item.itemType === 'task' ? 'check-circle-outline' : 'radio-button-unchecked'} size={20} color={COLORS.textSecondary} />
+                    <View style={styles.agendaContent}>
+                      <Text style={styles.agendaItemTitle} numberOfLines={1}>{item.title}</Text>
+                      <Text style={styles.agendaItemMeta} numberOfLines={1}>{item.meta}</Text>
+                    </View>
+                  </View>
+                </AppGlassCard>
+              ))}
+            </View>
+          </>
+        )}
       </View>
 
       {error ? (
@@ -201,22 +248,54 @@ export default function HomeScreen() {
       {latestReport || isLoading ? (
         <View style={styles.dashboardGroup}>
           <ProductivityScoreCard report={latestReport} skeleton={isLoading && !latestReport} />
-          <WeeklyTimeStatsCard
-            categories={weeklyCategories}
-            skeleton={isLoading && !latestReport}
-          />
-          {goalProgress || isLoading ? (
-            <GoalProgressCard
-              progress={goalProgress ?? { completedPercent: 0, subtitle: '', detail: '' }}
-              skeleton={isLoading && !latestReport}
-            />
-          ) : null}
-          <AiInsightsCard report={latestReport} skeleton={isLoading && !latestReport} />
-        </View>
-      ) : null}
+          
+          <View style={{ position: 'relative' }}>
+            <ScrollView
+              ref={scrollRef}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              pagingEnabled
+              snapToInterval={cardWidth + 24}
+              decelerationRate="fast"
+              style={{ marginHorizontal: -16 }}
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 24 }}
+              onScroll={(e) => {
+                const offsetX = e.nativeEvent.contentOffset.x;
+                const index = Math.round(offsetX / (cardWidth + 24));
+                if (index !== activeCardIndex) setActiveCardIndex(index);
+              }}
+              scrollEventThrottle={16}
+            >
+              <View style={{ width: cardWidth, height: 240, position: 'relative' }}>
+                <WeeklyTimeStatsCard
+                  categories={weeklyCategories}
+                  skeleton={isLoading && !latestReport}
+                />
+                <Pressable
+                  style={[styles.arrowBtnInScrollView, { right: -24 }]}
+                  onPress={() => scrollRef.current?.scrollTo({ x: activeCardIndex === 0 ? cardWidth + 24 : 0, animated: true })}
+                >
+                  <MaterialIcons 
+                    name={activeCardIndex === 0 ? "chevron-right" : "chevron-left"} 
+                    size={24} 
+                    color={COLORS.onSurfaceVariant} 
+                  />
+                </Pressable>
+              </View>
+              <View style={{ width: cardWidth, height: 240, position: 'relative' }}>
+                {trend.length > 0 || isLoading ? (
+                  <ProductivityTrendCard trend={trend} skeleton={isLoading && trend.length === 0} />
+                ) : (
+                  <AppGlassCard variant="surface" padding={16} style={{ flex: 1 }}>
+                    <Text style={{ ...typography.bodyMd, color: COLORS.textSecondary, fontStyle: 'italic' }}>Chưa có dữ liệu xu hướng hiệu suất</Text>
+                  </AppGlassCard>
+                )}
+              </View>
+            </ScrollView>
+          </View>
 
-      {trend.length > 0 || isLoading ? (
-        <ProductivityTrendCard trend={trend} skeleton={isLoading && trend.length === 0} />
+
+        </View>
       ) : null}
 
 
@@ -225,17 +304,70 @@ export default function HomeScreen() {
 }
 
 const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
-  greeting: {},
-  dashboardGroup: {
+  topSection: {
     gap: 16,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: COLORS.surfaceContainerHigh,
+    width: '100%',
+  },
+  greeting: {
+  },
+  dashboardGroup: {
+    gap: 12,
   },
   greetingTitle: {
     ...typography.displayLgMobile,
     color: COLORS.onBackground,
   },
+  greetingDate: {
+    ...typography.labelCaps,
+    color: COLORS.primary,
+    marginTop: 4,
+  },
   greetingSubtitle: {
     ...typography.bodyMd,
     marginTop: 4,
+  },
+
+  agendaSection: {
+  },
+  agendaHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  agendaTitle: {
+    ...typography.headlineSm,
+    color: COLORS.onBackground,
+  },
+  agendaViewAll: {
+    ...typography.bodyMd,
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  agendaCard: {
+    marginBottom: 8,
+  },
+  agendaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  agendaContent: {
+    flex: 1,
+  },
+  agendaItemTitle: {
+    ...typography.bodyMd,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+  },
+  agendaItemMeta: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    marginTop: 2,
   },
   errorBanner: {
     flexDirection: 'row',
@@ -258,6 +390,22 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     ...typography.bodyMd,
     color: COLORS.danger,
     fontWeight: '700',
+  },
+  emptyText: {
+    ...typography.bodyMd,
+    color: COLORS.onSurfaceVariant,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  arrowBtnInScrollView: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
   },
   generateContainer: {
     alignItems: 'center',

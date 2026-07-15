@@ -208,19 +208,23 @@ export default function MailScreen() {
     const email = gmailEmails.find((item) => item.id === emailId);
     if (!email) return;
 
-    try {
-      await markGmailEmailAsRead(emailId);
-      setGmailEmails((prev) =>
-        prev.map((item) =>
-          item.id === emailId ? { ...item, isRead: true } : item,
-        ),
-      );
-    } catch (error: any) {
-      console.error('❌ MailScreen: Lỗi đánh dấu email là đã đọc', error);
-    }
-
+    // Mở popup ngay lập tức để không bị lag/delay
     setSelectedEmail(email);
     setIsDetailOpen(true);
+
+    if (email.isRead) return;
+
+    // Optimistic update state
+    setGmailEmails((prev) =>
+      prev.map((item) =>
+        item.id === emailId ? { ...item, isRead: true } : item,
+      ),
+    );
+
+    // Call API in background
+    markGmailEmailAsRead(emailId).catch((error: any) => {
+      console.error('❌ MailScreen: Lỗi đánh dấu email là đã đọc', error);
+    });
   };
 
   // Load persisted pinned/archived IDs on mount

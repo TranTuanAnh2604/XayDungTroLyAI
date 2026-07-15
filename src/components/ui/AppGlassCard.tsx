@@ -23,7 +23,7 @@ export default function AppGlassCard({
   variant,
   glow = false,
   tint = false,
-  padding = 20,
+  padding = 16,
 }: AppGlassCardProps) {
   const { colors: COLORS, isDark } = useTheme();
   const styles = React.useMemo(() => createStyles(COLORS), [COLORS]);

@@ -124,7 +124,7 @@ export default function BottomNavBar({
             >
               <MaterialIcons
                 name={tab.icon}
-                size={22}
+                size={active ? 24 : 22}
                 color={active ? COLORS.tabActive : COLORS.tabInactive}
               />
               <Text style={[styles.label, active && styles.labelActive]}>
@@ -201,5 +201,6 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   },
   labelActive: {
     color: COLORS.tabActive,
+    fontWeight: '700',
   },
 });

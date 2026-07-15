@@ -1,8 +1,11 @@
 import { getTypography } from '../../constants/typography';
-import React from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
+import { MaterialIcons } from '@expo/vector-icons';
 
+import TaskModalContainer from '../tasks/ui/TaskModalContainer';
+import ModalHeader from '../tasks/ui/ModalHeader';
 import type { GmailEmail } from '../../services/gmail';
 import MailActionToolbar from './MailActionToolbar';
 
@@ -30,43 +33,62 @@ export default function MailDetailModal({
   const { colors: COLORS } = useTheme();
   const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
   const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
+  const [showContent, setShowContent] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      // Defer rendering heavy email body to allow smooth modal slide-in animation
+      const timer = setTimeout(() => setShowContent(true), 250);
+      return () => clearTimeout(timer);
+    } else {
+      setShowContent(false);
+    }
+  }, [visible]);
+
   if (!email) {
     return null;
   }
 
+  const headerRight = (
+    <MailActionToolbar
+      isPinned={isPinned}
+      isArchived={isArchived}
+      disabled={isBusy || !email}
+      onPinPress={() => onPinPress?.(email.id)}
+      onArchivePress={() => onArchivePress?.(email.id)}
+    />
+  );
+
   return (
-    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <View style={styles.container}>
-          <View style={styles.header}>
-            <View style={styles.headerText}>
-              <Text style={styles.subject} numberOfLines={2}>
-                {email.subject ?? email.aiAnalysis.summary}
-              </Text>
-              <Text style={styles.fromLine}>{email.fromHeader}</Text>
-              <Text style={styles.metaText}>{new Date(email.receivedAt).toLocaleString('vi-VN')}</Text>
-            </View>
-            <View style={styles.headerActions}>
-              <MailActionToolbar
-                isPinned={isPinned}
-                isArchived={isArchived}
-                disabled={isBusy || !email}
-                onPinPress={() => onPinPress?.(email.id)}
-                onArchivePress={() => onArchivePress?.(email.id)}
-              />
-              <Pressable onPress={onClose} style={styles.closeButton}>
-                <Text style={styles.closeText}>Đóng</Text>
-              </Pressable>
-            </View>
-          </View>
-          <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
-            <View style={styles.aiCard}>
-              <Text style={styles.aiHeader}>✨ AI Tóm tắt</Text>
+    <TaskModalContainer visible={visible} onClose={onClose}>
+      <ModalHeader
+        title="Chi tiết Email"
+        subtitle={email.fromHeader}
+        rightElement={headerRight}
+        onClose={onClose}
+      />
+      
+      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+        <View style={styles.emailHeaderBox}>
+          <Text style={styles.subject} selectable>
+            {email.subject ?? email.aiAnalysis.summary}
+          </Text>
+          <Text style={styles.metaText}>{new Date(email.receivedAt).toLocaleString('vi-VN')}</Text>
+        </View>
+
+        <View style={styles.aiCard}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <MaterialIcons name="auto-awesome" size={18} color={COLORS.primary} />
+                <Text style={[styles.aiHeader, { marginBottom: 0 }]}>AI Tóm tắt</Text>
+              </View>
               <Text style={styles.aiText}>{email.aiAnalysis.summary || 'Không có tóm tắt.'}</Text>
 
               {email.aiAnalysis.keyPoints ? (
                 <View style={styles.keyPointsBlock}>
-                  <Text style={styles.keyPointsTitle}>📌 Điểm chính</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                    <MaterialIcons name="push-pin" size={16} color={COLORS.textPrimary} />
+                    <Text style={[styles.keyPointsTitle, { marginBottom: 0 }]}>Điểm chính</Text>
+                  </View>
                   <Text style={styles.keyPointsText}>{email.aiAnalysis.keyPoints}</Text>
                 </View>
               ) : null}
@@ -74,77 +96,35 @@ export default function MailDetailModal({
 
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Nội dung gốc</Text>
-              <Text style={styles.text}>{email.content || 'Không có nội dung.'}</Text>
+              {showContent ? (
+                <Text style={styles.text}>{email.content || 'Không có nội dung.'}</Text>
+              ) : (
+                <ActivityIndicator size="small" color={COLORS.primary} style={{ marginTop: 20 }} />
+              )}
             </View>
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
+      </ScrollView>
+    </TaskModalContainer>
   );
 }
 
 const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'flex-end',
-  },
-  container: {
-    flex: 0.9,
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 12,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12,
+  emailHeaderBox: {
     marginBottom: 16,
-  },
-  headerText: {
-    flex: 1,
+    paddingHorizontal: 4,
   },
   subject: {
     ...typography.headlineSm,
+    fontSize: 20,
+    lineHeight: 28,
     color: COLORS.textPrimary,
     marginBottom: 6,
   },
-  fromLine: {
+  metaText: {
     fontSize: 13,
     color: COLORS.textSecondary,
-    marginTop: 4,
-  },
-  metaText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginTop: 4,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  closeButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: COLORS.primary,
-  },
-  closeText: {
-    color: COLORS.onPrimary,
-    fontWeight: '700',
   },
   body: {
     flex: 1,
-    marginTop: 16,
   },
   bodyContent: {
     paddingBottom: 32,

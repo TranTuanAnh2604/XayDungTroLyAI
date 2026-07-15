@@ -18,45 +18,49 @@ export default function ModalHeader({ title, subtitle, rightElement, onClose }: 
 
   return (
     <View style={s.container}>
-      <View style={s.textContainer}>
-        <Text style={s.title}>{title}</Text>
-        {subtitle && <Text style={s.subtitle}>{subtitle}</Text>}
+      <View style={s.headerRow}>
+        <Text style={s.title} numberOfLines={1}>{title}</Text>
+        <View style={s.rightContainer}>
+          {rightElement}
+          {onClose && (
+            <TouchableOpacity 
+              style={s.closeButton} 
+              onPress={onClose}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <MaterialCommunityIcons name="close" size={20} color={COLORS.textSecondary || '#666'} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
-      <View style={s.rightContainer}>
-        {rightElement}
-        {onClose && (
-          <TouchableOpacity 
-            style={s.closeButton} 
-            onPress={onClose}
-            activeOpacity={0.7}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <MaterialCommunityIcons name="close" size={20} color={COLORS.textSecondary || '#666'} />
-          </TouchableOpacity>
-        )}
-      </View>
+      {subtitle && (
+        <Text style={s.subtitle}>
+          {subtitle}
+        </Text>
+      )}
     </View>
   );
 }
 
 const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: 'column',
     marginBottom: 12, 
     minHeight: 44, 
   },
-  textContainer: {
-    flex: 1,
-    paddingRight: 12,
-    justifyContent: 'center',
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
   },
   title: {
+    flex: 1,
     fontSize: 26, 
     fontWeight: '700',
     color: COLORS.onSurface,
-    marginBottom: 2, 
+    paddingRight: 12,
   },
   subtitle: {
     fontSize: 15,

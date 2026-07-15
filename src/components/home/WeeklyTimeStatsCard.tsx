@@ -1,6 +1,6 @@
 import { getTypography } from '../../constants/typography';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, ScrollView } from 'react-native';
 import AppGlassCard from '../ui/AppGlassCard';
 import SkeletonBlock from './SkeletonBlock';
 import { useTheme } from '../../hooks/useTheme';
@@ -41,7 +41,7 @@ export default function WeeklyTimeStatsCard({
       <Text style={styles.header}>Thống kê thời gian tuần</Text>
       <Text style={styles.subheader}>Tổng {totalHours} giờ dành cho công việc</Text>
 
-      <View style={styles.list}>
+      <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
         {categories.map((category) => {
           const percentage = totalHours > 0 ? (category.hours / totalHours) * 100 : 0;
           return (
@@ -67,13 +67,15 @@ export default function WeeklyTimeStatsCard({
             </View>
           );
         })}
-      </View>
+      </ScrollView>
     </AppGlassCard>
   );
 }
 
 const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
-  card: {},
+  card: {
+    flex: 1,
+  },
   header: {
     ...typography.headlineMd,
     marginBottom: 6,
@@ -84,12 +86,12 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     marginBottom: 18,
   },
   list: {
-    gap: 16,
+    gap: 12,
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: 12,
   },
   rowLabel: {
@@ -99,10 +101,9 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     alignItems: 'center',
   },
   badge: {
-    width: 10,
-    height: 10,
+    width: 8,
+    height: 8,
     borderRadius: 999,
-    marginTop: 6,
   },
   category: {
     ...typography.bodyMd,
@@ -110,14 +111,15 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   },
   categoryMeta: {
     ...typography.bodyMd,
+    fontSize: 12,
     color: COLORS.onSurfaceVariant,
-    marginTop: 2,
+    marginTop: 0,
   },
   valueColumn: {
     flex: 1,
-    maxWidth: 130,
+    maxWidth: 100,
     alignItems: 'flex-end',
-    gap: 8,
+    gap: 4,
   },
   hours: {
     ...typography.bodyMd,
@@ -125,7 +127,7 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   },
   barBackground: {
     width: '100%',
-    height: 6,
+    height: 4,
     borderRadius: 999,
     backgroundColor: COLORS.surfaceContainer,
     overflow: 'hidden',

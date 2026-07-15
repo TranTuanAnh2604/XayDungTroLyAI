@@ -1,16 +1,15 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
+  LayoutChangeEvent,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  Animated,
-  View
+  View,
 } from 'react-native';
-import { getTypography } from '../../constants/typography';
 import { RADIUS } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
-
 import type { TaskFilterId } from '../../types/tasks';
 
 type FilterOption = { id: TaskFilterId; label: string };
@@ -21,88 +20,6 @@ type TaskFilterChipsProps = {
   onChange?: (id: TaskFilterId) => void;
 };
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-const FilterChip = ({
-  filter,
-  active,
-  onPress,
-  COLORS,
-  styles,
-}: {
-  filter: FilterOption;
-  active: boolean;
-  onPress: () => void;
-  COLORS: any;
-  styles: any;
-}) => {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const activeAnim = useRef(new Animated.Value(active ? 1 : 0)).current;
-
-  useEffect(() => {
-    Animated.timing(activeAnim, {
-      toValue: active ? 1 : 0,
-      duration: 200,
-      useNativeDriver: false,
-    }).start();
-  }, [active]);
-
-  const onPressIn = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.97,
-      useNativeDriver: false,
-      bounciness: 4,
-    }).start();
-  };
-
-  const onPressOut = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      useNativeDriver: false,
-      bounciness: 4,
-    }).start();
-  };
-
-  const backgroundColor = activeAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [COLORS.surface, COLORS.primary],
-  });
-
-  const borderColor = activeAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [COLORS.outlineVariant, COLORS.primary],
-  });
-
-  const textColor = activeAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [COLORS.textSecondary, COLORS.onPrimary],
-  });
-
-  // Khi chưa active, có bóng đổ cực nhẹ hoặc border xám. 
-  // Để giao diện sạch, mình dùng border xám nhạt và nền màu trắng/surface.
-
-  return (
-    <AnimatedPressable
-      onPress={onPress}
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
-      style={[
-        styles.chip,
-        {
-          transform: [{ scale: scaleAnim }],
-          backgroundColor,
-          borderColor,
-        },
-        active && styles.chipActiveShadow
-      ]}
-    >
-      <Animated.Text style={[styles.label, { color: textColor }]}>
-        {filter.label}
-      </Animated.Text>
-    </AnimatedPressable>
-  );
-};
-
 export default function TaskFilterChips({
   filters,
   activeId,
@@ -110,60 +27,117 @@ export default function TaskFilterChips({
 }: TaskFilterChipsProps) {
   const { colors: COLORS } = useTheme();
   const styles = React.useMemo(() => createStyles(COLORS), [COLORS]);
+  const indicatorX = useRef(new Animated.Value(0)).current;
+  const indicatorW = useRef(new Animated.Value(72)).current;
+  const [layouts, setLayouts] = useState<Record<string, { x: number; width: number }>>({});
+  const runningAnim = useRef<Animated.CompositeAnimation | null>(null);
+
+  useEffect(() => {
+    const layout = layouts[activeId];
+    if (!layout) return;
+
+    runningAnim.current?.stop();
+
+    const anim = Animated.parallel([
+      Animated.spring(indicatorX, {
+        toValue: layout.x,
+        useNativeDriver: false,
+        friction: 8,
+      }),
+      Animated.spring(indicatorW, {
+        toValue: layout.width,
+        useNativeDriver: false,
+        friction: 8,
+      }),
+    ]);
+    runningAnim.current = anim;
+    anim.start(({ finished }) => {
+      if (finished) {
+        runningAnim.current = null;
+      }
+    });
+  }, [activeId, indicatorW, indicatorX, layouts]);
+
+  const onLayoutItem = (id: string) => (e: LayoutChangeEvent) => {
+    const { x, width } = e.nativeEvent.layout;
+    setLayouts((prev) => ({ ...prev, [id]: { x, width } }));
+  };
 
   return (
     <View style={styles.container}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scroll}
-      >
-        {filters.map((filter) => (
-          <FilterChip
-            key={filter.id}
-            filter={filter}
-            active={filter.id === activeId}
-            onPress={() => onChange?.(filter.id)}
-            COLORS={COLORS}
-            styles={styles}
-          />
-        ))}
-      </ScrollView>
+      <View style={styles.content}>
+        <Animated.View
+          style={[
+            styles.indicator,
+            {
+              left: indicatorX,
+              width: indicatorW,
+            },
+          ]}
+        />
+        {filters.map((filter) => {
+          const active = filter.id === activeId;
+          return (
+            <Pressable
+              key={filter.id}
+              onLayout={onLayoutItem(filter.id)}
+              onPress={() => onChange?.(filter.id)}
+              style={styles.chip}
+            >
+              <Text style={[styles.label, active && styles.labelActive]}>
+                {filter.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
 
 const createStyles = (COLORS: any) => StyleSheet.create({
   container: {
-    // Đảm bảo thẳng lề trái với danh sách task bên dưới
-    marginLeft: 0,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: COLORS.outlineVariant,
-    paddingVertical: 12,
+    height: 48,
+    justifyContent: 'center',
+    paddingVertical: 4,
+    marginBottom: 8,
   },
-  scroll: {
-    gap: 12,
+  indicator: {
+    position: 'absolute',
+    top: 4,
+    height: 32,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.full,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  content: {
+    position: 'relative',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surfaceContainer,
+    borderRadius: RADIUS.full,
+    padding: 4,
+    gap: 4,
   },
   chip: {
-    paddingHorizontal: 20,
-    paddingVertical: 9,
-    borderRadius: 20,
-    borderWidth: 1,
-    minHeight: 38,
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  chipActiveShadow: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    paddingVertical: 6,
+    zIndex: 1,
   },
   label: {
-    fontSize: 15,
-    fontWeight: '600',
-    letterSpacing: 0.2,
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.tabInactive || COLORS.textSecondary,
+    textAlign: 'center',
+  },
+  labelActive: {
+    color: COLORS.tabActive || COLORS.onSurface,
   },
 });

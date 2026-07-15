@@ -13,7 +13,7 @@ export default function TasksProgressCard({ progress }: TasksProgressCardProps) 
   const { colors: COLORS } = useTheme();
   const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
   const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS, typography]);
-  
+
   const percent = progress.total > 0 ? progress.completed / progress.total : 0;
   const displayPercent = Math.round(percent * 100);
   const widthAnim = useRef(new Animated.Value(0)).current;
@@ -74,14 +74,14 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 999,
-    backgroundColor: COLORS.primaryContainer,
+    backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   badgeText: {
     ...typography.bodyMd,
     fontWeight: '700',
-    color: COLORS.onPrimaryContainer,
+    color: COLORS.emeraldIcon,
   },
   progressBar: {
     width: '100%',

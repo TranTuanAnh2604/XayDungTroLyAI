@@ -48,12 +48,20 @@ export default function ProductivityScoreCard({
       <View style={styles.header}>
         <Text style={styles.title}>Hiệu suất tuần</Text>
         {report.weeklyPerformance ? (
-          <View style={[styles.badge, { backgroundColor: `${COLORS.success}1A` }]}>
-            <MaterialIcons name="trending-up" size={12} color={COLORS.success} />
-            <Text style={[styles.badgeText, { color: COLORS.success }]}>
-              {report.weeklyPerformance}
-            </Text>
-          </View>
+          (() => {
+            let trendIcon = 'trending-flat';
+            if (score >= 80) trendIcon = 'trending-up';
+            else if (score < 50) trendIcon = 'trending-down';
+            
+            return (
+              <View style={[styles.badge, { backgroundColor: `${color}1A` }]}>
+                <MaterialIcons name={trendIcon as any} size={14} color={color} />
+                <Text style={[styles.badgeText, { color: color }]}>
+                  {report.weeklyPerformance}
+                </Text>
+              </View>
+            );
+          })()
         ) : null}
       </View>
 
@@ -121,19 +129,19 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   },
   scoreRow: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'baseline',
     gap: 4,
-    marginBottom: 16,
+    marginBottom: 8,
   },
   scoreValue: {
-    fontSize: 52,
+    fontSize: 36,
     fontWeight: '800',
-    lineHeight: 56,
+    lineHeight: 40,
   },
   scoreMax: {
     ...typography.bodyMd,
     color: COLORS.textSecondary,
-    marginBottom: 6,
+    marginBottom: 2,
   },
   barLabel: {
     ...typography.bodyMd,
