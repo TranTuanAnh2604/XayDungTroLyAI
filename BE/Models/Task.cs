@@ -9,6 +9,8 @@ public partial class Task
 
     public Guid UserId { get; set; }
 
+    public Guid? LinkedEventId { get; set; }
+
     public string Title { get; set; } = null!;
 
     public string? Description { get; set; }

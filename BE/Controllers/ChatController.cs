@@ -18,12 +18,14 @@ namespace Assistant.Controllers
         private readonly AppDbContext _context;
         private readonly GroqService _groqService;
         private readonly WebSearchService _webSearchService;
+        private readonly ScheduleConflictService _conflict;
 
-        public ChatController(AppDbContext context, GroqService groqService, WebSearchService webSearchService)
+        public ChatController(AppDbContext context, GroqService groqService, WebSearchService webSearchService, ScheduleConflictService conflict)
         {
             _context = context;
             _groqService = groqService;
             _webSearchService = webSearchService;
+            _conflict = conflict;
         }
 
         private Guid GetUserId() => Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -100,7 +102,7 @@ namespace Assistant.Controllers
             return Ok(new ApiResponse<List<ChatMessageDto>>(messages, "Lấy tin nhắn thành công!"));
         }
 
-        // ============ SEND MESSAGE (đã thêm khả năng tạo Task/Event) ============
+        // ============ SEND MESSAGE (đã thêm khả năng tạo Task/Event đồng bộ) ============
 
         [HttpPost("sessions/{sessionId}/messages")]
         public async Task<IActionResult> SendMessage(Guid sessionId, [FromBody] SendMessageDto request)
@@ -115,7 +117,6 @@ namespace Assistant.Controllers
             if (session == null)
                 return NotFound(new ApiResponse<string>("Không tìm thấy hội thoại!"));
 
-            // 1. Lấy lịch sử TRƯỚC — lúc này chưa có tin nhắn mới
             var recentMessages = await _context.ChatMessages
                 .Where(m => m.SessionId == sessionId)
                 .OrderByDescending(m => m.CreatedAt)
@@ -123,14 +124,11 @@ namespace Assistant.Controllers
                 .OrderBy(m => m.CreatedAt)
                 .ToListAsync();
 
-            // 2. Nạp context dữ liệu user (task, lịch, ghi nhớ)
             var userDataContext = await BuildUserDataContextAsync(userId);
             var vnNow = GetVietnamNow();
 
-            // 3. Build prompt như cũ, nhưng tách để dùng tool-calling
             var (systemPrompt, userPrompt) = BuildPromptParts(recentMessages, request.Content, userDataContext, vnNow);
 
-            // 4. Gọi AI có khả năng tự search khi cần
             string rawAiResponse;
             try
             {
@@ -141,34 +139,106 @@ namespace Assistant.Controllers
                 return StatusCode(500, new ApiResponse<string>($"Lỗi gọi AI: {ex.Message}"));
             }
 
-            // 5. Parse JSON trả về: lấy câu trả lời + danh sách hành động (nếu có)
             var (aiReply, actions) = ParseAiActionResponse(rawAiResponse);
 
             var newTasks = new List<Assistant.Models.Task>();
             var newEvents = new List<CalendarEvent>();
+            var conflictNotes = new List<string>();
+            var localRanges = new List<(DateTime Start, DateTime End, string Title)>();
 
-            foreach (var action in actions)
+            bool OverlapsLocal(DateTime s, DateTime e, out string withTitle)
+            {
+                foreach (var r in localRanges)
+                {
+                    if (s < r.End && e > r.Start) { withTitle = r.Title; return true; }
+                }
+                withTitle = "";
+                return false;
+            }
+
+            // Xử lý action loại "event" TRƯỚC — mỗi event luôn tạo kèm 1 Task liên kết
+            var eventActionTitles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var action in actions.Where(a => string.Equals(a.Type, "event", StringComparison.OrdinalIgnoreCase)))
             {
                 try
                 {
-                    if (string.Equals(action.Type, "task", StringComparison.OrdinalIgnoreCase))
+                    var evt = BuildEventFromAction(action, userId);
+                    if (evt == null) continue;
+
+                    var dbConflicts = await _conflict.FindConflictsAsync(userId, evt.StartTime, evt.EndTime);
+                    var hasLocalConflict = OverlapsLocal(evt.StartTime, evt.EndTime, out var localTitle);
+                    if (dbConflicts.Count > 0 || hasLocalConflict)
                     {
-                        var task = BuildTaskFromAction(action, userId);
-                        if (task != null) newTasks.Add(task);
+                        var withWhat = dbConflicts.Count > 0 ? string.Join(", ", dbConflicts.Select(c => c.Title)) : localTitle;
+                        conflictNotes.Add($"⚠️ \"{evt.Title}\" ({evt.StartTime:HH:mm dd/MM}) trùng giờ với \"{withWhat}\" — mình vẫn tạo, bạn kiểm tra lại giúp nhé.");
                     }
-                    else if (string.Equals(action.Type, "event", StringComparison.OrdinalIgnoreCase))
+
+                    var linkedTask = new Assistant.Models.Task
                     {
-                        var evt = BuildEventFromAction(action, userId);
-                        if (evt != null) newEvents.Add(evt);
-                    }
+                        Id = Guid.NewGuid(),
+                        UserId = userId,
+                        Title = evt.Title,
+                        Description = evt.Description,
+                        DueDate = evt.StartTime,
+                        Priority = MapTaskPriority(action.Priority),
+                        Status = "pending",
+                        InputMethod = "ai_chat",
+                        EstimatedMinutes = null,
+                        CreatedAt = evt.CreatedAt,
+                        CompletedAt = null,
+                        LinkedEventId = evt.Id
+                    };
+                    evt.LinkedTaskId = linkedTask.Id;
+
+                    newEvents.Add(evt);
+                    newTasks.Add(linkedTask);
+                    localRanges.Add((evt.StartTime, evt.EndTime, evt.Title));
+                    eventActionTitles.Add(action.Title.Trim());
                 }
                 catch
                 {
-                    // Bỏ qua action lỗi (thiếu dữ liệu, sai định dạng...) — không làm hỏng phản hồi chat
+                    // Bỏ qua action lỗi
                 }
             }
 
-            // 6. Lưu tin nhắn + task/event mới cùng lúc
+            // Xử lý action loại "task" — bỏ qua nếu trùng title với event action vừa xử lý
+            foreach (var action in actions.Where(a => string.Equals(a.Type, "task", StringComparison.OrdinalIgnoreCase)))
+            {
+                try
+                {
+                    if (eventActionTitles.Contains(action.Title?.Trim() ?? "")) continue;
+
+                    var task = BuildTaskFromAction(action, userId);
+                    if (task == null) continue;
+
+                    if (task.DueDate.HasValue)
+                    {
+                        var start = task.DueDate.Value;
+                        var end = start.AddMinutes(30);
+
+                        var dbConflicts = await _conflict.FindConflictsAsync(userId, start, end);
+                        var hasLocalConflict = OverlapsLocal(start, end, out var localTitle);
+                        if (dbConflicts.Count > 0 || hasLocalConflict)
+                        {
+                            var withWhat = dbConflicts.Count > 0 ? string.Join(", ", dbConflicts.Select(c => c.Title)) : localTitle;
+                            conflictNotes.Add($"⚠️ \"{task.Title}\" ({start:HH:mm dd/MM}) trùng giờ với \"{withWhat}\" — mình vẫn tạo, bạn kiểm tra lại giúp nhé.");
+                        }
+
+                        localRanges.Add((start, end, task.Title));
+                    }
+
+                    newTasks.Add(task);
+                }
+                catch
+                {
+                    // Bỏ qua action lỗi
+                }
+            }
+
+            if (conflictNotes.Count > 0)
+                aiReply += "\n\n" + string.Join("\n", conflictNotes);
+
             var now = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc);
 
             var userMessage = new ChatMessage
@@ -298,7 +368,6 @@ namespace Assistant.Controllers
             sb.AppendLine("=== DỮ LIỆU THỰC TẾ CỦA NGƯỜI DÙNG (chỉ dùng để trả lời, KHÔNG bịa thêm, KHÔNG bỏ sót mục nào) ===");
             sb.AppendLine($"Hôm nay là: {vnNow:dd/MM/yyyy} ({GetVietnameseDayOfWeek(vnNow.DayOfWeek)}), giờ hiện tại: {vnNow:HH:mm}");
 
-            // ── MỚI: tách riêng khối "hôm nay" để model không phải tự lọc ──
             var tasksToday = tasks.Where(t => t.DueDate.HasValue && t.DueDate.Value >= todayStart && t.DueDate.Value < todayEnd).ToList();
             if (tasksToday.Count > 0)
             {
@@ -393,7 +462,7 @@ namespace Assistant.Controllers
             _ => ""
         };
 
-        // ============ HELPER MỚI: PROMPT YÊU CẦU AI TRẢ JSON (reply + actions) ============
+        // ============ HELPER: PROMPT YÊU CẦU AI TRẢ JSON (reply + actions) ============
 
         private (string systemPrompt, string userPrompt) BuildPromptParts(List<ChatMessage> history, string newMessage, string? userDataContext, DateTime vnNow)
         {
@@ -433,7 +502,6 @@ namespace Assistant.Controllers
         {
             var cleaned = raw.Trim();
 
-            // Lỡ AI vẫn bọc ```json ... ``` thì bóc ra
             if (cleaned.StartsWith("```"))
             {
                 var firstNewline = cleaned.IndexOf('\n');
@@ -443,12 +511,10 @@ namespace Assistant.Controllers
                 cleaned = cleaned.Trim();
             }
 
-            // 1. Thử parse thẳng toàn bộ chuỗi
             var parsed = TryParseAction(cleaned);
             if (parsed != null)
                 return (parsed.Reply, parsed.Actions ?? new List<AiAction>());
 
-            // 2. Model lỡ in thêm chữ trước/sau JSON -> cắt lấy khối { ... } đầu tiên rồi thử lại
             var firstBrace = cleaned.IndexOf('{');
             var lastBrace = cleaned.LastIndexOf('}');
             if (firstBrace >= 0 && lastBrace > firstBrace)
@@ -459,7 +525,6 @@ namespace Assistant.Controllers
                     return (parsed.Reply, parsed.Actions ?? new List<AiAction>());
             }
 
-            // 3. Thật sự không parse được -> trả nguyên văn, actions rỗng
             return (raw, new List<AiAction>());
         }
 
@@ -474,7 +539,6 @@ namespace Assistant.Controllers
             }
             catch
             {
-                // Không phải JSON hợp lệ
             }
             return null;
         }
@@ -523,7 +587,7 @@ namespace Assistant.Controllers
                 DueDate = due,
                 Priority = MapTaskPriority(action.Priority),
                 Status = "pending",
-                InputMethod = "ai_chat",   // bắt buộc, không null
+                InputMethod = "ai_chat",
                 EstimatedMinutes = null,
                 CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc),
                 CompletedAt = null
@@ -551,7 +615,6 @@ namespace Assistant.Controllers
                 end = start.Value.AddHours(1);
             }
 
-            // Đảm bảo EndTime luôn sau StartTime (tránh lỗi logic nếu AI đưa giờ kết thúc sai)
             if (end <= start.Value)
                 end = start.Value.AddHours(1);
 
@@ -564,7 +627,7 @@ namespace Assistant.Controllers
                 StartTime = start.Value,
                 EndTime = end,
                 Location = action.Location,
-                Source = "ai_chat",       // bắt buộc, không null
+                Source = "ai_chat",
                 ExternalId = null,
                 IsAllDay = action.IsAllDay,
                 Priority = MapEventPriority(action.Priority),
@@ -597,7 +660,6 @@ namespace Assistant.Controllers
         public string Content { get; set; } = null!;
     }
 
-    // ===== DTO cho JSON mà AI trả về =====
     public class AiActionResponse
     {
         public string Reply { get; set; } = string.Empty;
@@ -606,13 +668,13 @@ namespace Assistant.Controllers
 
     public class AiAction
     {
-        public string Type { get; set; } = string.Empty;      // "task" | "event"
+        public string Type { get; set; } = string.Empty;
         public string Title { get; set; } = string.Empty;
-        public string? Date { get; set; }                     // "yyyy-MM-dd"
-        public string? Time { get; set; }                      // "HH:mm"
-        public string? EndTime { get; set; }                   // "HH:mm" (event)
+        public string? Date { get; set; }
+        public string? Time { get; set; }
+        public string? EndTime { get; set; }
         public bool IsAllDay { get; set; }
-        public string Priority { get; set; } = "normal";       // urgent | normal | low
+        public string Priority { get; set; } = "normal";
         public string? Location { get; set; }
     }
 }

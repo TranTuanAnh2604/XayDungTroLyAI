@@ -41,6 +41,7 @@
         public byte Priority { get; set; } = 2; // 1=Thấp, 2=TB, 3=Khẩn
         public DateTime? DueDate { get; set; }
         public string? Status { get; set; }
+        public bool IgnoreConflict { get; set; } = false;
     }
     // Cập nhật sau khi hoàn thành công việc
     public class UpdateTaskDto
@@ -50,6 +51,7 @@
         public byte Priority { get; set; }
         public string Status { get; set; } = null!;
         public DateTime? DueDate { get; set; }
+        public bool IgnoreConflict { get; set; } = false;
     }
 
     public class UpdateTaskStatusDto

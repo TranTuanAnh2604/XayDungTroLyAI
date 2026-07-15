@@ -5,7 +5,8 @@ using System.Security.Claims;
 using Assistant.DTOs;
 using Assistant.Wrappers;
 using Assistant.Models;
-using TaskModel = Assistant.Models.Task; 
+using Assistant.Services;
+using TaskModel = Assistant.Models.Task;
 namespace Assistant.Controllers
 {
     [Route("api/[controller]")]
@@ -14,10 +15,12 @@ namespace Assistant.Controllers
     public class TasksController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly ScheduleConflictService _conflict;
 
-        public TasksController(AppDbContext context)
+        public TasksController(AppDbContext context, ScheduleConflictService conflict)
         {
             _context = context;
+            _conflict = conflict;
         }
 
         private Guid GetUserId() => Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -46,10 +49,27 @@ namespace Assistant.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateTask([FromBody] CreateTaskDto request)
         {
+            var userId = GetUserId();
             Console.WriteLine($"Request Status: {request.Status}");
+
+            if (request.DueDate.HasValue)
+            {
+                var start = request.DueDate.Value;
+                var end = start.AddMinutes(30);
+
+                if (!request.IgnoreConflict)
+                {
+                    var conflicts = await _conflict.FindConflictsAsync(userId, start, end);
+                    if (conflicts.Count > 0)
+                    {
+                        return Conflict(new { conflict = true, message = "Trùng giờ với lịch/task khác. Vẫn muốn tạo?", conflicts });
+                    }
+                }
+            }
+
             var task = new TaskModel
             {
-                UserId = GetUserId(),
+                UserId = userId,
                 Title = request.Title,
                 Description = request.Description,
                 Priority = request.Priority,
@@ -65,7 +85,6 @@ namespace Assistant.Controllers
             return Ok(new ApiResponse<Guid>(task.Id, "Tạo công việc mới thành công!"));
         }
 
-        //Cập nhật trạng thái
         [HttpPut("{id}/status")]
         public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] UpdateTaskStatusDto request)
         {
@@ -106,23 +125,52 @@ namespace Assistant.Controllers
 
             return Ok(new ApiResponse<bool>(true, "Đã đánh dấu hoàn thành!"));
         }
-        // Sửa công việc
+
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateTask( Guid id,[FromBody] UpdateTaskDto request)
+        public async Task<IActionResult> UpdateTask(Guid id, [FromBody] UpdateTaskDto request)
         {
+            var userId = GetUserId();
             var task = await _context.Tasks
                 .FirstOrDefaultAsync(x =>
                     x.Id == id &&
-                    x.UserId == GetUserId());
+                    x.UserId == userId);
 
             if (task == null)
                 return NotFound();
+
+            if (request.DueDate.HasValue)
+            {
+                var start = request.DueDate.Value;
+                var end = start.AddMinutes(30);
+
+                if (!request.IgnoreConflict)
+                {
+                    var conflicts = await _conflict.FindConflictsAsync(userId, start, end, excludeTaskId: id, excludeEventId: task.LinkedEventId);
+                    if (conflicts.Count > 0)
+                    {
+                        return Conflict(new { conflict = true, message = "Trùng giờ với lịch/task khác. Vẫn muốn lưu?", conflicts });
+                    }
+                }
+            }
 
             task.Title = request.Title;
             task.Description = request.Description;
             task.Priority = request.Priority;
             task.Status = request.Status;
             task.DueDate = request.DueDate;
+
+            if (task.LinkedEventId.HasValue && request.DueDate.HasValue)
+            {
+                var linkedEvent = await _context.CalendarEvents.FirstOrDefaultAsync(e => e.Id == task.LinkedEventId.Value);
+                if (linkedEvent != null)
+                {
+                    linkedEvent.Title = request.Title;
+                    linkedEvent.Description = request.Description;
+                    linkedEvent.StartTime = request.DueDate.Value;
+                    linkedEvent.EndTime = request.DueDate.Value.AddMinutes(30);
+                    linkedEvent.Priority = PriorityMapper.TaskToCalendar(request.Priority);
+                }
+            }
 
             await _context.SaveChangesAsync();
 
@@ -133,7 +181,7 @@ namespace Assistant.Controllers
                 )
             );
         }
-        //Xoá công việc
+
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteTask(Guid id)
         {
@@ -144,6 +192,12 @@ namespace Assistant.Controllers
 
             if (task == null)
                 return NotFound();
+
+            if (task.LinkedEventId.HasValue)
+            {
+                var linkedEvent = await _context.CalendarEvents.FirstOrDefaultAsync(e => e.Id == task.LinkedEventId.Value);
+                if (linkedEvent != null) _context.CalendarEvents.Remove(linkedEvent);
+            }
 
             _context.Tasks.Remove(task);
 

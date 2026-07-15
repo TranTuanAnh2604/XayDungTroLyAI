@@ -1,5 +1,6 @@
 import { useState, useEffect, useReducer, useRef } from 'react'
 import Sidebar from '../components/Sidebar'
+import { useNavigate } from 'react-router-dom'
 import {
     getCalendarEvents,
     createCalendarEvent,
@@ -505,6 +506,54 @@ function DeleteConfirm({ title, onCancel, onConfirm, saving }) {
     )
 }
 
+// ─── Conflict Confirm ─────────────────────────────────────────────────────
+
+function ConflictConfirm({ message, conflicts, onCancel, onConfirm, saving }) {
+    return (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onCancel} />
+            <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6">
+                <div className="flex flex-col items-center text-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-[#fff4d6] flex items-center justify-center">
+                        <span className="material-symbols-outlined text-[#a15c00] text-[24px]">warning</span>
+                    </div>
+                    <h3 className="text-[16px] font-bold text-[#0b1c30]">Trùng giờ</h3>
+                    <p className="text-[13px] text-[#45464d]">{message}</p>
+
+                    {conflicts?.length > 0 && (
+                        <div className="w-full flex flex-col gap-1.5 mt-1 max-h-[160px] overflow-y-auto text-left">
+                            {conflicts.map((c, i) => (
+                                <div key={i} className="text-[12px] bg-[#f8f9ff] border border-[#c6c6cd]/40 rounded-lg px-3 py-2">
+                                    <span className="font-semibold text-[#0b1c30]">{c.title}</span>
+                                    <span className="text-[#45464d]/70">
+                                        {' '}({c.type === 'task' ? 'Task' : 'Sự kiện'}) — {new Date(c.startTime).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+                                        {' - '}{new Date(c.endTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                <div className="flex gap-2 mt-5">
+                    <button
+                        onClick={onCancel}
+                        className="flex-1 py-2 rounded-lg text-[13px] font-medium text-[#45464d] border border-[#c6c6cd] hover:bg-[#e5eeff] transition-colors"
+                    >
+                        Hủy, để tui đổi giờ
+                    </button>
+                    <button
+                        onClick={onConfirm}
+                        disabled={saving}
+                        className="flex-1 py-2 rounded-lg text-[13px] font-medium bg-[#8455ef] text-white hover:bg-[#6b38d4] transition-colors disabled:opacity-60 flex items-center justify-center gap-1"
+                    >
+                        {saving && <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>}
+                        Vẫn tạo
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
 function Toast({ message, type }) {
@@ -537,11 +586,12 @@ export default function Calendar() {
 
     const events = eventsState.data
     const loading = eventsState.loading
-
+    const navigate = useNavigate()
     // priority được lưu trong DB qua field `priority` của event
 
     const [modal, setModal] = useState(null)
     const [deleteTarget, setDeleteTarget] = useState(null)
+    const [conflictTarget, setConflictTarget] = useState(null) 
     const [saving, setSaving] = useState(false)
     const [toast, setToast] = useState(null)
 
@@ -665,8 +715,9 @@ export default function Calendar() {
                 startTime: inputToISO(form.startTime),
                 endTime: inputToISO(form.endTime),
                 isAllDay: form.isAllDay,
-                priority: form.styleIndex, // 0=Urgent, 1=Normal, 2=Low — lưu vào DB
+                priority: form.styleIndex,
                 source: 'manual',
+                ignoreConflict: false,
             }
 
             if (modal.mode === 'create') {
@@ -677,6 +728,46 @@ export default function Calendar() {
                 showToast('Đã cập nhật sự kiện')
             }
 
+            setModal(null)
+            await fetchEvents()
+        } catch (e) {
+            if (e.isConflict) {
+                setConflictTarget({ form, mode: modal.mode, message: e.message, conflicts: e.conflicts })
+            } else {
+                showToast(e.message, 'error')
+            }
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    // Người dùng bấm "Vẫn tạo" ở popup trùng giờ -> gửi lại kèm ignoreConflict: true
+    const handleForceSave = async () => {
+        if (!conflictTarget) return
+        setSaving(true)
+        try {
+            const { form, mode } = conflictTarget
+            const payload = {
+                title: form.title.trim(),
+                description: form.description.trim() || null,
+                location: form.location.trim() || null,
+                startTime: inputToISO(form.startTime),
+                endTime: inputToISO(form.endTime),
+                isAllDay: form.isAllDay,
+                priority: form.styleIndex,
+                source: 'manual',
+                ignoreConflict: true,
+            }
+
+            if (mode === 'create') {
+                await createCalendarEvent(payload)
+                showToast('Đã thêm sự kiện')
+            } else {
+                await updateCalendarEvent(form.id, payload)
+                showToast('Đã cập nhật sự kiện')
+            }
+
+            setConflictTarget(null)
             setModal(null)
             await fetchEvents()
         } catch (e) {
@@ -794,12 +885,20 @@ export default function Calendar() {
 
                                             {dayEvents.map((ev, j) => {
                                                 const priority = EVENT_STYLES[ev.priority ?? 0] || EVENT_STYLES[0]
+                                                const isTask = ev.source === 'task'
                                                 return (
                                                     <div
                                                         key={j}
-                                                        onClick={(e) => openEdit(ev, e)}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            if (isTask) {
+                                                                navigate('/tasks')
+                                                            } else {
+                                                                openEdit(ev, e)
+                                                            }
+                                                        }}
                                                         className={`px-2 py-1 rounded text-xs font-medium truncate mb-1 cursor-pointer transition-colors flex items-center gap-1 ${priority.style}`}
-                                                        title={ev.title}
+                                                        title={isTask ? `${ev.title} (bấm để sang trang Tasks)` : ev.title}
                                                     >
                                                         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${priority.dot}`} />
                                                         <span className="truncate">{ev.title}</span>
@@ -951,6 +1050,16 @@ export default function Calendar() {
                     title={deleteTarget.title}
                     onCancel={() => setDeleteTarget(null)}
                     onConfirm={handleDeleteConfirm}
+                    saving={saving}
+                />
+            )}
+
+            {conflictTarget && (
+                <ConflictConfirm
+                    message={conflictTarget.message}
+                    conflicts={conflictTarget.conflicts}
+                    onCancel={() => setConflictTarget(null)}
+                    onConfirm={handleForceSave}
                     saving={saving}
                 />
             )}

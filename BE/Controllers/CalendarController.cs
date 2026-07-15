@@ -16,11 +16,13 @@ namespace Assistant.Controllers
     {
         private readonly AppDbContext _db;
         private readonly GroqService _groq;
+        private readonly ScheduleConflictService _conflict;
 
-        public CalendarController(AppDbContext db, GroqService groq)
+        public CalendarController(AppDbContext db, GroqService groq, ScheduleConflictService conflict)
         {
             _db = db;
             _groq = groq;
+            _conflict = conflict;
         }
 
         [HttpGet]
@@ -30,16 +32,24 @@ namespace Assistant.Controllers
             if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
 
             var query = _db.CalendarEvents.Where(e => e.UserId == userId);
+            var taskQuery = _db.Tasks.Where(t => t.UserId == userId && t.DueDate != null);
+
+            var vnNow = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc);
+            var sevenDaysLimit = vnNow.AddDays(7);
+
+            // Task đã có Event liên kết -> đã hiển thị qua bảng CalendarEvents rồi, không merge lại (tránh trùng)
+            // Chỉ merge task còn lại trong vòng 7 ngày tới, để không rối lịch khi xem xa cả tháng
+            taskQuery = taskQuery.Where(t => t.LinkedEventId == null && t.DueDate <= sevenDaysLimit);
 
             if (year.HasValue && month.HasValue)
             {
                 var start = DateTime.SpecifyKind(new DateTime(year.Value, month.Value, 1), DateTimeKind.Utc);
                 var end = DateTime.SpecifyKind(start.AddMonths(1), DateTimeKind.Utc);
                 query = query.Where(e => e.StartTime < end && e.EndTime >= start);
+                taskQuery = taskQuery.Where(t => t.DueDate < end && t.DueDate >= start);
             }
 
             var events = await query
-                .OrderBy(e => e.StartTime)
                 .Select(e => new CalendarEventDto
                 {
                     Id = e.Id,
@@ -54,7 +64,24 @@ namespace Assistant.Controllers
                 })
                 .ToListAsync();
 
-            return Ok(events);
+            var taskEvents = await taskQuery
+                .Select(t => new CalendarEventDto
+                {
+                    Id = t.Id,
+                    Title = t.Title,
+                    Description = t.Description,
+                    StartTime = t.DueDate!.Value,
+                    EndTime = t.DueDate!.Value.AddMinutes(30),
+                    Location = null,
+                    Source = "task",
+                    IsAllDay = false,
+                    Priority = t.Priority == 3 ? 0 : t.Priority == 1 ? 2 : 1,
+                })
+                .ToListAsync();
+
+            var merged = events.Concat(taskEvents).OrderBy(e => e.StartTime).ToList();
+
+            return Ok(merged);
         }
 
         [HttpGet("{id:guid}")]
@@ -89,22 +116,55 @@ namespace Assistant.Controllers
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
 
+            var start = DateTime.SpecifyKind(req.StartTime, DateTimeKind.Utc);
+            var end = DateTime.SpecifyKind(req.EndTime, DateTimeKind.Utc);
+
+            if (!req.IgnoreConflict)
+            {
+                var conflicts = await _conflict.FindConflictsAsync(userId, start, end);
+                if (conflicts.Count > 0)
+                {
+                    return Conflict(new
+                    {
+                        conflict = true,
+                        message = "Trùng giờ với lịch/task khác. Vẫn muốn tạo?",
+                        conflicts
+                    });
+                }
+            }
+
             var ev = new CalendarEvent
             {
                 Id = Guid.NewGuid(),
                 UserId = userId,
                 Title = req.Title,
                 Description = req.Description,
-                StartTime = DateTime.SpecifyKind(req.StartTime, DateTimeKind.Utc),
-                EndTime = DateTime.SpecifyKind(req.EndTime, DateTimeKind.Utc),
+                StartTime = start,
+                EndTime = end,
                 Location = req.Location,
                 Source = req.Source ?? "manual",
                 IsAllDay = req.IsAllDay,
                 CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc),
                 Priority = req.Priority,
             };
-
             _db.CalendarEvents.Add(ev);
+
+            var linkedTask = new Assistant.Models.Task
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                Title = req.Title,
+                Description = req.Description,
+                Priority = PriorityMapper.CalendarToTask(req.Priority),
+                Status = "pending",
+                DueDate = start,
+                InputMethod = "cal_sync",
+                CreatedAt = ev.CreatedAt,
+                LinkedEventId = ev.Id,
+            };
+            _db.Tasks.Add(linkedTask);
+            ev.LinkedTaskId = linkedTask.Id;
+
             await _db.SaveChangesAsync();
 
             return CreatedAtAction(nameof(GetEvent), new { id = ev.Id }, new CalendarEventDto
@@ -129,17 +189,40 @@ namespace Assistant.Controllers
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
 
-            var ev = await _db.CalendarEvents
-                .FirstOrDefaultAsync(e => e.Id == id && e.UserId == userId);
+            var ev = await _db.CalendarEvents.FirstOrDefaultAsync(e => e.Id == id && e.UserId == userId);
             if (ev is null) return NotFound();
+
+            var start = DateTime.SpecifyKind(req.StartTime, DateTimeKind.Utc);
+            var end = DateTime.SpecifyKind(req.EndTime, DateTimeKind.Utc);
+
+            if (!req.IgnoreConflict)
+            {
+                var conflicts = await _conflict.FindConflictsAsync(userId, start, end, excludeEventId: id, excludeTaskId: ev.LinkedTaskId);
+                if (conflicts.Count > 0)
+                {
+                    return Conflict(new { conflict = true, message = "Trùng giờ với lịch/task khác. Vẫn muốn lưu?", conflicts });
+                }
+            }
 
             ev.Title = req.Title;
             ev.Description = req.Description;
-            ev.StartTime = req.StartTime;
-            ev.EndTime = req.EndTime;
+            ev.StartTime = start;
+            ev.EndTime = end;
             ev.Location = req.Location;
             ev.IsAllDay = req.IsAllDay;
             ev.Priority = req.Priority;
+
+            if (ev.LinkedTaskId.HasValue)
+            {
+                var linkedTask = await _db.Tasks.FirstOrDefaultAsync(t => t.Id == ev.LinkedTaskId.Value);
+                if (linkedTask != null)
+                {
+                    linkedTask.Title = req.Title;
+                    linkedTask.Description = req.Description;
+                    linkedTask.DueDate = start;
+                    linkedTask.Priority = PriorityMapper.CalendarToTask(req.Priority);
+                }
+            }
 
             await _db.SaveChangesAsync();
             return NoContent();
@@ -151,9 +234,14 @@ namespace Assistant.Controllers
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
 
-            var ev = await _db.CalendarEvents
-                .FirstOrDefaultAsync(e => e.Id == id && e.UserId == userId);
+            var ev = await _db.CalendarEvents.FirstOrDefaultAsync(e => e.Id == id && e.UserId == userId);
             if (ev is null) return NotFound();
+
+            if (ev.LinkedTaskId.HasValue)
+            {
+                var linkedTask = await _db.Tasks.FirstOrDefaultAsync(t => t.Id == ev.LinkedTaskId.Value);
+                if (linkedTask != null) _db.Tasks.Remove(linkedTask);
+            }
 
             _db.CalendarEvents.Remove(ev);
             await _db.SaveChangesAsync();
@@ -216,7 +304,6 @@ namespace Assistant.Controllers
                 })
                 .ToList();
 
-            // ── Tính khung BẬN hôm nay (để AI biết mà né) ──
             var busySlotsToday = existingEvents
                 .Concat(tasks)
                 .Where(x => x.startTime < todayEnd && x.endTime > todayStart && x.endTime > vnNow)
@@ -224,7 +311,6 @@ namespace Assistant.Controllers
                 .OrderBy(x => x.startTime)
                 .ToList();
 
-            // ── Tính khung RẢNH hôm nay (dạng khoảng, không chia nhỏ 30p) ──
             var workStart = todayStart.AddHours(6);
             var workEnd = todayStart.AddHours(22.5);
             var dayStart = vnNow > workStart ? vnNow : workStart;
@@ -236,7 +322,7 @@ namespace Assistant.Controllers
             {
                 var s = slot.startTime < workStart ? workStart : slot.startTime;
                 var e = slot.endTime > workEnd ? workEnd : slot.endTime;
-                if (e <= current) continue; // khung bận đã qua hoặc không giao với vùng đang xét
+                if (e <= current) continue;
 
                 if (s > current)
                     freeWindows.Add((current, s));
@@ -247,7 +333,6 @@ namespace Assistant.Controllers
             if (current < workEnd)
                 freeWindows.Add((current, workEnd));
 
-            // Bỏ khung rảnh quá ngắn (dưới 15 phút thì không đủ làm gì)
             freeWindows = freeWindows.Where(w => (w.End - w.Start).TotalMinutes >= 15).ToList();
 
             if (freeWindows.Count == 0)
@@ -263,27 +348,23 @@ namespace Assistant.Controllers
                 .Select(b => $"{b.startTime:HH:mm} - {b.endTime:HH:mm}: {b.title}")
                 .ToList();
 
-            // ── Random các mốc giờ bắt đầu thật sự ngẫu nhiên trong khung rảnh ──
             var rng = Random.Shared;
             var anchorTimes = new List<DateTime>();
 
-            // Random nhiều mốc ứng viên trong các khung rảnh (mỗi khung rảnh random vài điểm)
             var candidatePool = new List<DateTime>();
             foreach (var w in freeWindows)
             {
                 var totalMinutes = (int)(w.End - w.Start).TotalMinutes;
                 if (totalMinutes < 15) continue;
 
-                // Random 5 điểm trong mỗi khung rảnh (làm tròn về mốc 5 phút cho gọn)
                 for (int i = 0; i < 5; i++)
                 {
                     var offset = rng.Next(0, totalMinutes - 15 + 1);
-                    offset = (offset / 5) * 5; // làm tròn 5 phút
+                    offset = (offset / 5) * 5;
                     candidatePool.Add(w.Start.AddMinutes(offset));
                 }
             }
 
-            // Xáo trộn rồi chọn tối đa 3 mốc, đảm bảo cách nhau tối thiểu ~1.5 tiếng để không dồn cụm
             var shuffledAnchors = candidatePool.OrderBy(_ => rng.Next()).ToList();
             foreach (var t in shuffledAnchors)
             {
@@ -291,7 +372,6 @@ namespace Assistant.Controllers
                 bool tooClose = anchorTimes.Any(a => Math.Abs((a - t).TotalMinutes) < 90);
                 if (!tooClose) anchorTimes.Add(t);
             }
-            // Nếu do quá gần nhau mà chưa đủ 3, nới lỏng lấy thêm
             if (anchorTimes.Count < 3)
             {
                 foreach (var t in shuffledAnchors)
@@ -369,11 +449,9 @@ YÊU CẦU:
                             var duration = (end - start).TotalMinutes;
                             if (duration < 15 || duration > 90) continue;
 
-                            // Phải nằm TRỌN trong 1 khung rảnh
                             bool insideFreeWindow = freeWindows.Any(w => start >= w.Start && end <= w.End);
                             if (!insideFreeWindow) continue;
 
-                            // Không được chồng với các đề xuất đã chấp nhận trước đó trong cùng response
                             bool overlapsPicked = validated.Any(v => start < v.End && end > v.Start);
                             if (overlapsPicked) continue;
 
@@ -383,7 +461,7 @@ YÊU CẦU:
                 }
                 catch
                 {
-                    // JSON lỗi -> vẫn trả PHẦN 1, aiRecommendations rỗng
+
                 }
 
                 var sortedRecommendations = validated
@@ -430,6 +508,7 @@ YÊU CẦU:
         public string? Source { get; set; }
         public bool IsAllDay { get; set; }
         public int Priority { get; set; } = 1;
+        public bool IgnoreConflict { get; set; } = false;
     }
 
     public class UpdateCalendarEventRequest
@@ -440,6 +519,7 @@ YÊU CẦU:
         public DateTime EndTime { get; set; }
         public string? Location { get; set; }
         public bool IsAllDay { get; set; }
-        public int Priority { get; set; } = 1; // 0=Urgent, 1=Normal, 2=Low
+        public int Priority { get; set; } = 1;
+        public bool IgnoreConflict { get; set; } = false;
     }
 }

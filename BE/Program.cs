@@ -47,6 +47,7 @@ builder.Services.AddHttpClient<WebSearchService>();
 builder.Services.AddHttpClient<GmailService>();
 builder.Services.AddScoped<GmailService>();
 builder.Services.AddScoped<ITimeTrackingService, TimeTrackingService>();
+builder.Services.AddScoped<ScheduleConflictService>();
 builder.Services.AddHttpClient<GroqService>();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
