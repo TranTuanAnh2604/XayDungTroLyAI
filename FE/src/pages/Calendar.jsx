@@ -1,6 +1,5 @@
 import { useState, useEffect, useReducer, useRef } from 'react'
 import Sidebar from '../components/Sidebar'
-import { useNavigate } from 'react-router-dom'
 import {
     getCalendarEvents,
     createCalendarEvent,
@@ -79,7 +78,7 @@ const EMPTY_FORM = {
     startTime: '',
     endTime: '',
     isAllDay: false,
-    styleIndex: 0,
+    styleIndex: 2,
 }
 
 // ─── Custom DateTime Picker ───────────────────────────────────────────────
@@ -332,15 +331,34 @@ function EventModal({ mode, initialData, onClose, onSave, onDelete, saving }) {
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
 
             <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-[#c6c6cd]/30 bg-[#f8f9ff]">
-                    <h2 className="text-[18px] font-bold text-[#0b1c30]">
-                        {mode === 'create' ? 'Thêm sự kiện' : 'Chỉnh sửa sự kiện'}
-                    </h2>
+                <div className="flex items-center justify-between px-6 py-5 bg-gradient-to-r from-[#8455ef] to-[#6b38d4]">
+                    <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center">
+                            <span className="material-symbols-outlined text-white text-[22px]">
+                                {mode === 'create' ? 'event_available' : 'edit_calendar'}
+                            </span>
+                        </div>
+
+                        <div>
+                            <h2 className="text-[22px] font-bold text-white leading-none">
+                                {mode === 'create' ? 'Thêm sự kiện' : 'Chỉnh sửa sự kiện'}
+                            </h2>
+
+                            <p className="text-[13px] text-white/80 mt-1">
+                                {mode === 'create'
+                                    ? 'Tạo lịch mới cho công việc của bạn'
+                                    : 'Cập nhật thông tin của sự kiện'}
+                            </p>
+                        </div>
+                    </div>
+
                     <button
                         onClick={onClose}
-                        className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#e5eeff] text-[#45464d] transition-colors"
+                        className="w-10 h-10 rounded-full flex items-center justify-center text-white hover:bg-white/15 transition-all"
                     >
-                        <span className="material-symbols-outlined text-[18px]">close</span>
+                        <span className="material-symbols-outlined text-[22px]">
+                            close
+                        </span>
                     </button>
                 </div>
 
@@ -554,6 +572,248 @@ function ConflictConfirm({ message, conflicts, onCancel, onConfirm, saving }) {
         </div>
     )
 }
+
+const TASK_STATUS_OPTIONS = [
+    { value: 'pending', label: 'Chưa làm' },
+    { value: 'in-progress', label: 'Đang làm' },
+    { value: 'done', label: 'Hoàn thành' },
+]
+// Lưu ý: nếu trang Tasks của bạn dùng giá trị status khác (vd "todo"/"doing"),
+// đổi lại value trong mảng này cho khớp, không thì dropdown sẽ hiện sai lựa chọn ban đầu.
+
+const TASK_PRIORITY_STYLES = [
+    { value: 1, style: 'bg-white text-green-600 border border-gray-200', dot: 'bg-green-400', label: 'Thấp' },
+    { value: 2, style: 'bg-white text-yellow-600 border border-gray-200', dot: 'bg-yellow-400', label: 'Bình thường' },
+    { value: 3, style: 'bg-white text-red-600 border border-gray-200', dot: 'bg-red-500', label: 'Khẩn cấp' },
+]
+
+const TASKS_BASE_URL = 'http://localhost:5283/api/tasks'
+
+const taskAuthHeaders = () => ({
+    'Content-Type': 'application/json',
+    ...(localStorage.getItem('accessToken')
+        ? { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
+        : {}),
+})
+
+async function parseTaskErrorResponse(res, fallbackMessage) {
+    let body = {}
+    try { body = await res.json() } catch { /* không phải JSON */ }
+
+    if (res.status === 409 && body?.conflict) {
+        const err = new Error(body.message || 'Trùng giờ với lịch/task khác')
+        err.isConflict = true
+        err.conflicts = body.conflicts || []
+        return err
+    }
+    return new Error(body?.message || fallbackMessage)
+}
+
+// ─── Task Edit Modal — style y chang EventModal, dữ liệu của Task ────────────
+
+function TaskEditModal({ state, onClose, onSave, onDelete, saving }) {
+    const { loading, error, data } = state
+    const [form, setForm] = useState(null)
+    const [errors, setErrors] = useState({})
+
+    useEffect(() => {
+        if (data) {
+            setForm({
+                title: data.title || '',
+                description: data.description || '',
+                status: data.status || 'pending',
+                priority: data.priority || 2,
+                dueDate: data.dueDateLocal || '',
+                estimatedMinutes: data.estimatedMinutes || '',
+            })
+        }
+    }, [data])
+
+    if (loading || !form) {
+        return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+                <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+                <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-10 flex items-center justify-center">
+                    <span className="material-symbols-outlined animate-spin text-[#8455ef] text-[24px]">progress_activity</span>
+                </div>
+            </div>
+        )
+    }
+
+    if (error) {
+        return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+                <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+                <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 text-center">
+                    <p className="text-[13px] text-[#ba1a1a] mb-4">Không tải được công việc.</p>
+                    <button onClick={onClose} className="px-4 py-2 rounded-lg text-[13px] font-medium bg-[#e5eeff] text-[#45464d]">Đóng</button>
+                </div>
+            </div>
+        )
+    }
+
+    const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
+
+    const validate = () => {
+        const e = {}
+        if (!form.title.trim()) e.title = 'Tiêu đề không được để trống'
+        if (!form.dueDate) e.dueDate = 'Chọn deadline'
+        if (form.dueDate && new Date(form.dueDate) <= new Date())
+            e.dueDate = 'Deadline phải sau thời điểm hiện tại'
+        setErrors(e)
+        return Object.keys(e).length === 0
+    }
+
+    const handleSubmit = () => {
+        if (!validate()) return
+        onSave(form)
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+
+            <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+                <div className="px-6 py-6 bg-gradient-to-br from-[#8455ef] to-[#6b38d4] text-white">
+                    <div className="flex justify-between">
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <span className="material-symbols-outlined">
+                                    task_alt
+                                </span>
+
+                                <h2 className="text-2xl font-bold">
+                                    Chỉnh sửa công việc
+                                </h2>
+                            </div>
+
+                            <p className="text-white/80 text-sm mt-2">
+                                Deadline • Trạng thái • Ưu tiên
+                            </p>
+                        </div>
+
+                        <button
+                            onClick={onClose}
+                            className="w-10 h-10 rounded-full hover:bg-white/20"
+                        >
+                            <span className="material-symbols-outlined">
+                                close
+                            </span>
+                        </button>
+                    </div>
+                </div>
+
+                <div className="px-6 py-5 flex flex-col gap-4 max-h-[70vh] overflow-y-auto">
+                    <div>
+                        <label className="block text-[13px] font-semibold text-[#0b1c30] mb-1">
+                            Tiêu đề <span className="text-[#ba1a1a]">*</span>
+                        </label>
+                        <input
+                            className={`w-full border rounded-lg px-3 py-2 text-[14px] text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#6b38d4] transition-all ${errors.title ? 'border-[#ba1a1a]' : 'border-[#c6c6cd]'}`}
+                            placeholder="Tên công việc"
+                            value={form.title}
+                            onChange={e => set('title', e.target.value)}
+                        />
+                        {errors.title && <p className="text-[11px] text-[#ba1a1a] mt-1">{errors.title}</p>}
+                    </div>
+
+                    <div>
+                        <label className="block text-[13px] font-semibold text-[#0b1c30] mb-1">Mô tả</label>
+                        <textarea
+                            className="w-full border border-[#c6c6cd] rounded-lg px-3 py-2 text-[14px] text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#6b38d4] resize-none transition-all"
+                            placeholder="Ghi chú thêm..."
+                            rows={2}
+                            value={form.description}
+                            onChange={e => set('description', e.target.value)}
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-[13px] font-semibold text-[#0b1c30] mb-1">Trạng thái</label>
+                            <select
+                                className="w-full border border-[#c6c6cd] rounded-lg px-3 py-2 text-[14px] text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#6b38d4] transition-all bg-white"
+                                value={form.status}
+                                onChange={e => set('status', e.target.value)}
+                            >
+                                {TASK_STATUS_OPTIONS.map(o => (
+                                    <option key={o.value} value={o.value}>{o.label}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-[13px] font-semibold text-[#0b1c30] mb-1">Ước tính (phút)</label>
+                            <input
+                                type="number"
+                                min="0"
+                                className="w-full border border-[#c6c6cd] rounded-lg px-3 py-2 text-[14px] text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#6b38d4] transition-all"
+                                placeholder="vd: 30"
+                                value={form.estimatedMinutes}
+                                onChange={e => set('estimatedMinutes', e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-[13px] font-semibold text-[#0b1c30] mb-1">
+                            Deadline <span className="text-[#ba1a1a]">*</span>
+                        </label>
+                        <DateTimePicker
+                            value={form.dueDate}
+                            onChange={(v) => set('dueDate', v)}
+                            hasError={!!errors.dueDate}
+                        />
+                        {errors.dueDate && <p className="text-[11px] text-[#ba1a1a] mt-1">{errors.dueDate}</p>}
+                    </div>
+
+                    <div>
+                        <label className="block text-[13px] font-semibold text-[#0b1c30] mb-2">Mức độ ưu tiên</label>
+                        <div className="flex gap-2">
+                            {TASK_PRIORITY_STYLES.map((s) => (
+                                <button
+                                    key={s.value}
+                                    onClick={() => set('priority', s.value)}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-all ${s.style} ${form.priority === s.value ? 'ring-2 ring-offset-1 ring-[#6b38d4]' : ''}`}
+                                >
+                                    <span className={`w-2 h-2 rounded-full ${s.dot}`} />
+                                    {s.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex items-center justify-between px-6 py-4 border-t border-[#c6c6cd]/30 bg-[#f8f9ff]">
+                    <button
+                        onClick={onDelete}
+                        disabled={saving}
+                        className="flex items-center gap-1 text-[#ba1a1a] text-[13px] font-medium hover:bg-[#ffdad6] px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                        <span className="material-symbols-outlined text-[16px]">delete</span>
+                        Xóa
+                    </button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={onClose}
+                            className="px-4 py-2 rounded-lg text-[13px] font-medium text-[#45464d] hover:bg-[#e5eeff] transition-colors"
+                        >
+                            Hủy
+                        </button>
+                        <button
+                            onClick={handleSubmit}
+                            disabled={saving}
+                            className="px-4 py-2 rounded-lg text-[13px] font-medium bg-[#8455ef] text-white hover:bg-[#6b38d4] transition-colors disabled:opacity-60 flex items-center gap-1 shadow-sm"
+                        >
+                            {saving && <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>}
+                            Lưu
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
 function Toast({ message, type }) {
@@ -586,12 +846,15 @@ export default function Calendar() {
 
     const events = eventsState.data
     const loading = eventsState.loading
-    const navigate = useNavigate()
     // priority được lưu trong DB qua field `priority` của event
 
     const [modal, setModal] = useState(null)
     const [deleteTarget, setDeleteTarget] = useState(null)
     const [conflictTarget, setConflictTarget] = useState(null) 
+    const [taskEditId, setTaskEditId] = useState(null)
+    const [taskEditState, setTaskEditState] = useState({ loading: false, error: null, data: null })
+    const [taskSaving, setTaskSaving] = useState(false)
+    const [taskDeleteTarget, setTaskDeleteTarget] = useState(null) // { id, title }
     const [saving, setSaving] = useState(false)
     const [toast, setToast] = useState(null)
 
@@ -623,6 +886,91 @@ export default function Calendar() {
             })
         return () => { cancelled = true }
     }, [currentYear, currentMonth])
+
+    useEffect(() => {
+        if (!taskEditId) return
+        let cancelled = false
+        setTaskEditState({ loading: true, error: null, data: null })
+
+        fetch(`${TASKS_BASE_URL}/${taskEditId}`, { headers: taskAuthHeaders() })
+            .then(res => {
+                if (!res.ok) throw new Error('failed')
+                return res.json()
+            })
+            .then(body => {
+                if (cancelled) return
+                const t = body.data
+                setTaskEditState({
+                    loading: false,
+                    error: null,
+                    data: {
+                        ...t,
+                        // Convert timestamp gốc (backend) -> input local string để đổ vào DateTimePicker
+                        dueDateLocal: t.dueDate ? toLocalInput(t.dueDate) : '',
+                    },
+                })
+            })
+            .catch(() => {
+                if (!cancelled) setTaskEditState({ loading: false, error: 'failed', data: null })
+            })
+
+        return () => { cancelled = true }
+    }, [taskEditId])
+
+    const handleSaveTask = async (form) => {
+        setTaskSaving(true)
+        try {
+            const payload = {
+                title: form.title.trim(),
+                description: form.description.trim() || null,
+                status: form.status,
+                priority: Number(form.priority),
+                dueDate: form.dueDate,
+                estimatedMinutes: form.estimatedMinutes ? Number(form.estimatedMinutes) : null,
+                ignoreConflict: false,
+            }
+
+            const res = await fetch(`${TASKS_BASE_URL}/${taskEditId}`, {
+                method: 'PUT',
+                headers: taskAuthHeaders(),
+                body: JSON.stringify(payload),
+            })
+            if (!res.ok) throw await parseTaskErrorResponse(res, 'Cập nhật công việc thất bại')
+
+            showToast('Đã cập nhật công việc')
+            setTaskEditId(null)
+            await fetchEvents()
+        } catch (e) {
+            if (e.isConflict) {
+                setConflictTarget({ kind: 'task', form, message: e.message, conflicts: e.conflicts })
+            } else {
+                showToast(e.message, 'error')
+            }
+        } finally {
+            setTaskSaving(false)
+        }
+    }
+
+    const handleDeleteTaskConfirm = async () => {
+        if (!taskDeleteTarget) return
+        setTaskSaving(true)
+        try {
+            const res = await fetch(`${TASKS_BASE_URL}/${taskDeleteTarget.id}`, {
+                method: 'DELETE',
+                headers: taskAuthHeaders(),
+            })
+            if (!res.ok) throw new Error('Xóa công việc thất bại')
+
+            setTaskDeleteTarget(null)
+            setTaskEditId(null)
+            showToast('Đã xóa công việc')
+            await fetchEvents()
+        } catch (e) {
+            showToast(e.message, 'error')
+        } finally {
+            setTaskSaving(false)
+        }
+    }
 
     const fetchEvents = async () => {
         dispatch({ type: 'LOADING' })
@@ -732,7 +1080,7 @@ export default function Calendar() {
             await fetchEvents()
         } catch (e) {
             if (e.isConflict) {
-                setConflictTarget({ form, mode: modal.mode, message: e.message, conflicts: e.conflicts })
+                setConflictTarget({ kind: 'event', form, mode: modal.mode, message: e.message, conflicts: e.conflicts })
             } else {
                 showToast(e.message, 'error')
             }
@@ -745,35 +1093,57 @@ export default function Calendar() {
     const handleForceSave = async () => {
         if (!conflictTarget) return
         setSaving(true)
+        setTaskSaving(true)
         try {
-            const { form, mode } = conflictTarget
-            const payload = {
-                title: form.title.trim(),
-                description: form.description.trim() || null,
-                location: form.location.trim() || null,
-                startTime: inputToISO(form.startTime),
-                endTime: inputToISO(form.endTime),
-                isAllDay: form.isAllDay,
-                priority: form.styleIndex,
-                source: 'manual',
-                ignoreConflict: true,
-            }
-
-            if (mode === 'create') {
-                await createCalendarEvent(payload)
-                showToast('Đã thêm sự kiện')
+            if (conflictTarget.kind === 'task') {
+                const { form } = conflictTarget
+                const payload = {
+                    title: form.title.trim(),
+                    description: form.description.trim() || null,
+                    status: form.status,
+                    priority: Number(form.priority),
+                    dueDate: form.dueDate,
+                    estimatedMinutes: form.estimatedMinutes ? Number(form.estimatedMinutes) : null,
+                    ignoreConflict: true,
+                }
+                const res = await fetch(`${TASKS_BASE_URL}/${taskEditId}`, {
+                    method: 'PUT',
+                    headers: taskAuthHeaders(),
+                    body: JSON.stringify(payload),
+                })
+                if (!res.ok) throw new Error('Cập nhật công việc thất bại')
+                showToast('Đã cập nhật công việc')
+                setTaskEditId(null)
             } else {
-                await updateCalendarEvent(form.id, payload)
-                showToast('Đã cập nhật sự kiện')
+                const { form, mode } = conflictTarget
+                const payload = {
+                    title: form.title.trim(),
+                    description: form.description.trim() || null,
+                    location: form.location.trim() || null,
+                    startTime: inputToISO(form.startTime),
+                    endTime: inputToISO(form.endTime),
+                    isAllDay: form.isAllDay,
+                    priority: form.styleIndex,
+                    source: 'manual',
+                    ignoreConflict: true,
+                }
+                if (mode === 'create') {
+                    await createCalendarEvent(payload)
+                    showToast('Đã thêm sự kiện')
+                } else {
+                    await updateCalendarEvent(form.id, payload)
+                    showToast('Đã cập nhật sự kiện')
+                }
+                setModal(null)
             }
 
             setConflictTarget(null)
-            setModal(null)
             await fetchEvents()
         } catch (e) {
             showToast(e.message, 'error')
         } finally {
             setSaving(false)
+            setTaskSaving(false)
         }
     }
 
@@ -892,13 +1262,13 @@ export default function Calendar() {
                                                         onClick={(e) => {
                                                             e.stopPropagation()
                                                             if (isTask) {
-                                                                navigate('/tasks')
+                                                                setTaskEditId(ev.id)
                                                             } else {
                                                                 openEdit(ev, e)
                                                             }
                                                         }}
                                                         className={`px-2 py-1 rounded text-xs font-medium truncate mb-1 cursor-pointer transition-colors flex items-center gap-1 ${priority.style}`}
-                                                        title={isTask ? `${ev.title} (bấm để sang trang Tasks)` : ev.title}
+                                                        title={ev.title}
                                                     >
                                                         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${priority.dot}`} />
                                                         <span className="truncate">{ev.title}</span>
@@ -1041,7 +1411,7 @@ export default function Calendar() {
                     onClose={() => setModal(null)}
                     onSave={handleSave}
                     onDelete={() => setDeleteTarget(modal.data)}
-                    saving={saving}
+                    saving={saving || taskSaving}
                 />
             )}
 
@@ -1050,7 +1420,7 @@ export default function Calendar() {
                     title={deleteTarget.title}
                     onCancel={() => setDeleteTarget(null)}
                     onConfirm={handleDeleteConfirm}
-                    saving={saving}
+                    saving={saving || taskSaving}
                 />
             )}
 
@@ -1060,7 +1430,26 @@ export default function Calendar() {
                     conflicts={conflictTarget.conflicts}
                     onCancel={() => setConflictTarget(null)}
                     onConfirm={handleForceSave}
-                    saving={saving}
+                    saving={saving || taskSaving}
+                />
+            )}
+
+            {taskEditId && (
+                <TaskEditModal
+                    state={taskEditState}
+                    onClose={() => setTaskEditId(null)}
+                    onSave={handleSaveTask}
+                    onDelete={() => setTaskDeleteTarget({ id: taskEditId, title: taskEditState.data?.title || '' })}
+                    saving={taskSaving}
+                />
+            )}
+
+            {taskDeleteTarget && (
+                <DeleteConfirm
+                    title={taskDeleteTarget.title}
+                    onCancel={() => setTaskDeleteTarget(null)}
+                    onConfirm={handleDeleteTaskConfirm}
+                    saving={taskSaving}
                 />
             )}
 

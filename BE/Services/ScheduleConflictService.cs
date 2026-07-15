@@ -42,7 +42,10 @@ namespace Assistant.Services
                 .Where(t => t.UserId == userId
                     && t.DueDate != null
                     && (excludeTaskId == null || t.Id != excludeTaskId)
-                    && (excludeEventId == null || t.LinkedEventId != excludeEventId))
+                    // Bỏ qua task chính là task liên kết của event đang xét (tránh tự báo trùng với chính mình)
+                    && (excludeEventId == null || t.CalendarEventId != excludeEventId)
+                    // Bỏ qua task chính là task liên kết của event đã bị loại ở trên (khi update Task mà nó có event liên kết)
+                    && (excludeTaskId == null || t.CalendarEventId != excludeEventId))
                 .Select(t => new { t.Id, t.Title, Start = t.DueDate!.Value })
                 .ToListAsync();
 

@@ -153,7 +153,12 @@ namespace Assistant.Controllers
             ["ResponseStyle"] = "Phong cách trả lời mong muốn",
             ["Priorities"] = "Ưu tiên khi lập kế hoạch/gợi ý",
             ["Traits"] = "Đặc điểm làm việc của người dùng",
-            ["ProactiveSupport"] = "Cách AI nên chủ động hỗ trợ"
+            ["ProactiveSupport"] = "Cách AI nên chủ động hỗ trợ",
+            ["Hobbies"] = "Sở thích cá nhân",
+            ["MusicGenres"] = "Thể loại nhạc yêu thích",
+            ["FavoriteFoods"] = "Đồ ăn hoặc thức uống yêu thích",
+            ["AiPersonality"] = "Tính cách AI mong muốn",
+            ["PersonalPreferences"] = "Thông tin AI nên ghi nhớ",
         };
 
         // GET /api/memory/survey — lấy câu trả lời khảo sát đã lưu (để prefill popup)
@@ -190,7 +195,12 @@ namespace Assistant.Controllers
                 ["ResponseStyle"] = dto.ResponseStyle ?? "",
                 ["Priorities"] = string.Join(", ", dto.Priorities ?? new()),
                 ["Traits"] = string.Join(", ", dto.Traits ?? new()),
-                ["ProactiveSupport"] = string.Join(", ", dto.ProactiveSupport ?? new())
+                ["ProactiveSupport"] = string.Join(", ", dto.ProactiveSupport ?? new()),
+                ["Hobbies"] = string.Join(", ", dto.Hobbies ?? new()),
+                ["MusicGenres"] = string.Join(", ", dto.MusicGenres ?? new()),
+                ["FavoriteFoods"] = string.Join(", ", dto.FavoriteFoods ?? new()),
+                ["AiPersonality"] = string.Join(", ", dto.AiPersonality ?? new()),
+                ["PersonalPreferences"] = string.Join(", ", dto.PersonalPreferences ?? new())
             };
 
             foreach (var kv in values)

@@ -13,6 +13,11 @@ const SURVEY_LABELS = {
     Priorities: 'Ưu tiên khi lập kế hoạch/gợi ý',
     Traits: 'Đặc điểm làm việc của người dùng',
     ProactiveSupport: 'Cách AI nên chủ động hỗ trợ',
+    Hobbies: "Sở thích cá nhân",
+    MusicGenres: "Thể loại nhạc yêu thích",
+    FavoriteFoods: "Đồ ăn hoặc thức uống yêu thích",
+    AiPersonality: "Tính cách AI mong muốn",
+    PersonalPreferences: "Thông tin AI nên ghi nhớ",
 }
 
 export default function Settings() {

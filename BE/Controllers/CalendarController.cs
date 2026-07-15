@@ -38,14 +38,15 @@ namespace Assistant.Controllers
             if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
 
             var query = _db.CalendarEvents.Where(e => e.UserId == userId);
-            var taskQuery = _db.Tasks.Where(t => t.UserId == userId && t.DueDate != null && t.CalendarEventId == null);
-
             var vnNow = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc);
             var sevenDaysLimit = vnNow.AddDays(7);
 
             // Task đã có Event liên kết -> đã hiển thị qua bảng CalendarEvents rồi, không merge lại (tránh trùng)
             // Chỉ merge task còn lại trong vòng 7 ngày tới, để không rối lịch khi xem xa cả tháng
-            taskQuery = taskQuery.Where(t => t.LinkedEventId == null && t.DueDate <= sevenDaysLimit);
+            var taskQuery = _db.Tasks.Where(t => t.UserId == userId
+                && t.DueDate != null
+                && t.CalendarEventId == null
+                && t.DueDate <= sevenDaysLimit);
 
             if (year.HasValue && month.HasValue)
             {
@@ -122,14 +123,31 @@ namespace Assistant.Controllers
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
 
+            var start = DateTime.SpecifyKind(req.StartTime, DateTimeKind.Utc);
+            var end = DateTime.SpecifyKind(req.EndTime, DateTimeKind.Utc);
+
+            if (!req.IgnoreConflict)
+            {
+                var conflicts = await _conflict.FindConflictsAsync(userId, start, end);
+                if (conflicts.Count > 0)
+                {
+                    return Conflict(new
+                    {
+                        conflict = true,
+                        message = "Trùng giờ với lịch/task khác. Vẫn muốn tạo?",
+                        conflicts
+                    });
+                }
+            }
+
             var ev = new CalendarEvent
             {
                 Id = Guid.NewGuid(),
                 UserId = userId,
                 Title = req.Title,
                 Description = req.Description,
-                StartTime = DateTime.SpecifyKind(req.StartTime, DateTimeKind.Utc),
-                EndTime = DateTime.SpecifyKind(req.EndTime, DateTimeKind.Utc),
+                StartTime = start,
+                EndTime = end,
                 Location = req.Location,
                 Source = req.Source ?? "manual",
                 IsAllDay = req.IsAllDay,
@@ -139,21 +157,25 @@ namespace Assistant.Controllers
 
             _db.CalendarEvents.Add(ev);
 
-            // Tự động tạo Task liên kết với Event vừa tạo
-            var autoTask = new Assistant.Models.Task
+            // Chỉ tự tạo Task liên kết nếu Event KHÔNG nằm trong quá khứ (so với giờ VN hiện tại)
+            var vnNow = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc);
+            if (ev.StartTime >= vnNow)
             {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                Title = ev.Title,
-                Description = ev.Description,
-                Priority = MapCalendarPriorityToTaskPriority(ev.Priority),
-                Status = "pending",
-                DueDate = ev.StartTime,
-                InputMethod = "calendar",
-                CalendarEventId = ev.Id,
-                CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc),
-            };
-            _db.Tasks.Add(autoTask);
+                var autoTask = new Assistant.Models.Task
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    Title = ev.Title,
+                    Description = ev.Description,
+                    Priority = MapCalendarPriorityToTaskPriority(ev.Priority),
+                    Status = "pending",
+                    DueDate = ev.StartTime,
+                    InputMethod = "calendar",
+                    CalendarEventId = ev.Id,
+                    CreatedAt = vnNow,
+                };
+                _db.Tasks.Add(autoTask);
+            }
 
             await _db.SaveChangesAsync();
 

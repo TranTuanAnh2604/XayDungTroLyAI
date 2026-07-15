@@ -379,10 +379,34 @@ function TaskModal({ task, onClose, onSaved, existingTasks }) {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
             <div className="bg-white rounded-2xl p-[24px] w-full max-w-md shadow-xl flex flex-col gap-[16px]">
-                <div className="flex justify-between items-center">
-                    <h3 className="text-[18px] font-bold text-[#000000]">{isEdit ? "Sửa Task" : "Tạo Task Mới"}</h3>
-                    <button onClick={onClose} className="text-[#45464d] hover:text-[#000000]">
-                        <span className="material-symbols-outlined">close</span>
+                <div className="flex items-center justify-between px-6 py-5 -mx-6 -mt-6 mb-6 bg-gradient-to-r from-[#8455ef] to-[#6b38d4] rounded-t-2xl">
+                    <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center">
+                            <span className="material-symbols-outlined text-white text-[22px]">
+                                {isEdit ? "edit_note" : "task_alt"}
+                            </span>
+                        </div>
+
+                        <div>
+                            <h3 className="text-[22px] font-bold text-white leading-none">
+                                {isEdit ? "Chỉnh sửa công việc" : "Tạo công việc mới"}
+                            </h3>
+
+                            <p className="text-[13px] text-white/80 mt-1">
+                                {isEdit
+                                    ? "Cập nhật thông tin công việc"
+                                    : "Thêm một công việc mới vào danh sách"}
+                            </p>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={onClose}
+                        className="w-10 h-10 rounded-full flex items-center justify-center text-white hover:bg-white/15 transition-all duration-200"
+                    >
+                        <span className="material-symbols-outlined text-[22px]">
+                            close
+                        </span>
                     </button>
                 </div>
 

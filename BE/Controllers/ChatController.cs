@@ -187,9 +187,8 @@ namespace Assistant.Controllers
                         EstimatedMinutes = null,
                         CreatedAt = evt.CreatedAt,
                         CompletedAt = null,
-                        LinkedEventId = evt.Id
+                        CalendarEventId = evt.Id
                     };
-                    evt.LinkedTaskId = linkedTask.Id;
 
                     newEvents.Add(evt);
                     newTasks.Add(linkedTask);

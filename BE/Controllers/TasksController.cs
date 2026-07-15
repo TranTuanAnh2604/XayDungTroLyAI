@@ -73,7 +73,7 @@ namespace Assistant.Controllers
                 Title = request.Title,
                 Description = request.Description,
                 Priority = request.Priority,
-                DueDate = request.DueDate,
+                DueDate = request.DueDate.HasValue ? DateTime.SpecifyKind(request.DueDate.Value, DateTimeKind.Utc) : null,
                 Status = request.Status ?? "pending",
                 InputMethod = "text",
                 CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc),
@@ -145,7 +145,9 @@ namespace Assistant.Controllers
 
                 if (!request.IgnoreConflict)
                 {
-                    var conflicts = await _conflict.FindConflictsAsync(userId, start, end, excludeTaskId: id, excludeEventId: task.LinkedEventId);
+                    // excludeEventId = task.CalendarEventId: nếu task này gốc từ 1 Event, loại event đó
+                    // ra khỏi danh sách trùng, tránh tự báo trùng với chính event liên kết của nó.
+                    var conflicts = await _conflict.FindConflictsAsync(userId, start, end, excludeEventId: task.CalendarEventId, excludeTaskId: id);
                     if (conflicts.Count > 0)
                     {
                         return Conflict(new { conflict = true, message = "Trùng giờ với lịch/task khác. Vẫn muốn lưu?", conflicts });
@@ -157,11 +159,11 @@ namespace Assistant.Controllers
             task.Description = request.Description;
             task.Priority = request.Priority;
             task.Status = request.Status;
-            task.DueDate = request.DueDate;
+            task.DueDate = request.DueDate.HasValue ? DateTime.SpecifyKind(request.DueDate.Value, DateTimeKind.Utc) : null;
 
-            if (task.LinkedEventId.HasValue && request.DueDate.HasValue)
+            if (task.CalendarEventId.HasValue && request.DueDate.HasValue)
             {
-                var linkedEvent = await _context.CalendarEvents.FirstOrDefaultAsync(e => e.Id == task.LinkedEventId.Value);
+                var linkedEvent = await _context.CalendarEvents.FirstOrDefaultAsync(e => e.Id == task.CalendarEventId.Value);
                 if (linkedEvent != null)
                 {
                     linkedEvent.Title = request.Title;
@@ -193,9 +195,9 @@ namespace Assistant.Controllers
             if (task == null)
                 return NotFound();
 
-            if (task.LinkedEventId.HasValue)
+            if (task.CalendarEventId.HasValue)
             {
-                var linkedEvent = await _context.CalendarEvents.FirstOrDefaultAsync(e => e.Id == task.LinkedEventId.Value);
+                var linkedEvent = await _context.CalendarEvents.FirstOrDefaultAsync(e => e.Id == task.CalendarEventId.Value);
                 if (linkedEvent != null) _context.CalendarEvents.Remove(linkedEvent);
             }
 
@@ -209,6 +211,26 @@ namespace Assistant.Controllers
                     "Xóa công việc thành công!"
                 )
             );
+        }
+        [HttpGet("{id:guid}")]
+        public async Task<IActionResult> GetTaskById(Guid id)
+        {
+            var userId = GetUserId();
+            var task = await _context.Tasks
+                .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+
+            if (task == null)
+                return NotFound(new ApiResponse<string>("Không tìm thấy công việc!"));
+
+            return Ok(new ApiResponse<TaskDto>(new TaskDto
+            {
+                Id = task.Id,
+                Title = task.Title,
+                Description = task.Description,
+                Priority = task.Priority,
+                Status = task.Status,
+                DueDate = task.DueDate
+            }, "Lấy công việc thành công!"));
         }
     }
 }

@@ -43,6 +43,88 @@ const QUESTIONS = [
         type: "multi",
         options: ["Nhắc nhở công việc sắp đến hạn", "Gợi ý sắp xếp lịch làm việc", "Đề xuất chia nhỏ công việc lớn", "Nhắc nghỉ ngơi khi làm việc lâu", "Đưa ra lời khuyên để nâng cao hiệu suất"],
     },
+    {
+        icon: "favorite",
+        title: "Bạn thường dành thời gian rảnh cho hoạt động nào?",
+        hint: "Chọn nhiều",
+        key: "hobbies",
+        type: "multi",
+        options: [
+            "Nghe nhạc",
+            "Xem phim",
+            "Đọc sách",
+            "Chơi game",
+            "Thể thao",
+            "Du lịch",
+            "Nấu ăn",
+            "Khác"
+        ],
+    },
+    {
+        icon: "music_note",
+        title: "Bạn thích thể loại âm nhạc nào nhất?",
+        hint: "Chọn nhiều",
+        key: "musicGenres",
+        type: "multi",
+        options: [
+            "Pop",
+            "Rock",
+            "Ballad",
+            "Rap/Hip-hop",
+            "Lo-fi",
+            "EDM",
+            "Nhạc không lời",
+            "Không nghe nhạc"
+        ],
+    },
+    {
+        icon: "restaurant",
+        title: "Bạn thích loại đồ ăn hoặc thức uống nào?",
+        hint: "Chọn nhiều",
+        key: "favoriteFoods",
+        type: "multi",
+        options: [
+            "Đồ ăn Việt",
+            "Đồ ăn Hàn",
+            "Đồ ăn Nhật",
+            "Đồ ăn nhanh",
+            "Cà phê",
+            "Trà sữa",
+            "Đồ ngọt",
+            "Ăn chay"
+        ],
+    },
+    {
+        icon: "mood",
+        title: "Khi trò chuyện, bạn muốn AI thể hiện tính cách như thế nào?",
+        hint: "Chọn tối đa 2",
+        key: "aiPersonality",
+        type: "multi",
+        max: 2,
+        options: [
+            "Thân thiện",
+            "Hài hước",
+            "Chuyên nghiệp",
+            "Nghiêm túc",
+            "Động viên, tích cực",
+            "Thẳng vào vấn đề"
+        ],
+    },
+    {
+        icon: "lightbulb",
+        title: "AI nên ghi nhớ điều gì về bạn để hỗ trợ tốt hơn?",
+        hint: "Chọn nhiều",
+        key: "personalPreferences",
+        type: "multi",
+        options: [
+            "Sở thích cá nhân",
+            "Thói quen làm việc",
+            "Mục tiêu dài hạn",
+            "Môn học hoặc lĩnh vực yêu thích",
+            "Những điều tôi không thích",
+            "Các dự án tôi đang thực hiện"
+        ],
+    },
 ];
 
 function toArray(str) {
@@ -56,6 +138,12 @@ export default function SurveyPopup({ isOpen, onClose, onSaved }) {
         priorities: [],
         traits: [],
         proactiveSupport: [],
+
+        hobbies: [],
+        musicGenres: [],
+        favoriteFoods: [],
+        aiPersonality: [],
+        personalPreferences: [],
     });
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -76,6 +164,12 @@ export default function SurveyPopup({ isOpen, onClose, onSaved }) {
                         priorities: toArray(a.Priorities),
                         traits: toArray(a.Traits),
                         proactiveSupport: toArray(a.ProactiveSupport),
+
+                        hobbies: toArray(a.Hobbies),
+                        musicGenres: toArray(a.MusicGenres),
+                        favoriteFoods: toArray(a.FavoriteFoods),
+                        aiPersonality: toArray(a.AiPersonality),
+                        personalPreferences: toArray(a.PersonalPreferences),
                     });
                 }
             } catch (err) {
