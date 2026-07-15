@@ -24,6 +24,12 @@ namespace Assistant.Controllers
             _groq = groq;
             _conflict = conflict;
         }
+        private static byte MapCalendarPriorityToTaskPriority(int calendarPriority) => calendarPriority switch
+        {
+            0 => 3, // Urgent
+            2 => 1, // Low
+            _ => 2, // Normal
+        };
 
         [HttpGet]
         public async Task<IActionResult> GetEvents([FromQuery] int? year, [FromQuery] int? month)
@@ -32,7 +38,7 @@ namespace Assistant.Controllers
             if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
 
             var query = _db.CalendarEvents.Where(e => e.UserId == userId);
-            var taskQuery = _db.Tasks.Where(t => t.UserId == userId && t.DueDate != null);
+            var taskQuery = _db.Tasks.Where(t => t.UserId == userId && t.DueDate != null && t.CalendarEventId == null);
 
             var vnNow = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc);
             var sevenDaysLimit = vnNow.AddDays(7);
@@ -116,54 +122,38 @@ namespace Assistant.Controllers
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
 
-            var start = DateTime.SpecifyKind(req.StartTime, DateTimeKind.Utc);
-            var end = DateTime.SpecifyKind(req.EndTime, DateTimeKind.Utc);
-
-            if (!req.IgnoreConflict)
-            {
-                var conflicts = await _conflict.FindConflictsAsync(userId, start, end);
-                if (conflicts.Count > 0)
-                {
-                    return Conflict(new
-                    {
-                        conflict = true,
-                        message = "Trùng giờ với lịch/task khác. Vẫn muốn tạo?",
-                        conflicts
-                    });
-                }
-            }
-
             var ev = new CalendarEvent
             {
                 Id = Guid.NewGuid(),
                 UserId = userId,
                 Title = req.Title,
                 Description = req.Description,
-                StartTime = start,
-                EndTime = end,
+                StartTime = DateTime.SpecifyKind(req.StartTime, DateTimeKind.Utc),
+                EndTime = DateTime.SpecifyKind(req.EndTime, DateTimeKind.Utc),
                 Location = req.Location,
                 Source = req.Source ?? "manual",
                 IsAllDay = req.IsAllDay,
                 CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc),
                 Priority = req.Priority,
             };
+
             _db.CalendarEvents.Add(ev);
 
-            var linkedTask = new Assistant.Models.Task
+            // Tự động tạo Task liên kết với Event vừa tạo
+            var autoTask = new Assistant.Models.Task
             {
                 Id = Guid.NewGuid(),
                 UserId = userId,
-                Title = req.Title,
-                Description = req.Description,
-                Priority = PriorityMapper.CalendarToTask(req.Priority),
+                Title = ev.Title,
+                Description = ev.Description,
+                Priority = MapCalendarPriorityToTaskPriority(ev.Priority),
                 Status = "pending",
-                DueDate = start,
-                InputMethod = "cal_sync",
-                CreatedAt = ev.CreatedAt,
-                LinkedEventId = ev.Id,
+                DueDate = ev.StartTime,
+                InputMethod = "calendar",
+                CalendarEventId = ev.Id,
+                CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc),
             };
-            _db.Tasks.Add(linkedTask);
-            ev.LinkedTaskId = linkedTask.Id;
+            _db.Tasks.Add(autoTask);
 
             await _db.SaveChangesAsync();
 
@@ -189,39 +179,27 @@ namespace Assistant.Controllers
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
 
-            var ev = await _db.CalendarEvents.FirstOrDefaultAsync(e => e.Id == id && e.UserId == userId);
+            var ev = await _db.CalendarEvents
+                .FirstOrDefaultAsync(e => e.Id == id && e.UserId == userId);
             if (ev is null) return NotFound();
-
-            var start = DateTime.SpecifyKind(req.StartTime, DateTimeKind.Utc);
-            var end = DateTime.SpecifyKind(req.EndTime, DateTimeKind.Utc);
-
-            if (!req.IgnoreConflict)
-            {
-                var conflicts = await _conflict.FindConflictsAsync(userId, start, end, excludeEventId: id, excludeTaskId: ev.LinkedTaskId);
-                if (conflicts.Count > 0)
-                {
-                    return Conflict(new { conflict = true, message = "Trùng giờ với lịch/task khác. Vẫn muốn lưu?", conflicts });
-                }
-            }
 
             ev.Title = req.Title;
             ev.Description = req.Description;
-            ev.StartTime = start;
-            ev.EndTime = end;
+            ev.StartTime = req.StartTime;
+            ev.EndTime = req.EndTime;
             ev.Location = req.Location;
             ev.IsAllDay = req.IsAllDay;
             ev.Priority = req.Priority;
 
-            if (ev.LinkedTaskId.HasValue)
+            // Đồng bộ task liên kết (nếu còn tồn tại và chưa hoàn thành)
+            var linkedTask = await _db.Tasks
+                .FirstOrDefaultAsync(t => t.CalendarEventId == ev.Id && t.UserId == userId);
+            if (linkedTask != null && linkedTask.Status != "done")
             {
-                var linkedTask = await _db.Tasks.FirstOrDefaultAsync(t => t.Id == ev.LinkedTaskId.Value);
-                if (linkedTask != null)
-                {
-                    linkedTask.Title = req.Title;
-                    linkedTask.Description = req.Description;
-                    linkedTask.DueDate = start;
-                    linkedTask.Priority = PriorityMapper.CalendarToTask(req.Priority);
-                }
+                linkedTask.Title = ev.Title;
+                linkedTask.Description = ev.Description;
+                linkedTask.DueDate = ev.StartTime;
+                linkedTask.Priority = MapCalendarPriorityToTaskPriority(ev.Priority);
             }
 
             await _db.SaveChangesAsync();
@@ -234,13 +212,19 @@ namespace Assistant.Controllers
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
 
-            var ev = await _db.CalendarEvents.FirstOrDefaultAsync(e => e.Id == id && e.UserId == userId);
+            var ev = await _db.CalendarEvents
+                .FirstOrDefaultAsync(e => e.Id == id && e.UserId == userId);
             if (ev is null) return NotFound();
 
-            if (ev.LinkedTaskId.HasValue)
+            var linkedTask = await _db.Tasks
+                .FirstOrDefaultAsync(t => t.CalendarEventId == ev.Id && t.UserId == userId);
+
+            if (linkedTask != null)
             {
-                var linkedTask = await _db.Tasks.FirstOrDefaultAsync(t => t.Id == ev.LinkedTaskId.Value);
-                if (linkedTask != null) _db.Tasks.Remove(linkedTask);
+                if (linkedTask.Status == "done")
+                    linkedTask.CalendarEventId = null; // giữ lại lịch sử, chỉ gỡ liên kết
+                else
+                    _db.Tasks.Remove(linkedTask); // chưa xong thì xóa theo event
             }
 
             _db.CalendarEvents.Remove(ev);

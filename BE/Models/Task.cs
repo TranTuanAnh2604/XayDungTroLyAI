@@ -36,4 +36,6 @@ public partial class Task
     public virtual User User { get; set; } = null!;
 
     public virtual ICollection<TaskCategory> Categories { get; set; } = new List<TaskCategory>();
+    public Guid? CalendarEventId { get; set; }
+    public CalendarEvent? CalendarEvent { get; set; }
 }

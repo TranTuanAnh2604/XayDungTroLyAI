@@ -213,8 +213,7 @@ function TaskCard({ task, onStatusChange, onDelete, onEdit }) {
     const isNormal = task.priority === 2
     const isLow = task.priority === 1
     const [menuOpen, setMenuOpen] = useState(false)
-    const today = new Date(); today.setHours(0, 0, 0, 0)
-    const isOverdue = task.dueDate && new Date(task.dueDate.split("T")[0]) < today && task.status !== "done"
+    const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== "done"
 
     return (
         <div className={`bg-white rounded-xl p-[16px] shadow-sm hover:shadow-md transition-shadow cursor-grab group relative
@@ -527,7 +526,7 @@ function applyFiltersAndSort(tasks, filters) {
         result = result.filter(t => {
             const due = parseDate(t.dueDate)
             if (!due) return false
-            if (filters.dueDate === "overdue") return due < today && t.status !== "done"
+            if (filters.dueDate === "overdue") return t.dueDate && new Date(t.dueDate) < new Date() && t.status !== "done"
             if (filters.dueDate === "today") return due.getTime() === today.getTime()
             if (filters.dueDate === "week") return due >= today && due <= endOfWeek
             return true
@@ -580,11 +579,24 @@ export default function Tasks() {
 
     const handleSaved = async () => { await fetchTasks() }
 
-    const filteredTasks = useMemo(() => applyFiltersAndSort(tasks, filters), [tasks, filters])
+    // Chỉ hiển thị task có deadline trong vòng 7 ngày tới (kể cả đã quá hạn).
+    // Task không có deadline luôn hiển thị. Task deadline > 7 ngày sẽ tự ẩn
+    // và hiện lại khi deadline lùi vào trong khoảng 7 ngày.
+    const visibleTasks = useMemo(() => {
+        const today = new Date(); today.setHours(0, 0, 0, 0)
+        const limit = new Date(today); limit.setDate(today.getDate() + 7)
+        return tasks.filter(t => {
+            const due = parseDate(t.dueDate)
+            if (!due) return true
+            return due <= limit
+        })
+    }, [tasks])
+
+    const filteredTasks = useMemo(() => applyFiltersAndSort(visibleTasks, filters), [visibleTasks, filters])
     const getTasksByStatus = statusKey => filteredTasks.filter(t => t.status === statusKey)
 
     const urgentCount = tasks.filter(t => t.priority === 3 && t.status !== "done").length
-    const overdueCount = tasks.filter(t => { const due = parseDate(t.dueDate); const today = new Date(); today.setHours(0,0,0,0); return due && due < today && t.status !== "done" }).length
+    const overdueCount = tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== "done").length
 
     return (
         <div className="flex h-screen overflow-hidden" style={{ fontFamily: "Inter, sans-serif", backgroundColor: "#f8f9ff", color: "#0b1c30" }}>
