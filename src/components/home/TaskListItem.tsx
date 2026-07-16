@@ -41,7 +41,9 @@ export default function TaskListItem({ task, onToggle }: TaskListItemProps) {
             >
               {task.title}
             </Text>
-            <Text style={styles.meta}>{task.meta}</Text>
+            {!!task.description && (
+              <Text style={styles.meta} numberOfLines={2}>{task.description}</Text>
+            )}
           </View>
         </View>
       </AppGlassCard>

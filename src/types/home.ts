@@ -10,6 +10,7 @@ export type HomeDailyTask = {
   id: string;
   title: string;
   meta: string;
+  description?: string;
   completed?: boolean;
 };
 

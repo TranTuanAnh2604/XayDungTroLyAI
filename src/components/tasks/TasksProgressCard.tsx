@@ -87,7 +87,7 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     width: '100%',
     height: 10,
     borderRadius: 999,
-    backgroundColor: COLORS.surfaceContainer,
+    backgroundColor: COLORS.surfaceVariant,
     overflow: 'hidden',
   },
   progressFill: {

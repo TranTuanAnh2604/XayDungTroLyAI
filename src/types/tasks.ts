@@ -2,7 +2,7 @@ import type { MaterialIconName } from './common';
 
 export type TaskPriority = 'high' | 'normal' | 'low';
 
-export type TaskFilterId = 'all' | 'today' | 'priority';
+export type TaskFilterId = 'all' | 'today' | 'priority' | 'overdue';
 
 export type TaskItem = {
   id: string;

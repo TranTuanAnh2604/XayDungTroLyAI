@@ -33,7 +33,7 @@ export default function DatePickerCard({ label, date, valueText, onPress, disabl
             {valueText ? valueText : (date ? date.toLocaleDateString('vi-VN') : 'Chọn ngày')}
           </Text>
         </View>
-        <MaterialCommunityIcons name="chevron-right" size={18} color="#999" />
+        <MaterialCommunityIcons name="chevron-right" size={18} color={COLORS.textSecondary || "#999"} />
       </TouchableOpacity>
     </View>
   );
@@ -52,9 +52,9 @@ const createStyles = (COLORS: any) => StyleSheet.create({
   card: {
     height: 46,
     borderWidth: 1,
-    borderColor: '#ECECEC',
+    borderColor: COLORS.outline || '#ECECEC',
     borderRadius: 16,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.surface || '#fff',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

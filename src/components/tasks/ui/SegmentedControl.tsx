@@ -67,7 +67,7 @@ export default function SegmentedControl({ options, selectedValue, onValueChange
 const createStyles = (COLORS: any) => StyleSheet.create({
   container: {
     height: 40,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: COLORS.surfaceVariant || '#F5F5F5',
     borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
@@ -97,9 +97,9 @@ const createStyles = (COLORS: any) => StyleSheet.create({
   text: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#666',
+    color: COLORS.textSecondary || '#666',
   },
   textActive: {
-    color: '#fff',
+    color: COLORS.onPrimary || '#fff',
   },
 });

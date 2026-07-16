@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useTheme } from '../../../hooks/useTheme';
+
 interface TaskModalContainerProps {
   visible: boolean;
   onClose: () => void;
@@ -23,6 +25,7 @@ export default function TaskModalContainer({
   onClose,
   children,
 }: TaskModalContainerProps) {
+  const { colors: COLORS } = useTheme();
   const slideAnim = useRef(new Animated.Value(24)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
@@ -75,7 +78,7 @@ export default function TaskModalContainer({
         </Animated.View>
         <View style={[styles.contentWrapper, { paddingTop: Math.max(insets.top + 40, 60) }]}>
           <Pressable style={{ flex: 1 }} onPress={onClose} />
-          <Animated.View style={[styles.sheetContainer, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+          <Animated.View style={[styles.sheetContainer, { backgroundColor: COLORS.surface, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
             <ScrollView
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={styles.scrollContent}

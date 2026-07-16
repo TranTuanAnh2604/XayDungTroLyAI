@@ -94,7 +94,7 @@ export default function HomeScreen() {
   const { profile } = useProfile();
   const navigation = useNavigation<any>();
   const { tasks, todos, fetchData } = useTasksList();
-  
+
   const [activeCardIndex, setActiveCardIndex] = React.useState(0);
   const scrollRef = React.useRef<ScrollView>(null);
 
@@ -106,12 +106,12 @@ export default function HomeScreen() {
     dynamicGreeting = 'Chào buổi tối';
   }
   const displayName = profile?.name || HOME_USER.name;
-  
+
   const todayStr = new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'long' });
   const pendingTodos = todos.filter(t => !t.completed).length;
   const pendingTasks = tasks.filter(t => !t.completed).length;
   const totalPending = pendingTodos + pendingTasks;
-  const dynamicSummary = totalPending > 0 ? `Bạn có ${totalPending} công việc hôm nay.` : 'Bạn không có việc nào chưa hoàn thành.';
+  const dynamicSummary = totalPending > 0 ? `Bạn có ${totalPending} công việc chưa hoàn thành.` : 'Bạn không có việc nào chưa hoàn thành.';
 
   const {
     latestReport,
@@ -209,28 +209,83 @@ export default function HomeScreen() {
           <Text style={styles.greetingDate}>{todayStr}</Text>
           <Text style={styles.greetingSubtitle}>{dynamicSummary}</Text>
         </View>
-        
+
         {totalPending > 0 && (
           <>
             <View style={styles.divider} />
             <View style={styles.agendaSection}>
               <View style={styles.agendaHeader}>
-                <Text style={styles.agendaTitle}>Hôm nay</Text>
+                <Text style={styles.agendaTitle}>Việc chưa hoàn thành</Text>
                 <Pressable onPress={() => navigation.navigate('Main', { tab: 'tasks' })}>
                   <Text style={styles.agendaViewAll}>Xem tất cả</Text>
                 </Pressable>
               </View>
-              {[...todos.filter(t => !t.completed), ...tasks.filter(t => !t.completed)].slice(0, 3).map((item, idx) => (
-                <AppGlassCard key={item.id || idx} variant="surface" padding={12} style={styles.agendaCard}>
-                  <View style={styles.agendaRow}>
-                    <MaterialIcons name={item.itemType === 'task' ? 'check-circle-outline' : 'radio-button-unchecked'} size={20} color={COLORS.textSecondary} />
-                    <View style={styles.agendaContent}>
-                      <Text style={styles.agendaItemTitle} numberOfLines={1}>{item.title}</Text>
-                      <Text style={styles.agendaItemMeta} numberOfLines={1}>{item.meta}</Text>
-                    </View>
-                  </View>
-                </AppGlassCard>
-              ))}
+              {(() => {
+                const now = new Date().getTime();
+                const pendingItems = [...todos.filter(t => !t.completed), ...tasks.filter(t => !t.completed)].sort((a, b) => {
+                  const hasDueA = !!a.dueDate;
+                  const hasDueB = !!b.dueDate;
+
+                  if (!hasDueA && !hasDueB) return 0;
+                  if (!hasDueA) return 1;
+                  if (!hasDueB) return -1;
+
+                  const dueA = new Date(a.dueDate!).getTime();
+                  const dueB = new Date(b.dueDate!).getTime();
+
+                  if (isNaN(dueA) && isNaN(dueB)) return 0;
+                  if (isNaN(dueA)) return 1;
+                  if (isNaN(dueB)) return -1;
+
+                  const todayMidnight = new Date();
+                  todayMidnight.setHours(0, 0, 0, 0);
+                  const todayTime = todayMidnight.getTime();
+
+                  const getMidnight = (time: number) => {
+                    const d = new Date(time);
+                    d.setHours(0, 0, 0, 0);
+                    return d.getTime();
+                  };
+
+                  const isOverdueA = getMidnight(dueA) < todayTime;
+                  const isOverdueB = getMidnight(dueB) < todayTime;
+
+                  if (!isOverdueA && isOverdueB) return -1;
+                  if (isOverdueA && !isOverdueB) return 1;
+
+                  return dueA - dueB;
+                });
+
+                const displayItems = pendingItems.slice(0, 3);
+                const hasMore = pendingItems.length > 3;
+
+                return (
+                  <>
+                    {displayItems.map((item, idx) => (
+                      <AppGlassCard key={item.id || idx} variant="surface" padding={12} style={styles.agendaCard}>
+                        <View style={styles.agendaRow}>
+                          <MaterialIcons 
+                            name="radio-button-unchecked" 
+                            size={20} 
+                            color={item.priority === 'high' ? COLORS.error : COLORS.primary} 
+                          />
+                          <View style={styles.agendaContent}>
+                            <Text style={styles.agendaItemTitle} numberOfLines={1}>{item.title}</Text>
+                            {!!item.description && (
+                              <Text style={styles.agendaItemMeta} numberOfLines={1}>{item.description}</Text>
+                            )}
+                          </View>
+                        </View>
+                      </AppGlassCard>
+                    ))}
+                    {hasMore && (
+                      <View style={styles.moreIndicator}>
+                        <MaterialIcons name="more-horiz" size={24} color={COLORS.textSecondary} />
+                      </View>
+                    )}
+                  </>
+                );
+              })()}
             </View>
           </>
         )}
@@ -248,7 +303,7 @@ export default function HomeScreen() {
       {latestReport || isLoading ? (
         <View style={styles.dashboardGroup}>
           <ProductivityScoreCard report={latestReport} skeleton={isLoading && !latestReport} />
-          
+
           <View style={{ position: 'relative' }}>
             <ScrollView
               ref={scrollRef}
@@ -275,10 +330,10 @@ export default function HomeScreen() {
                   style={[styles.arrowBtnInScrollView, { right: -24 }]}
                   onPress={() => scrollRef.current?.scrollTo({ x: activeCardIndex === 0 ? cardWidth + 24 : 0, animated: true })}
                 >
-                  <MaterialIcons 
-                    name={activeCardIndex === 0 ? "chevron-right" : "chevron-left"} 
-                    size={24} 
-                    color={COLORS.onSurfaceVariant} 
+                  <MaterialIcons
+                    name={activeCardIndex === 0 ? "chevron-right" : "chevron-left"}
+                    size={24}
+                    color={COLORS.onSurfaceVariant}
                   />
                 </Pressable>
               </View>
@@ -390,6 +445,10 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     ...typography.bodyMd,
     color: COLORS.danger,
     fontWeight: '700',
+  },
+  moreIndicator: {
+    alignItems: 'center',
+    marginVertical: 4,
   },
   emptyText: {
     ...typography.bodyMd,

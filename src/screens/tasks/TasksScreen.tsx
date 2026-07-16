@@ -86,13 +86,133 @@ export default function TasksScreen() {
   }, [tasks, todos]);
 
   const filteredTasks = useMemo(() => {
-    if (activeFilter === 'priority') return tasks.filter(t => t.priority === 'high');
-    return tasks;
+    let result = tasks;
+    if (activeFilter === 'priority') {
+      result = tasks.filter(t => t.priority === 'high');
+    } else {
+      const now = new Date();
+      now.setHours(0,0,0,0);
+
+      if (activeFilter === 'today') {
+        result = tasks.filter(t => {
+          if (!t.dueDate) return false;
+          const due = new Date(t.dueDate);
+          due.setHours(0,0,0,0);
+          return due.getTime() === now.getTime();
+        });
+      } else if (activeFilter === 'overdue') {
+        result = tasks.filter(t => {
+          if (!t.dueDate) return false;
+          const due = new Date(t.dueDate);
+          due.setHours(0,0,0,0);
+          return due.getTime() < now.getTime() && !t.completed;
+        });
+      }
+    }
+    
+    return [...result].sort((a, b) => {
+      const pA = a.priority === 'high' ? 1 : 0;
+      const pB = b.priority === 'high' ? 1 : 0;
+      
+      if (pA !== pB) return pB - pA;
+
+      const hasDueA = !!a.dueDate;
+      const hasDueB = !!b.dueDate;
+
+      if (!hasDueA && !hasDueB) return 0;
+      if (!hasDueA) return 1;
+      if (!hasDueB) return -1;
+
+      const dueA = new Date(a.dueDate!).getTime();
+      const dueB = new Date(b.dueDate!).getTime();
+
+      if (isNaN(dueA) && isNaN(dueB)) return 0;
+      if (isNaN(dueA)) return 1;
+      if (isNaN(dueB)) return -1;
+
+      const todayMidnight = new Date();
+      todayMidnight.setHours(0, 0, 0, 0);
+      const todayTime = todayMidnight.getTime();
+
+      const getMidnight = (time: number) => {
+        const d = new Date(time);
+        d.setHours(0, 0, 0, 0);
+        return d.getTime();
+      };
+
+      const isOverdueA = getMidnight(dueA) < todayTime;
+      const isOverdueB = getMidnight(dueB) < todayTime;
+
+      if (!isOverdueA && isOverdueB) return -1;
+      if (isOverdueA && !isOverdueB) return 1;
+
+      return dueA - dueB;
+    });
   }, [activeFilter, tasks]);
 
   const filteredTodos = useMemo(() => {
-    if (activeFilter === 'priority') return [];
-    return todos;
+    let result = todos;
+    if (activeFilter === 'priority') {
+      return [];
+    } else {
+      const now = new Date();
+      now.setHours(0,0,0,0);
+
+      if (activeFilter === 'today') {
+        result = todos.filter(t => {
+          if (!t.dueDate) return false;
+          const due = new Date(t.dueDate);
+          due.setHours(0,0,0,0);
+          return due.getTime() === now.getTime();
+        });
+      } else if (activeFilter === 'overdue') {
+        result = todos.filter(t => {
+          if (!t.dueDate) return false;
+          const due = new Date(t.dueDate);
+          due.setHours(0,0,0,0);
+          return due.getTime() < now.getTime() && !t.completed;
+        });
+      }
+    }
+    
+    return [...result].sort((a, b) => {
+      const pA = a.priority === 'high' ? 1 : 0;
+      const pB = b.priority === 'high' ? 1 : 0;
+      
+      if (pA !== pB) return pB - pA;
+
+      const hasDueA = !!a.dueDate;
+      const hasDueB = !!b.dueDate;
+
+      if (!hasDueA && !hasDueB) return 0;
+      if (!hasDueA) return 1;
+      if (!hasDueB) return -1;
+
+      const dueA = new Date(a.dueDate!).getTime();
+      const dueB = new Date(b.dueDate!).getTime();
+
+      if (isNaN(dueA) && isNaN(dueB)) return 0;
+      if (isNaN(dueA)) return 1;
+      if (isNaN(dueB)) return -1;
+
+      const todayMidnight = new Date();
+      todayMidnight.setHours(0, 0, 0, 0);
+      const todayTime = todayMidnight.getTime();
+
+      const getMidnight = (time: number) => {
+        const d = new Date(time);
+        d.setHours(0, 0, 0, 0);
+        return d.getTime();
+      };
+
+      const isOverdueA = getMidnight(dueA) < todayTime;
+      const isOverdueB = getMidnight(dueB) < todayTime;
+
+      if (!isOverdueA && isOverdueB) return -1;
+      if (isOverdueA && !isOverdueB) return 1;
+
+      return dueA - dueB;
+    });
   }, [activeFilter, todos]);
 
   return (

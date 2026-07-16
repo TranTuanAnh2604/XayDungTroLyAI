@@ -21,6 +21,7 @@ export const TASK_FILTERS: { id: TaskFilterId; label: string }[] = [
   { id: 'all', label: 'Tất cả' },
   { id: 'today', label: 'Hôm nay' },
   { id: 'priority', label: 'Ưu tiên' },
+  { id: 'overdue', label: 'Quá hạn' },
 ];
 
 export const TASK_ITEMS: TaskItem[] = [

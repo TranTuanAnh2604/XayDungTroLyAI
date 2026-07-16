@@ -261,7 +261,7 @@ export default function DynamicDashboardRenderer({ data }: DynamicDashboardRende
              <Text style={[typography.bodyLg, { color: colors.onBackground }]}>{formatLabel(key)}</Text>
              <Text style={[typography.bodyLg, { color: colors.primary }]}>{percent}%</Text>
            </View>
-           <View style={[styles.progressBarBg, { backgroundColor: colors.surfaceContainer, marginTop: 8 }]}>
+           <View style={[styles.progressBarBg, { backgroundColor: colors.surfaceVariant, marginTop: 8 }]}>
              <View style={[styles.progressBarFill, { backgroundColor: colors.primary, width: `${percent}%` }]} />
            </View>
          </View>
@@ -272,9 +272,9 @@ export default function DynamicDashboardRenderer({ data }: DynamicDashboardRende
     if (lowerKey.includes('status')) {
        let badgeColor = colors.primary;
        const strVal = String(value).toLowerCase();
-       if (strVal.includes('success') || strVal.includes('done')) badgeColor = '#4CAF50';
-       if (strVal.includes('warning') || strVal.includes('pending')) badgeColor = '#FFC107';
-       if (strVal.includes('error') || strVal.includes('fail')) badgeColor = '#F44336';
+       if (strVal.includes('success') || strVal.includes('done')) badgeColor = colors.success || '#4CAF50';
+       if (strVal.includes('warning') || strVal.includes('pending')) badgeColor = colors.warning || '#FFC107';
+       if (strVal.includes('error') || strVal.includes('fail')) badgeColor = colors.error || '#F44336';
 
        return (
          <View key={key} style={[styles.section, styles.headerRow, { justifyContent: 'flex-start' }]}>

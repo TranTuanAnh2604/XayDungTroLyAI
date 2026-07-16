@@ -40,7 +40,7 @@ export default function PrioritySelector({ label, selectedPriority, onPriorityCh
               <MaterialCommunityIcons 
                 name={isActive ? 'flag' : prio.icon as any} 
                 size={16} 
-                color={isActive ? '#fff' : '#666'} 
+                color={isActive ? (COLORS.onPrimary || '#fff') : (COLORS.textSecondary || '#666')} 
               />
               <Text style={[s.chipText, isActive && s.chipTextActive]}>
                 {prio.label}
@@ -71,9 +71,9 @@ const createStyles = (COLORS: any) => StyleSheet.create({
     height: 32,
     paddingHorizontal: 16,
     borderRadius: 999,
-    backgroundColor: '#F5F5F7',
+    backgroundColor: COLORS.surfaceVariant || '#F5F5F7',
     borderWidth: 1,
-    borderColor: '#E8E8E8',
+    borderColor: COLORS.outline || '#E8E8E8',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -85,9 +85,9 @@ const createStyles = (COLORS: any) => StyleSheet.create({
   chipText: {
     fontSize: 15,
     fontWeight: '500',
-    color: '#666',
+    color: COLORS.textSecondary || '#666',
   },
   chipTextActive: {
-    color: '#fff',
+    color: COLORS.onPrimary || '#fff',
   },
 });

@@ -24,7 +24,7 @@ export default function InputField({ label, isTextArea, style, onFocus, onBlur, 
 
   const borderColor = animatedBorder.interpolate({
     inputRange: [0, 1],
-    outputRange: ['#ECECEC', COLORS.primary],
+    outputRange: [COLORS.outline || '#ECECEC', COLORS.primary],
   });
 
   return (
@@ -33,7 +33,7 @@ export default function InputField({ label, isTextArea, style, onFocus, onBlur, 
       <Animated.View style={[s.inputWrapper, { borderColor }, isTextArea && s.textAreaWrapper]}>
         <TextInput
           style={[s.input, isTextArea && s.textAreaInput, style]}
-          placeholderTextColor="#999"
+          placeholderTextColor={COLORS.textSecondary || '#999'}
           onFocus={(e) => {
             setIsFocused(true);
             onFocus && onFocus(e);
@@ -64,7 +64,7 @@ const createStyles = (COLORS: any) => StyleSheet.create({
   inputWrapper: {
     borderWidth: 1,
     borderRadius: 12,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.surface || '#fff',
     height: 44,
     justifyContent: 'center',
     paddingHorizontal: 12,

@@ -156,6 +156,15 @@ export default function TaskListItem({
     onToggle?.(task.id, !task.completed);
   };
 
+  const isOverdue = useMemo(() => {
+    if (task.completed || !task.dueDate) return false;
+    const now = new Date();
+    now.setHours(0,0,0,0);
+    const due = new Date(task.dueDate);
+    due.setHours(0,0,0,0);
+    return due.getTime() < now.getTime();
+  }, [task.completed, task.dueDate]);
+
   return (
     <Animated.View
       style={[
@@ -194,12 +203,12 @@ export default function TaskListItem({
             }, 100);
           }}
         >
-          <AppGlassCard variant="surface" padding={14} style={styles.cardWrap}>
+          <AppGlassCard variant="surface" padding={14} style={[styles.cardWrap, isOverdue && styles.cardWrapOverdue]}>
             <View style={styles.row}>
               <View style={styles.left}>
                 <Pressable
                   onPress={handleToggle}
-                  style={[styles.checkbox, task.completed && styles.checkboxDone]}
+                  style={[styles.checkbox, task.completed && styles.checkboxDone, isOverdue && !task.completed && styles.checkboxOverdue]}
                 >
                   {task.completed && <MaterialIcons name="check" size={18} color="#fff" />}
                 </Pressable>
@@ -213,8 +222,8 @@ export default function TaskListItem({
                     </Text>
                   )}
                   {!!task.dueDate && (
-                    <Text style={[styles.meta, task.completed && styles.metaDone]}>
-                      Hạn: {new Date(task.dueDate).toLocaleDateString('vi-VN')}
+                    <Text style={[styles.meta, task.completed ? styles.metaDone : (isOverdue ? styles.metaOverdue : undefined)]}>
+                      {isOverdue ? 'Quá hạn: ' : 'Hạn: '}{new Date(task.dueDate).toLocaleDateString('vi-VN')}
                     </Text>
                   )}
                 </View>
@@ -323,4 +332,7 @@ const createStyles = (COLORS: any, typography: any) =>
     badgeTextHigh: { color: COLORS.error },
     badgeTextNormal: { color: COLORS.primary },
     badgeTextMuted: { color: COLORS.outline },
+    cardWrapOverdue: { borderWidth: 1, borderColor: COLORS.error + '40' },
+    metaOverdue: { color: COLORS.error },
+    checkboxOverdue: { borderColor: COLORS.error },
   });

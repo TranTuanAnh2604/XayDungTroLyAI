@@ -56,6 +56,23 @@ export function useProductivityDashboard() {
       
       const score = completionRate; // Điểm năng suất tạm tính bằng tỉ lệ hoàn thành
 
+      const breakKeywords = ['nghỉ ngơi', 'ăn', 'ngủ', 'chơi', 'giải trí', 'break', 'rest', 'sleep', 'lunch', 'dinner', 'thư giãn'];
+      let calculatedBreakTime = 0;
+      
+      [...tasks, ...todos, ...events].forEach((item: any) => {
+        const title = (item.title || item.Title || '').toLowerCase();
+        if (breakKeywords.some(kw => title.includes(kw))) {
+           if (item.startDate && item.endDate) {
+             const duration = (new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) / 3600000;
+             if (duration > 0 && duration < 24) {
+               calculatedBreakTime += duration;
+             }
+           } else {
+             calculatedBreakTime += 1;
+           }
+        }
+      });
+
       const dynamicReport: ProductivityReport = {
         id: 'dynamic-report',
         title: 'Tiến độ hiện tại',
@@ -69,7 +86,7 @@ export function useProductivityDashboard() {
         tasksCompleted: totalCompleted,
         eventsCompleted: events.length,
         focusTimeHours: totalCompleted * 1.5, // Ước tính
-        breakTimeHours: 2,
+        breakTimeHours: calculatedBreakTime,
         weeklyPerformance: score >= 80 ? 'Rất tốt' : score >= 50 ? 'Khá' : 'Cần cải thiện',
         
         aiSummary: 'Hệ thống đang tự động theo dõi tiến độ của bạn dựa trên các công việc và sự kiện đã hoàn thành.',

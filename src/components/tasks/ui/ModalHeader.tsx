@@ -75,7 +75,7 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     width: 32, 
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#F5F5F7',
+    backgroundColor: COLORS.surfaceVariant || '#F5F5F7',
     alignItems: 'center',
     justifyContent: 'center',
   },

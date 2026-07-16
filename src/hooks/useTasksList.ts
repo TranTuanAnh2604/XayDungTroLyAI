@@ -4,6 +4,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import { tasksApi } from '../services/task';
 import { detectEventType } from '../utils/eventTypeDetection';
 import type { TaskFilterId, ExtendedTaskItem } from '../types/tasks';
+import { LayoutAnimation, UIManager, Platform } from 'react-native';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 let cachedTasks: ExtendedTaskItem[] | null = null;
 let cachedTodos: ExtendedTaskItem[] | null = null;
@@ -146,6 +151,7 @@ export function useTasksList() {
     const newCompleted = !currentCompleted;
     const completedAt = newCompleted ? new Date().toISOString() : undefined;
 
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     if (itemType === 'task') {
       setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: newCompleted, completedAt } : t));
       if (cachedTasks) cachedTasks = cachedTasks.map(t => t.id === id ? { ...t, completed: newCompleted, completedAt } : t);
@@ -216,6 +222,7 @@ export function useTasksList() {
   }, []);
 
   const handleOptimisticUpdate = useCallback((updatedData: ExtendedTaskItem) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     if (updatedData.itemType === 'task') {
       setTasks(prev => prev.map(t => t.id === updatedData.id ? { ...t, ...updatedData } : t));
       if (cachedTasks) cachedTasks = cachedTasks.map(t => t.id === updatedData.id ? { ...t, ...updatedData } : t);
