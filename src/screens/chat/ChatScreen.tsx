@@ -20,6 +20,7 @@ import ChatComposer from '../../components/chat/ChatComposer';
 import { TopAppBar } from '../../components/navigation';
 import ChatMessageList from '../../components/chat/ChatMessageList';
 import ChatStatusBanner from '../../components/chat/ChatStatusBanner';
+import ChatSidebar, { SIDEBAR_WIDTH } from '../../components/chat/ChatSidebar';
 import {
   CHAT_COMPOSER_BOTTOM_GAP,
   CHAT_COMPOSER_HEIGHT,
@@ -51,7 +52,6 @@ type ChatScreenProps = {
 };
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const SIDEBAR_WIDTH = Math.min(SCREEN_WIDTH * 0.8, 300);
 
 export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
   const { colors: COLORS } = useTheme();
@@ -264,6 +264,21 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
     handleSend(action.label);
   }, [handleSend]);
 
+  const closeSidebar = useCallback(() => {
+    Animated.parallel([
+      Animated.timing(sidebarAnim, {
+        toValue: -SIDEBAR_WIDTH,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(backdropAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      })
+    ]).start(() => setIsSidebarOpen(false));
+  }, [sidebarAnim, backdropAnim]);
+
   const handleNewChat = useCallback(() => {
     // Hủy timer nếu đang chạy
     if (resetTimerRef.current) {
@@ -274,7 +289,8 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
     currentChatSessionRef.current = undefined;
     setActiveSessionId(undefined);
     setMessages([]);
-  }, []);
+    closeSidebar();
+  }, [closeSidebar]);
 
   // -- Sidebar Logic --
   const openSidebar = () => {
@@ -302,21 +318,6 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
         useNativeDriver: true,
       })
     ]).start();
-  };
-
-  const closeSidebar = () => {
-    Animated.parallel([
-      Animated.timing(sidebarAnim, {
-        toValue: -SIDEBAR_WIDTH,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(backdropAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      })
-    ]).start(() => setIsSidebarOpen(false));
   };
 
   const handleDeleteSession = async (id: string) => {
@@ -414,56 +415,25 @@ export default function ChatScreen({ onOpenVoice }: ChatScreenProps) {
         </Animated.View>
       </View>
 
-      {/* Sidebar Modal */}
-      <Modal visible={isSidebarOpen} transparent animationType="none" onRequestClose={closeSidebar}>
-        <View style={styles.sidebarOverlay}>
-          <TouchableWithoutFeedback onPress={closeSidebar}>
-            <Animated.View style={[styles.sidebarBackdrop, { opacity: backdropAnim }]} />
-          </TouchableWithoutFeedback>
-          <Animated.View style={[styles.sidebarContent, { transform: [{ translateX: sidebarAnim }] }]}>
-            <View style={styles.sidebarHeader}>
-              <Text style={styles.sidebarTitle}>Lịch sử trò chuyện</Text>
-              <TouchableOpacity onPress={handleNewChat} style={styles.sidebarNewBtn}>
-                <MaterialIcons name="add" size={20} color={COLORS.onPrimary} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.sidebarList}>
-              {loadingSessions ? (
-                <ActivityIndicator size="small" color={COLORS.primary} style={{ marginTop: 20 }} />
-              ) : (
-                sessions.map(s => (
-                  <TouchableOpacity
-                    key={s.id}
-                    style={[styles.sidebarItem, activeSessionId === s.id && styles.sidebarItemActive]}
-                    onPress={() => {
-                      // Hủy timer reset nếu đang chạy
-                      if (resetTimerRef.current) {
-                        clearTimeout(resetTimerRef.current);
-                        resetTimerRef.current = null;
-                      }
-                      // Đồng bộ cả state (trigger useEffect fetch) và ref (để gửi tiếp)
-                      setActiveSessionId(s.id);
-                      closeSidebar();
-                    }}
-                  >
-                    <View style={styles.sidebarItemTextWrap}>
-                      <Text style={[styles.sidebarItemTitle, activeSessionId === s.id && styles.sidebarItemTitleActive]} numberOfLines={1}>
-                        {s.title || 'Đoạn chat mới'}
-                      </Text>
-                      <Text style={styles.sidebarItemDate}>
-                        {new Date(s.createdAt || s.CreatedAt).toLocaleDateString('vi-VN')}
-                      </Text>
-                    </View>
-                    <TouchableOpacity onPress={() => handleDeleteSession(s.id)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                      <MaterialIcons name="delete-outline" size={20} color={COLORS.error} />
-                    </TouchableOpacity>
-                  </TouchableOpacity>
-                ))
-              )}
-            </ScrollView>
-          </Animated.View>
-        </View>
-      </Modal>
+      <ChatSidebar
+        visible={isSidebarOpen}
+        onClose={closeSidebar}
+        sidebarAnim={sidebarAnim}
+        backdropAnim={backdropAnim}
+        onNewChat={handleNewChat}
+        loadingSessions={loadingSessions}
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        onSelectSession={(id) => {
+          if (resetTimerRef.current) {
+            clearTimeout(resetTimerRef.current);
+            resetTimerRef.current = null;
+          }
+          setActiveSessionId(id);
+          closeSidebar();
+        }}
+        onDeleteSession={handleDeleteSession}
+      />
 
     </View>
   );
@@ -493,28 +463,4 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     zIndex: 60,
     elevation: 60,
   },
-  // Sidebar Styles
-  sidebarOverlay: { flex: 1, flexDirection: 'row' },
-  sidebarBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
-  sidebarContent: {
-    width: SIDEBAR_WIDTH, height: '100%', backgroundColor: COLORS.surface,
-    paddingTop: 48, shadowColor: '#000', shadowOffset: { width: 4, height: 0 },
-    shadowOpacity: 0.1, shadowRadius: 12, elevation: 10
-  },
-  sidebarHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: COLORS.outlineVariant
-  },
-  sidebarTitle: { ...typography.headlineMd, fontSize: 18, fontWeight: '700', color: COLORS.onSurface },
-  sidebarNewBtn: { backgroundColor: COLORS.primary, padding: 6, borderRadius: RADIUS.md },
-  sidebarList: { flex: 1 },
-  sidebarItem: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 12, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: COLORS.outlineVariant
-  },
-  sidebarItemActive: { backgroundColor: COLORS.primaryContainer },
-  sidebarItemTextWrap: { flex: 1, paddingRight: 8 },
-  sidebarItemTitle: { fontSize: 14, fontWeight: '600', color: COLORS.onSurface, marginBottom: 2 },
-  sidebarItemTitleActive: { color: COLORS.primary },
-  sidebarItemDate: { fontSize: 11, color: COLORS.outline },
 });

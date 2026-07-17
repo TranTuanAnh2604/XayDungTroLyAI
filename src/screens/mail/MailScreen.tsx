@@ -3,10 +3,9 @@ import { Alert, StyleSheet, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import ComposeFAB, { useComposeFabScroll } from '../../components/mail/ComposeFAB';
+import { useComposeFabScroll } from '../../components/mail/ComposeFAB';
 import GmailConnectBanner from '../../components/mail/GmailConnectBanner';
 import MailDetailModal from '../../components/mail/MailDetailModal';
-import MailAiSummaryCard from '../../components/mail/MailAiSummaryCard';
 import MailCategorySection from '../../components/mail/MailCategorySection';
 import MailFilterBar from '../../components/mail/MailFilterBar';
 import GmailDashboard from '../../components/mail/GmailDashboard';
@@ -20,7 +19,6 @@ import {
   SCROLL_BOTTOM_EXTRA,
 } from '../../constants/layout';
 import {
-  MAIL_AI_SUMMARY,
   MAIL_FILTERS,
 } from '../../data/mailMock';
 import type { MailCategory, MailFilterId, MailItem } from '../../types/mail';
@@ -36,6 +34,7 @@ import {
   pinGmailEmail,
   connectGmailForCurrentUser,
 } from '../../services/gmail';
+import { mapGmailToMailItem } from '../../utils/mailUtils';
 
 const CACHE_KEY = '@app:mail:cached_emails';
 const LAST_SYNC_KEY = '@app:mail:last_sync';
@@ -75,33 +74,6 @@ export default function MailScreen() {
   // Stop any running FAB animation when the screen unmounts to avoid native
   // animated node leaks after navigation.
   useEffect(() => fabAnim.cleanup, []);
-
-
-  const formatGmailTime = (receivedAt: string) => {
-    try {
-      const date = new Date(receivedAt);
-      if (Number.isNaN(date.getTime())) {
-        return receivedAt;
-      }
-      return date.toLocaleTimeString('vi-VN', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return receivedAt;
-    }
-  };
-
-  const mapGmailToMailItem = (email: GmailEmail): MailItem => ({
-    id: email.id,
-    sender: email.sender,
-    time: formatGmailTime(email.receivedAt),
-    subject: email.subject ?? email.aiAnalysis.summary,
-    preview: email.content.slice(0, 100),
-    icon: email.isRead ? 'drafts' : 'email',
-    tone: email.isRead ? 'secondary' : 'primary',
-    isPinned: pinnedEmailIds.includes(email.id),
-  });
 
   const isImportantEmail = React.useCallback((email: GmailEmail) => {
     if (!email.isRead) {
@@ -200,9 +172,9 @@ export default function MailScreen() {
       id: 'gmail',
       title: 'Gmail của bạn',
       tone: 'primary',
-      emails: filteredGmailEmails.map(mapGmailToMailItem),
+      emails: filteredGmailEmails.map((email) => mapGmailToMailItem(email, pinnedEmailIds)),
     };
-  }, [filteredGmailEmails]);
+  }, [filteredGmailEmails, pinnedEmailIds]);
 
   const handleEmailPress = async (emailId: string) => {
     const email = gmailEmails.find((item) => item.id === emailId);

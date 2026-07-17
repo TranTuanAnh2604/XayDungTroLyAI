@@ -16,106 +16,19 @@ import { detectEventType } from '../utils/eventTypeDetection';
 import type { CalendarSyncRequest } from '../services/sync';
 import type { CalendarDateItem, TimelineEvent } from '../types/events';
 
-const WEEKDAY_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-const EVENTS_CACHE_KEY = '@app:events:cache';
-const EXTERNAL_ID_MAP_KEY = '@app:events:external_id_map';
-const EVENTS_CACHE_TTL_MS = 60_000;
-
-type PersistedEventCache = {
-  events: CalendarSyncRequest[];
-  externalIdMap: Record<string, string>;
-  lastSyncedAt: number | null;
-};
-
-export function getLocalMidnight(): Date {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
-
-export function formatLocalDateId(date: Date): string {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, '0');
-  const day = `${date.getDate()}`.padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-export function parseCalendarDate(value: string | number | Date): Date | null {
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function getEventCacheKey(event: CalendarSyncRequest): string {
-  return event.externalId || event.id || `${event.startTime}-${event.endTime}-${event.title}`;
-}
-
-async function readEventCache(): Promise<PersistedEventCache | null> {
-  try {
-    const raw = await AsyncStorage.getItem(EVENTS_CACHE_KEY);
-    if (!raw) {
-      return null;
-    }
-
-    const parsed = JSON.parse(raw) as PersistedEventCache;
-    if (!parsed || !Array.isArray(parsed.events)) {
-      return null;
-    }
-
-    return {
-      events: parsed.events,
-      externalIdMap: parsed.externalIdMap || {},
-      lastSyncedAt: parsed.lastSyncedAt ?? null,
-    };
-  } catch (error) {
-    console.warn('Failed to read event cache:', error);
-    return null;
-  }
-}
-
-async function writeEventCache(
-  events: CalendarSyncRequest[],
-  externalIdMap: Record<string, string>,
-  lastSyncedAt: number,
-): Promise<void> {
-  try {
-    const payload: PersistedEventCache = {
-      events,
-      externalIdMap,
-      lastSyncedAt,
-    };
-
-    await AsyncStorage.setItem(EVENTS_CACHE_KEY, JSON.stringify(payload));
-    await AsyncStorage.setItem(EXTERNAL_ID_MAP_KEY, JSON.stringify(externalIdMap));
-  } catch (error) {
-    console.warn('Failed to persist event cache:', error);
-  }
-}
-
-async function invalidateEventCache(): Promise<void> {
-  try {
-    console.log('[cache] invalidating event cache after delete');
-    await AsyncStorage.removeItem(EVENTS_CACHE_KEY);
-    await AsyncStorage.removeItem(EXTERNAL_ID_MAP_KEY);
-  } catch (error) {
-    console.warn('Failed to invalidate event cache:', error);
-  }
-}
-
-export function buildCalendarDates(referenceDate: Date): CalendarDateItem[] {
-  const date = new Date(referenceDate);
-  date.setHours(0, 0, 0, 0);
-  date.setDate(date.getDate() - 3);
-
-  return Array.from({ length: 7 }, (_, index) => {
-    const current = new Date(date);
-    current.setDate(date.getDate() + index);
-    return {
-      id: formatLocalDateId(current),
-      weekday: WEEKDAY_LABELS[current.getDay()],
-      day: current.getDate(),
-    };
-  });
-}
+import {
+  getLocalMidnight,
+  formatLocalDateId,
+  parseCalendarDate,
+  buildCalendarDates,
+} from '../utils/calendarUtils';
+import {
+  readEventCache,
+  writeEventCache,
+  invalidateEventCache,
+  EVENTS_CACHE_TTL_MS,
+  EXTERNAL_ID_MAP_KEY,
+} from '../utils/eventCache';
 
 function inferTimelineEventType(title: string, isAllDay: boolean): TimelineEvent['type'] {
   return detectEventType(title, isAllDay);
@@ -392,22 +305,28 @@ export function useCalendarEvents() {
     candidate: CalendarSyncRequest,
     sourceEvents: CalendarSyncRequest[] = rawCalendarEvents,
   ): CalendarSyncRequest[] => {
+    if (candidate.isAllDay) return [];
+
     const candidateStart = parseCalendarDate(candidate.startTime)?.getTime();
     const candidateEnd = parseCalendarDate(candidate.endTime)?.getTime();
 
     if (!candidateStart || !candidateEnd) return [];
 
     return sourceEvents.filter((existing) => {
+      if (existing.isAllDay) return false;
       if (existing.id === candidate.id) return false;
+      
       const candidateId = candidate.id || candidate.externalId || candidate.title || '';
       const existingId = existing.id || existing.externalId || existing.title || '';
       if (candidateId && existingId) {
         const conflictKey = [String(candidateId), String(existingId)].sort().join('_');
         if (ignoredConflictsRef.current.has(conflictKey)) return false;
       }
+      
       const existingStart = parseCalendarDate(existing.startTime)?.getTime();
       const existingEnd = parseCalendarDate(existing.endTime)?.getTime();
       if (!existingStart || !existingEnd) return false;
+      
       return candidateStart < existingEnd && candidateEnd > existingStart;
     });
   }, [rawCalendarEvents]);

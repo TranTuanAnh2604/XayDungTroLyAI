@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, Linking, Alert, NativeModules } from 'react-native';
+import { StyleSheet, View, Linking, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import {
   ExpoSpeechRecognitionModule,
@@ -58,7 +58,7 @@ export default function VoiceAssistantScreen({
     console.log('[VoiceAssistantScreen] Event: end');
     const text = transcriptRef.current.trim();
     if (voiceStateRef.current !== 'listening') return;
-    
+
     if (text) {
       handleUserSpeech(text);
     } else {
@@ -109,13 +109,13 @@ export default function VoiceAssistantScreen({
         );
         return;
       }
-      
+
       Speech.stop();
       setAnswerText('');
       setTranscript('');
       transcriptRef.current = '';
       isProcessingRef.current = false;
-      
+
       console.log('[VoiceAssistantScreen] Calling ExpoSpeechRecognitionModule.start()...');
       ExpoSpeechRecognitionModule.start({
         lang: 'vi-VN',
@@ -191,7 +191,7 @@ export default function VoiceAssistantScreen({
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
     setVoiceState('thinking');
-    
+
     try {
       const result = await chat(text, activeSessionId.current);
 
@@ -232,9 +232,9 @@ export default function VoiceAssistantScreen({
 
   const listeningLabel =
     voiceState === 'listening' ? 'Đang nghe...'
-    : voiceState === 'thinking' ? 'Đang xử lý...'
-    : voiceState === 'speaking' ? 'Đang trả lời...'
-    : VOICE_BRAND.listeningLabel;
+      : voiceState === 'thinking' ? 'Đang xử lý...'
+        : voiceState === 'speaking' ? 'Đang trả lời...'
+          : VOICE_BRAND.listeningLabel;
 
   const displayPhrases = transcript ? [transcript] : [IDLE_HINT];
   const displayHint = answerText || VOICE_BRAND.processingHint;

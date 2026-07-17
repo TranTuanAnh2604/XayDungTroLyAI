@@ -4,7 +4,6 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -48,22 +47,22 @@ export default function LoginScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
   const { signIn, signInWithGoogle } = useAuth();
 
-const [activeModal, setActiveModal] = useState<{
-  type: 'none' | 'forgot' | 'otp' | 'reset';
-  email?: string;
-  otp?: string;
-}>({ type: 'none' });
+  const [activeModal, setActiveModal] = useState<{
+    type: 'none' | 'forgot' | 'otp' | 'reset';
+    email?: string;
+    otp?: string;
+  }>({ type: 'none' });
 
   const [resetEmail, setResetEmail] = useState('');
   const [verifiedOtp, setVerifiedOtp] = useState('');
-  
+
 
   useEffect(() => {
     configureGoogleSignIn(GOOGLE_WEB_CLIENT_ID);
   }, []);
 
   const handleLogin = async () => {
-    
+
     if (!email.trim() || !password.trim()) {
       Alert.alert('Thông báo', 'Vui lòng nhập email và mật khẩu.');
       return;
@@ -88,7 +87,7 @@ const [activeModal, setActiveModal] = useState<{
 
   const handleGoogleLogin = async () => {
     setLoading(true);
-    
+
     try {
       const { idToken, serverAuthCode } = await getGoogleIdToken();
       console.log('🔑 LoginScreen: received serverAuthCode length =', serverAuthCode?.length);
@@ -103,7 +102,7 @@ const [activeModal, setActiveModal] = useState<{
 
       if (error instanceof Error) {
         const errorCode = (error as any).code;
-        
+
         if (errorCode === statusCodes.SIGN_IN_CANCELLED) {
           errorMessage = 'Bạn đã hủy đăng nhập.';
         } else if (errorCode === statusCodes.IN_PROGRESS) {
@@ -121,72 +120,72 @@ const [activeModal, setActiveModal] = useState<{
   };
 
   const handleForgotPassword = async (email: string) => {
-  try {
-    await forgotPassword(email);
+    try {
+      await forgotPassword(email);
 
-    setResetEmail(email);
+      setResetEmail(email);
 
-   setActiveModal({ type: 'otp', email });
+      setActiveModal({ type: 'otp', email });
 
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Không thể gửi mã xác thực.';
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Không thể gửi mã xác thực.';
 
-    Alert.alert('Lỗi', message);
-  }
-};
+      Alert.alert('Lỗi', message);
+    }
+  };
 
-const handleVerifyOtp = async (otp: string) => {
-  try {
-    setVerifiedOtp(otp);
+  const handleVerifyOtp = async (otp: string) => {
+    try {
+      setVerifiedOtp(otp);
 
-  setActiveModal({ type: 'reset', email: activeModal.email });
+      setActiveModal({ type: 'reset', email: activeModal.email });
 
 
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'OTP không hợp lệ';
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'OTP không hợp lệ';
 
-    Alert.alert('Lỗi', message);
-  }
-};
+      Alert.alert('Lỗi', message);
+    }
+  };
 
-const handleResetPassword = async (newPassword: string) => {
-  try {
-    await resetPassword({
-      email: resetEmail,
-      otp: verifiedOtp,
-      newPassword,
-    });
+  const handleResetPassword = async (newPassword: string) => {
+    try {
+      await resetPassword({
+        email: resetEmail,
+        otp: verifiedOtp,
+        newPassword,
+      });
 
+      setActiveModal({ type: 'none' });
+      setResetEmail('');
+      setVerifiedOtp('');
+
+
+      Alert.alert(
+        'Thành công',
+        'Mật khẩu đã được cập nhật. Vui lòng đăng nhập lại.'
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Không thể đặt lại mật khẩu';
+
+      Alert.alert('Lỗi', message);
+    }
+  };
+
+  const closePasswordResetFlow = () => {
     setActiveModal({ type: 'none' });
     setResetEmail('');
     setVerifiedOtp('');
+  };
 
-
-    Alert.alert(
-      'Thành công',
-      'Mật khẩu đã được cập nhật. Vui lòng đăng nhập lại.'
-    );
-  } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : 'Không thể đặt lại mật khẩu';
-
-    Alert.alert('Lỗi', message);
-  }
-};
-
-const closePasswordResetFlow = () => {
-  setActiveModal({ type: 'none' });
-  setResetEmail('');
-  setVerifiedOtp('');
-};
-
-const openForgotPassword = () => {
-  setActiveModal({ type: 'forgot' });
-};
+  const openForgotPassword = () => {
+    setActiveModal({ type: 'forgot' });
+  };
   return (
     <View style={styles.root}>
       <MeshBackground />
@@ -237,7 +236,7 @@ const openForgotPassword = () => {
                 autoComplete="password"
                 textContentType="password"
               />
-              
+
               <View style={styles.forgotContainer}>
                 <Text
                   style={styles.forgotLink}
@@ -277,26 +276,26 @@ const openForgotPassword = () => {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    <ForgotPasswordModal
-      visible={activeModal.type === 'forgot'}
-      onClose={closePasswordResetFlow}
-      onSubmit={handleForgotPassword}
-    />
+      <ForgotPasswordModal
+        visible={activeModal.type === 'forgot'}
+        onClose={closePasswordResetFlow}
+        onSubmit={handleForgotPassword}
+      />
 
-    <OTPVerificationModal
-      visible={activeModal.type === 'otp'}
-      
-      email={resetEmail || activeModal.email || ''}
-      onClose={closePasswordResetFlow}
-      onVerify={handleVerifyOtp}
-    />
+      <OTPVerificationModal
+        visible={activeModal.type === 'otp'}
 
-    <ResetPasswordModal
-      visible={activeModal.type === 'reset'}
-      email={resetEmail || activeModal.email || ''}
-      onClose={closePasswordResetFlow}
-      onSubmit={handleResetPassword}
-    />
+        email={resetEmail || activeModal.email || ''}
+        onClose={closePasswordResetFlow}
+        onVerify={handleVerifyOtp}
+      />
+
+      <ResetPasswordModal
+        visible={activeModal.type === 'reset'}
+        email={resetEmail || activeModal.email || ''}
+        onClose={closePasswordResetFlow}
+        onSubmit={handleResetPassword}
+      />
     </View>
   );
 }

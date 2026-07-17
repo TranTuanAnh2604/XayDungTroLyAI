@@ -18,7 +18,6 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TabScreenLayout, TopAppBar } from '../../components/navigation';
 import {
-  getBottomNavReservedHeight,
   SCROLL_BOTTOM_EXTRA,
 } from '../../constants/layout';
 import { HOME_USER } from '../../data/homeMock';
@@ -264,10 +263,10 @@ export default function HomeScreen() {
                     {displayItems.map((item, idx) => (
                       <AppGlassCard key={item.id || idx} variant="surface" padding={12} style={styles.agendaCard}>
                         <View style={styles.agendaRow}>
-                          <MaterialIcons 
-                            name="radio-button-unchecked" 
-                            size={20} 
-                            color={item.priority === 'high' ? COLORS.error : COLORS.primary} 
+                          <MaterialIcons
+                            name="radio-button-unchecked"
+                            size={20}
+                            color={item.priority === 'high' ? COLORS.error : COLORS.primary}
                           />
                           <View style={styles.agendaContent}>
                             <Text style={styles.agendaItemTitle} numberOfLines={1}>{item.title}</Text>

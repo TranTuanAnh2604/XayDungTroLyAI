@@ -4,14 +4,12 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import AiMemorySection from '../../components/settings/AiMemorySection';
 import ProfileSection from '../../components/settings/ProfileSection';
 import { TopAppBar } from '../../components/navigation';
 import { getTopAppBarHeight, SCROLL_CONTENT_GAP } from '../../constants/layout';
 import SettingsListSection from '../../components/settings/SettingsListSection';
 import {
   ACCOUNT_SECTION,
-  AI_MEMORY_ITEMS,
   PREFERENCES_SECTION,
 } from '../../data/settingsMock';
 import { SETTINGS_ASSETS } from '../../constants/settingsAssets';
@@ -25,7 +23,7 @@ import ForgotPasswordModal from '../../components/auth/ForgotPasswordModal';
 import OTPVerificationModal from '../../components/auth/OTPVerificationModal';
 import ResetPasswordModal from '../../components/auth/ResetPasswordModal';
 import ChangePasswordModal from '../../components/auth/ChangePasswordModal';
-import { forgotPassword, resetPassword, verifyOTP } from '../../services/auth';
+import { forgotPassword, resetPassword } from '../../services/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 

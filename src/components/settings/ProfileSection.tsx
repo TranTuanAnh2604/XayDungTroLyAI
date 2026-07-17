@@ -100,7 +100,7 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: COLORS.primaryContainer,
+    backgroundColor: COLORS.primary,
     padding: 6,
     borderRadius: 9999,
     borderWidth: 2,

@@ -141,7 +141,8 @@ export default function ConflictResolutionModal({
       }
 
       if (!targetId) {
-        throw new Error(`Không tìm thấy ID: ${debugEid}. Data: ${JSON.stringify(debugServerConflicts)}`);
+        console.log(`Không tìm thấy ID: ${debugEid}. Data: ${JSON.stringify(debugServerConflicts)}`);
+        throw new Error('Không tìm thấy thông tin xung đột trên máy chủ. Vui lòng thử lại.');
       }
 
       setMatchedConflictId(targetId);

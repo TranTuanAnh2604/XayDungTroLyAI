@@ -195,7 +195,7 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   },
   segmentContainer: {
     flexDirection: 'row',
-    backgroundColor: COLORS.surfaceContainerLow,
+    backgroundColor: COLORS.bg,
     borderRadius: 8,
     padding: 4,
   },

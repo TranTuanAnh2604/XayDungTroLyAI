@@ -194,11 +194,11 @@ export function useTasksList() {
               if (item.itemType === 'task') {
                 setTasks(prev => prev.filter(t => t.id !== item.id));
                 if (cachedTasks) cachedTasks = cachedTasks.filter(t => t.id !== item.id);
-                await tasksApi.deleteTask(item.id);
+                await tasksApi.deleteTask(item.id, false, item);
               } else {
                 setTodos(prev => prev.filter(t => t.id !== item.id));
                 if (cachedTodos) cachedTodos = cachedTodos.filter(t => t.id !== item.id);
-                await tasksApi.deleteTodo(item.id);
+                await tasksApi.deleteTodo(item.id, false, item);
               }
               await fetchData(false, true);
             } catch (err) {

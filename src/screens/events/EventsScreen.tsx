@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import EventList from '../../components/events/EventList';
 import EventsFAB from '../../components/events/EventsFAB';
-import EventsInsightCard from '../../components/events/EventsInsightCard';
 import CreateEventModal from '../../components/events/CreateEventModal';
 import EditEventModal from '../../components/events/EditEventModal';
 import ConflictResolutionModal from '../../components/events/ConflictResolutionModal';
@@ -15,7 +14,6 @@ import {
 import MonthCalendar from '../../components/events/MonthCalendar';
 import SelectedDate from '../../components/events/SelectedDate';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { EVENTS_INSIGHT } from '../../data/eventsMock';
 import { useOpenSettings } from '../../hooks/useOpenSettings';
 import { useCalendarEvents } from '../../hooks/useCalendarEvents';
 
@@ -75,36 +73,36 @@ export default function EventsScreen() {
       <View style={styles.listGroup}>
         <SelectedDate selectedDateId={selectedDateId} />
 
-      {/* <EventsInsightCard insight={EVENTS_INSIGHT} /> */}
+        {/* <EventsInsightCard insight={EVENTS_INSIGHT} /> */}
 
-      <CreateEventModal
-        visible={isCreateModalOpen}
-        defaultDateId={selectedDateId}
-        onClose={() => setIsCreateModalOpen(false)}
-        onCreate={handleCreateEvent}
-      />
-
-      {loading ? (
-        <View style={styles.messageContainer}>
-          <ActivityIndicator size="large" />
-        </View>
-      ) : error ? (
-        <View style={styles.messageContainer}>
-          <Text style={styles.messageText}>{error}</Text>
-        </View>
-      ) : events.length === 0 ? (
-        <View style={styles.messageContainer}>
-          <Text style={styles.messageText}>Không có sự kiện nào.</Text>
-        </View>
-      ) : (
-        <EventList
-          events={events}
-          onEdit={(eventId) => {
-            setEditingEventId(eventId);
-            setIsEditModalOpen(true);
-          }}
+        <CreateEventModal
+          visible={isCreateModalOpen}
+          defaultDateId={selectedDateId}
+          onClose={() => setIsCreateModalOpen(false)}
+          onCreate={handleCreateEvent}
         />
-      )}
+
+        {loading ? (
+          <View style={styles.messageContainer}>
+            <ActivityIndicator size="large" />
+          </View>
+        ) : error ? (
+          <View style={styles.messageContainer}>
+            <Text style={styles.messageText}>{error}</Text>
+          </View>
+        ) : events.length === 0 ? (
+          <View style={styles.messageContainer}>
+            <Text style={styles.messageText}>Không có sự kiện nào.</Text>
+          </View>
+        ) : (
+          <EventList
+            events={events}
+            onEdit={(eventId) => {
+              setEditingEventId(eventId);
+              setIsEditModalOpen(true);
+            }}
+          />
+        )}
       </View>
 
       <EditEventModal

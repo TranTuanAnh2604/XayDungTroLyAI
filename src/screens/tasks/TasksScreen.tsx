@@ -1,18 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
+import React, { useMemo, useState } from 'react';
 import {
   StyleSheet,
   Text,
   View,
   ActivityIndicator,
-  Modal,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Pressable,
   RefreshControl
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,12 +15,8 @@ import TasksProgressCard from '../../components/tasks/TasksProgressCard';
 import { getBottomNavReservedHeight, SCROLL_BOTTOM_EXTRA } from '../../constants/layout';
 import { TASK_FILTERS } from '../../data/tasksMock';
 import { getTypography } from '../../constants/typography';
-import { RADIUS } from '../../constants/theme';
-import type { TaskFilterId, TaskPriority, ExtendedTaskItem } from '../../types/tasks';
 import { useOpenSettings } from '../../hooks/useOpenSettings';
-import { tasksApi } from '../../services/task';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import VoiceTaskModal from '../../components/tasks/VoiceTaskModal';
 import CreateTaskModal from '../../components/tasks/CreateTaskModal';
 import TaskDetailModal from '../../components/tasks/TaskDetailModal';
@@ -91,29 +78,29 @@ export default function TasksScreen() {
       result = tasks.filter(t => t.priority === 'high');
     } else {
       const now = new Date();
-      now.setHours(0,0,0,0);
+      now.setHours(0, 0, 0, 0);
 
       if (activeFilter === 'today') {
         result = tasks.filter(t => {
           if (!t.dueDate) return false;
           const due = new Date(t.dueDate);
-          due.setHours(0,0,0,0);
+          due.setHours(0, 0, 0, 0);
           return due.getTime() === now.getTime();
         });
       } else if (activeFilter === 'overdue') {
         result = tasks.filter(t => {
           if (!t.dueDate) return false;
           const due = new Date(t.dueDate);
-          due.setHours(0,0,0,0);
+          due.setHours(0, 0, 0, 0);
           return due.getTime() < now.getTime() && !t.completed;
         });
       }
     }
-    
+
     return [...result].sort((a, b) => {
       const pA = a.priority === 'high' ? 1 : 0;
       const pB = b.priority === 'high' ? 1 : 0;
-      
+
       if (pA !== pB) return pB - pA;
 
       const hasDueA = !!a.dueDate;
@@ -156,29 +143,29 @@ export default function TasksScreen() {
       return [];
     } else {
       const now = new Date();
-      now.setHours(0,0,0,0);
+      now.setHours(0, 0, 0, 0);
 
       if (activeFilter === 'today') {
         result = todos.filter(t => {
           if (!t.dueDate) return false;
           const due = new Date(t.dueDate);
-          due.setHours(0,0,0,0);
+          due.setHours(0, 0, 0, 0);
           return due.getTime() === now.getTime();
         });
       } else if (activeFilter === 'overdue') {
         result = todos.filter(t => {
           if (!t.dueDate) return false;
           const due = new Date(t.dueDate);
-          due.setHours(0,0,0,0);
+          due.setHours(0, 0, 0, 0);
           return due.getTime() < now.getTime() && !t.completed;
         });
       }
     }
-    
+
     return [...result].sort((a, b) => {
       const pA = a.priority === 'high' ? 1 : 0;
       const pB = b.priority === 'high' ? 1 : 0;
-      
+
       if (pA !== pB) return pB - pA;
 
       const hasDueA = !!a.dueDate;
@@ -247,50 +234,50 @@ export default function TasksScreen() {
         ) : (
           <View style={styles.container}>
 
-          {filteredTasks.length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionLabel}>Công việc ưu tiên</Text>
+            {filteredTasks.length > 0 && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionLabel}>Công việc ưu tiên</Text>
+                </View>
+                {filteredTasks.map((task, index) => (
+                  <TaskListItem
+                    key={`task-${task.id}`}
+                    task={task}
+                    index={index}
+                    onToggle={(id) => handleToggleTask(id, task.completed, 'task')}
+                    onPress={() => setSelectedItem(task)}
+                    onDelete={() => handleDeleteItem(task)}
+                  />
+                ))}
               </View>
-              {filteredTasks.map((task, index) => (
-                <TaskListItem
-                  key={`task-${task.id}`}
-                  task={task}
-                  index={index}
-                  onToggle={(id) => handleToggleTask(id, task.completed, 'task')}
-                  onPress={() => setSelectedItem(task)}
-                  onDelete={() => handleDeleteItem(task)}
-                />
-              ))}
-            </View>
-          )}
+            )}
 
-          {filteredTodos.length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionLabel}>Việc cần làm hôm nay</Text>
+            {filteredTodos.length > 0 && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionLabel}>Việc cần làm hôm nay</Text>
+                </View>
+                {filteredTodos.map((todo, index) => (
+                  <TaskListItem
+                    key={`todo-${todo.id}`}
+                    task={todo}
+                    index={index}
+                    onToggle={(id) => handleToggleTask(id, todo.completed, 'todo')}
+                    onPress={() => setSelectedItem(todo)}
+                    onDelete={() => handleDeleteItem(todo)}
+                  />
+                ))}
               </View>
-              {filteredTodos.map((todo, index) => (
-                <TaskListItem
-                  key={`todo-${todo.id}`}
-                  task={todo}
-                  index={index}
-                  onToggle={(id) => handleToggleTask(id, todo.completed, 'todo')}
-                  onPress={() => setSelectedItem(todo)}
-                  onDelete={() => handleDeleteItem(todo)}
-                />
-              ))}
-            </View>
-          )}
+            )}
 
-          {filteredTasks.length === 0 && filteredTodos.length === 0 && (
-            <View style={styles.emptyContainer}>
-              <MaterialCommunityIcons name="text-box-search-outline" size={64} color={COLORS.outlineVariant} />
-              <Text style={styles.emptyText}>Không có công việc nào trong danh mục này.</Text>
-            </View>
-          )}
-        </View>
-      )}
+            {filteredTasks.length === 0 && filteredTodos.length === 0 && (
+              <View style={styles.emptyContainer}>
+                <MaterialCommunityIcons name="text-box-search-outline" size={64} color={COLORS.outlineVariant} />
+                <Text style={styles.emptyText}>Không có công việc nào trong danh mục này.</Text>
+              </View>
+            )}
+          </View>
+        )}
       </View>
 
       <CreateTaskModal

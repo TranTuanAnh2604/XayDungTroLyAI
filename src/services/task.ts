@@ -79,8 +79,46 @@ export const tasksApi = {
     return result;
   },
 
-  async deleteTask(id: string, skipSync: boolean = false): Promise<string> {
-    const result = await apiDelete<string>(`/api/Tasks/${id}`);
+  async deleteTask(id: string, skipSync: boolean = false, taskItem?: any): Promise<string> {
+    try {
+      const { deleteCalendarEvent, fetchCalendarEvents } = require('./sync');
+      const events = await fetchCalendarEvents();
+      
+      let eventToDelete = events.find((e: any) => e.externalId === id || e.id === id);
+      
+      if (!eventToDelete && taskItem && taskItem.title) {
+        eventToDelete = events.find((e: any) => {
+          if (e.title !== taskItem.title) return false;
+          if (taskItem.dueDate && e.startTime) {
+            const tDate = new Date(taskItem.dueDate).toISOString().slice(0, 10);
+            const eDate = new Date(e.startTime).toISOString().slice(0, 10);
+            return tDate === eDate;
+          }
+          return true;
+        });
+      }
+
+      if (eventToDelete && eventToDelete.id) {
+        await deleteCalendarEvent(eventToDelete.id, true);
+      } else {
+        await deleteCalendarEvent(id, true);
+      }
+    } catch (e) {
+      console.log('Ignored error when deleting calendar event before task:', e);
+    }
+
+    let result: string = '';
+    try {
+      result = await apiDelete<string>(`/api/Tasks/${id}`);
+    } catch (apiErr: any) {
+      const msg = apiErr?.message?.toLowerCase() || '';
+      if (msg.includes('404') || msg.includes('không tìm thấy')) {
+        console.log('Task already deleted (likely cascaded from event or already gone). Ignoring.');
+      } else {
+        throw apiErr;
+      }
+    }
+
     DeviceEventEmitter.emit('tasks_changed');
     DeviceEventEmitter.emit('events_changed');
     if (!skipSync) {
@@ -135,8 +173,46 @@ export const tasksApi = {
     return result;
   },
 
-  async deleteTodo(id: string, skipSync: boolean = false): Promise<string> {
-    const result = await apiDelete<string>(`/api/Todos/${id}`);
+  async deleteTodo(id: string, skipSync: boolean = false, taskItem?: any): Promise<string> {
+    try {
+      const { deleteCalendarEvent, fetchCalendarEvents } = require('./sync');
+      const events = await fetchCalendarEvents();
+      
+      let eventToDelete = events.find((e: any) => e.externalId === id || e.id === id);
+      
+      if (!eventToDelete && taskItem && taskItem.title) {
+        eventToDelete = events.find((e: any) => {
+          if (e.title !== taskItem.title) return false;
+          if (taskItem.dueDate && e.startTime) {
+            const tDate = new Date(taskItem.dueDate).toISOString().slice(0, 10);
+            const eDate = new Date(e.startTime).toISOString().slice(0, 10);
+            return tDate === eDate;
+          }
+          return true;
+        });
+      }
+
+      if (eventToDelete && eventToDelete.id) {
+        await deleteCalendarEvent(eventToDelete.id, true);
+      } else {
+        await deleteCalendarEvent(id, true);
+      }
+    } catch (e) {
+      console.log('Ignored error when deleting calendar event before todo:', e);
+    }
+
+    let result: string = '';
+    try {
+      result = await apiDelete<string>(`/api/Todos/${id}`);
+    } catch (apiErr: any) {
+      const msg = apiErr?.message?.toLowerCase() || '';
+      if (msg.includes('404') || msg.includes('không tìm thấy')) {
+        console.log('Todo already deleted (likely cascaded from event or already gone). Ignoring.');
+      } else {
+        throw apiErr;
+      }
+    }
+
     DeviceEventEmitter.emit('tasks_changed');
     DeviceEventEmitter.emit('events_changed');
     if (!skipSync) {
