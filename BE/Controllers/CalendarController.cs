@@ -276,12 +276,17 @@ namespace Assistant.Controllers
                     description = e.Description,
                     startTime = e.StartTime,
                     endTime = e.EndTime,
-                    sortKey = e.StartTime
+                    sortKey = e.StartTime,
+                    priority = e.Priority
                 })
                 .ToListAsync();
 
             var tasks = await _db.Tasks
-                .Where(t => t.UserId == userId && t.Status != "completed" && t.DueDate != null && t.DueDate >= vnNow)
+                .Where(t => t.UserId == userId
+                    && t.Status != "done"                 
+                    && t.CalendarEventId == null
+                    && t.DueDate != null
+                    && t.DueDate >= vnNow)
                 .OrderBy(t => t.DueDate)
                 .Select(t => new
                 {
@@ -290,7 +295,8 @@ namespace Assistant.Controllers
                     description = t.Description,
                     startTime = t.DueDate!.Value,
                     endTime = t.DueDate!.Value.AddHours(1),
-                    sortKey = t.DueDate!.Value
+                    sortKey = t.DueDate!.Value,
+                    priority = t.Priority == 3 ? 0 : t.Priority == 1 ? 2 : 1
                 })
                 .ToListAsync();
 
@@ -307,6 +313,7 @@ namespace Assistant.Controllers
                     description = x.description,
                     startTime = x.startTime,
                     endTime = x.endTime,
+                    priority = x.priority,
                 })
                 .ToList();
 

@@ -34,6 +34,11 @@ namespace Assistant.Controllers
         // giờ UTC thật. Vì vậy khi so sánh khoảng thời gian, KHÔNG được trừ/cộng
         // thêm 7 tiếng nữa — chỉ cần lấy đúng "giờ VN hiện tại" (nowVn) và so
         // sánh trực tiếp với giá trị trong DB.
+        //
+        // Từ bản này: Task (có DueDate) cũng hiển thị trên trang Lịch, nên được
+        // coi là MỘT PHẦN CỦA LỊCH. Thống kê gộp Task + CalendarEvent thành
+        // MỘT nguồn dữ liệu duy nhất (CalendarItem), không tách thành 2-3 khối
+        // riêng để tránh trùng lặp / dư số liệu.
         // ═══════════════════════════════════════════════════════════════════
 
         [HttpGet("weekly")]
@@ -50,19 +55,19 @@ namespace Assistant.Controllers
             var weekStartVn = todayVn.AddDays(-diffToMonday);
             var weekEndVn = weekStartVn.AddDays(7);
 
-            var (events, tasks) = await LoadRangeDataAsync(userId, weekStartVn, weekEndVn);
+            var items = await LoadRangeDataAsync(userId, weekStartVn, weekEndVn);
+            var goals = await BuildGoals(userId, items);
 
-            var rawDays = new List<(string Label, DateTime DateVn, double TotalHours, string? DateRangeLabel)>();
+            var rawDays = new List<(string Label, DateTime DateVn, double TotalHours, int EventCount, int DoneCount, string? DateRangeLabel)>();
             for (int i = 0; i < 7; i++)
             {
                 var dayStartVn = weekStartVn.AddDays(i);
                 var dayEndVn = dayStartVn.AddDays(1);
-                double totalHours = ComputeRangeHours(events, tasks, dayStartVn, dayEndVn);
-                rawDays.Add((DayLabelsVi[i], dayStartVn, Math.Round(totalHours, 1), null));
+                var (hours, count, done) = ComputeRangeStats(items, dayStartVn, dayEndVn);
+                rawDays.Add((DayLabelsVi[i], dayStartVn, Math.Round(hours, 1), count, done, null));
             }
 
             var days = BuildDailyTimeDtos(rawDays);
-            var goals = BuildGoals(tasks, events, nowVn);
             double overallCompletionRate = goals.Last().PercentComplete;
 
             var result = new PeriodStatsDto
@@ -91,14 +96,14 @@ namespace Assistant.Controllers
 
             var monthStartVn = new DateTime(targetYear, targetMonth, 1);
             var monthEndVn = monthStartVn.AddMonths(1);
-
-            var (events, tasks) = await LoadRangeDataAsync(userId, monthStartVn, monthEndVn);
+            var items = await LoadRangeDataAsync(userId, monthStartVn, monthEndVn);
+            var goals = await BuildGoals(userId, items);
 
             // Gộp các ngày trong tháng thành các tuần Thứ 2 → Chủ nhật, tối đa 4 cột
             // (nếu tháng kéo dài sang tuần thứ 5, phần dư sẽ được gộp vào cột cuối)
             var weekBuckets = BuildWeekBuckets(monthStartVn, monthEndVn);
 
-            var rawDays = new List<(string Label, DateTime DateVn, double TotalHours, string? DateRangeLabel)>();
+            var rawDays = new List<(string Label, DateTime DateVn, double TotalHours, int EventCount, int DoneCount, string? DateRangeLabel)>();
             for (int i = 0; i < weekBuckets.Count; i++)
             {
                 var (bucketStart, bucketEnd) = weekBuckets[i];
@@ -107,14 +112,13 @@ namespace Assistant.Controllers
                 var clampedEnd = bucketEnd > monthEndVn ? monthEndVn : bucketEnd;
                 var lastDayInBucket = clampedEnd.AddDays(-1); // ngày cuối cùng thực sự thuộc tuần này
 
-                double totalHours = ComputeRangeHours(events, tasks, clampedStart, clampedEnd);
+                var (hours, count, done) = ComputeRangeStats(items, clampedStart, clampedEnd);
                 var label = $"Tuần {i + 1}";
                 var dateRangeLabel = $"{clampedStart:d/M} - {lastDayInBucket:d/M}";
-                rawDays.Add((label, clampedStart, Math.Round(totalHours, 1), dateRangeLabel));
+                rawDays.Add((label, clampedStart, Math.Round(hours, 1), count, done, dateRangeLabel));
             }
 
             var days = BuildDailyTimeDtos(rawDays);
-            var goals = BuildGoals(tasks, events, nowVn);
             double overallCompletionRate = goals.Last().PercentComplete;
 
             var result = new PeriodStatsDto
@@ -133,31 +137,94 @@ namespace Assistant.Controllers
         // HELPERS DÙNG CHUNG CHO CẢ TUẦN VÀ THÁNG
         // ═══════════════════════════════════════════════════════════════════
 
-        private async Task<(List<EventItem> Events, List<TaskItem> Tasks)> LoadRangeDataAsync(
-            Guid userId, DateTime rangeStartVn, DateTime rangeEndVn)
+        // Gộp CalendarEvent và Task (có DueDate) thành 1 danh sách CalendarItem
+        // thống nhất — vì Task cũng hiển thị trên trang Lịch nên được coi là
+        // một phần của Lịch, không tách riêng nữa.
+        private async Task<List<CalendarItem>> LoadRangeDataAsync(Guid userId, DateTime rangeStartVn, DateTime rangeEndVn)
         {
-            var events = await _db.CalendarEvents
-                .Where(e => e.UserId == userId && e.StartTime < rangeEndVn && e.EndTime >= rangeStartVn)
-                .Select(e => new EventItem { StartTime = e.StartTime, EndTime = e.EndTime, Priority = e.Priority })
+            var nowVn = DateTime.UtcNow.AddHours(7);
+
+            // Join theo đúng chiều thực tế: Task.CalendarEventId trỏ về Event tạo ra nó
+            // (không dùng Event.LinkedTaskId vì field này không được set khi tạo từ trang Lịch)
+            var eventRows = await (
+                from e in _db.CalendarEvents
+                where e.UserId == userId
+                    && e.EndTime > rangeStartVn
+                    && e.StartTime < rangeEndVn
+                join t in _db.Tasks on e.Id equals t.CalendarEventId into taskJoin
+                from t in taskJoin.DefaultIfEmpty()
+                select new
+                {
+                    e.StartTime,
+                    e.EndTime,
+                    LinkedTaskId = t != null ? (Guid?)t.Id : null,
+                    LinkedTaskStatus = t != null ? t.Status : null
+                }
+            ).ToListAsync();
+
+            var events = eventRows.Select(e => new CalendarItem
+            {
+                StartTime = e.StartTime,
+                EndTime = e.EndTime,
+                LinkedTaskId = e.LinkedTaskId,
+                IsDone = e.LinkedTaskId != null
+                    ? e.LinkedTaskStatus == "done"
+                    : e.EndTime <= nowVn
+            }).ToList();
+
+            var sevenDaysLimit = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc).AddDays(7);
+
+            var taskList = await _db.Tasks
+                .Where(t => t.UserId == userId
+                    && t.DueDate != null
+                    && t.CalendarEventId == null
+                    && t.DueDate <= sevenDaysLimit
+                    && t.DueDate >= rangeStartVn
+                    && t.DueDate < rangeEndVn)
                 .ToListAsync();
 
-            var tasks = await _db.Tasks
-                .Where(t => t.UserId == userId && t.DueDate != null && t.DueDate >= rangeStartVn && t.DueDate < rangeEndVn)
-                .Select(t => new TaskItem { DueDate = t.DueDate, EstimatedMinutes = t.EstimatedMinutes, Priority = t.Priority, Status = t.Status })
-                .ToListAsync();
+            var tasks = taskList
+                .Select(t => new CalendarItem
+                {
+                    StartTime = t.DueDate!.Value,
+                    EndTime = t.DueDate!.Value.AddMinutes(30),
+                    LinkedTaskId = t.Id,
+                    IsDone = t.Status == "done"
+                })
+                .ToList();
 
-            return (events, tasks);
+            return events
+                .Concat(tasks)
+                .OrderBy(x => x.StartTime)
+                .ToList();
         }
 
-        // Tính tổng số giờ (event + task) trong 1 khoảng thời gian bất kỳ (1 ngày hoặc cả 1 tuần)
-        private static double ComputeRangeHours(List<EventItem> events, List<TaskItem> tasks, DateTime rangeStartVn, DateTime rangeEndVn)
+        // Tính tổng số giờ VÀ số lượng việc (Task + Event) trong 1 khoảng thời gian
+        // bất kỳ (1 ngày hoặc cả 1 tuần).
+        private static (double Hours, int Count, int Done) ComputeRangeStats(List<CalendarItem> items, DateTime rangeStartVn, DateTime rangeEndVn)
         {
-            var rangeEvents = events.Where(e => e.StartTime < rangeEndVn && e.EndTime >= rangeStartVn).ToList();
-            var rangeTasks = tasks.Where(t => t.DueDate!.Value >= rangeStartVn && t.DueDate!.Value < rangeEndVn).ToList();
+            double totalHours = 0;
+            int count = 0;
+            int done = 0;
 
-            double eventHours = rangeEvents.Sum(e => Math.Max(0, (e.EndTime - e.StartTime).TotalHours));
-            double taskHours = rangeTasks.Sum(t => (t.EstimatedMinutes ?? 30) / 60.0);
-            return eventHours + taskHours;
+            foreach (var item in items)
+            {
+                if (item.StartTime >= rangeEndVn || item.EndTime <= rangeStartVn)
+                    continue;
+
+                var overlapStart = item.StartTime > rangeStartVn ? item.StartTime : rangeStartVn;
+                var overlapEnd = item.EndTime < rangeEndVn ? item.EndTime : rangeEndVn;
+                var duration = (overlapEnd - overlapStart).TotalHours;
+
+                if (duration > 0)
+                {
+                    totalHours += duration;
+                    count++;
+                    if (item.IsDone) done++;
+                }
+            }
+
+            return (totalHours, count, done);
         }
 
         // Chia khoảng [monthStartVn, monthEndVn) thành các tuần Thứ 2 → Chủ nhật.
@@ -188,10 +255,10 @@ namespace Assistant.Controllers
             return buckets;
         }
 
-        private static List<DailyTimeDto> BuildDailyTimeDtos(List<(string Label, DateTime DateVn, double TotalHours, string? DateRangeLabel)> rawDays)
+        private static List<DailyTimeDto> BuildDailyTimeDtos(List<(string Label, DateTime DateVn, double TotalHours, int EventCount, int DoneCount, string? DateRangeLabel)> rawDays)
         {
             double maxHours = rawDays.Count == 0 ? 0 : rawDays.Max(d => d.TotalHours);
-            if (maxHours <= 0) maxHours = 1; // tránh chia 0
+            if (maxHours <= 0) maxHours = 1;
 
             return rawDays.Select(d => new DailyTimeDto
             {
@@ -199,6 +266,8 @@ namespace Assistant.Controllers
                 Date = d.DateVn,
                 TotalMinutes = (int)Math.Round(d.TotalHours * 60),
                 TotalPercent = Math.Round(d.TotalHours / maxHours * 100, 0),
+                EventCount = d.EventCount,
+                DoneCount = d.DoneCount,
                 DateRangeLabel = d.DateRangeLabel
             }).ToList();
         }
@@ -208,53 +277,29 @@ namespace Assistant.Controllers
             new CategoryLegendDto { Id = null, Name = "Tổng thời gian", Color = "#6b38d4" }
         };
 
-        private static List<GoalProgressDto> BuildGoals(List<TaskItem> tasks, List<EventItem> events, DateTime nowVn)
+        // Chỉ còn 1 Goal duy nhất, gộp cả Task + Event (vì đều thuộc về Lịch).
+        private async System.Threading.Tasks.Task<List<GoalProgressDto>> BuildGoals(
+    Guid userId,
+    List<CalendarItem> items)
         {
-            var goals = new List<GoalProgressDto>();
+            int total = items.Count;
+            int done = items.Count(i => i.IsDone);
 
-            // Mục tiêu 1: riêng Task
-            int totalTasks = tasks.Count;
-            int doneTasks = tasks.Count(t => t.Status == "done");
-            int taskPercent = totalTasks > 0 ? (int)Math.Round((double)doneTasks / totalTasks * 100) : 0;
+            int percent = total == 0
+                ? 0
+                : (int)Math.Round(done * 100.0 / total);
 
-            goals.Add(new GoalProgressDto
+            return new List<GoalProgressDto>
             {
-                Title = "Công việc (Task)",
-                CurrentValue = doneTasks,
-                TargetValue = totalTasks,
-                Unit = "task",
-                PercentComplete = taskPercent
-            });
-
-            // Mục tiêu 2: riêng Lịch (Calendar) — "hoàn thành" = đã diễn ra xong theo giờ VN hiện tại
-            int totalEvents = events.Count;
-            int doneEvents = events.Count(e => e.EndTime <= nowVn);
-            int eventPercent = totalEvents > 0 ? (int)Math.Round((double)doneEvents / totalEvents * 100) : 0;
-
-            goals.Add(new GoalProgressDto
-            {
-                Title = "Lịch trình (Calendar)",
-                CurrentValue = doneEvents,
-                TargetValue = totalEvents,
-                Unit = "sự kiện",
-                PercentComplete = eventPercent
-            });
-
-            // Mục tiêu 3: tổng hợp
-            int totalCombined = totalTasks + totalEvents;
-            int doneCombined = doneTasks + doneEvents;
-            int combinedPercent = totalCombined > 0 ? (int)Math.Round((double)doneCombined / totalCombined * 100) : 0;
-
-            goals.Add(new GoalProgressDto
-            {
-                Title = "Tổng hợp",
-                CurrentValue = doneCombined,
-                TargetValue = totalCombined,
-                Unit = "mục",
-                PercentComplete = combinedPercent
-            });
-
-            return goals;
+                new GoalProgressDto
+                {
+                    Title = "Lịch trình (Calendar)",
+                    CurrentValue = done,
+                    TargetValue = total,
+                    Unit = "việc",
+                    PercentComplete = percent
+                }
+            };
         }
 
         // Số tuần trong năm theo chuẩn ISO 8601 (tuần bắt đầu Thứ 2)
@@ -265,19 +310,14 @@ namespace Assistant.Controllers
             return cal.GetWeekOfYear(date, rule, DayOfWeek.Monday);
         }
 
-        private class EventItem
+        // Đại diện chung cho cả CalendarEvent và Task (khi có DueDate) —
+        // vì cả 2 đều hiển thị trên trang Lịch nên gộp làm 1.
+        private class CalendarItem
         {
             public DateTime StartTime { get; set; }
             public DateTime EndTime { get; set; }
-            public int Priority { get; set; }
-        }
-
-        private class TaskItem
-        {
-            public DateTime? DueDate { get; set; }
-            public int? EstimatedMinutes { get; set; }
-            public byte Priority { get; set; }
-            public string Status { get; set; } = null!;
+            public Guid? LinkedTaskId { get; set; }
+            public bool IsDone { get; set; }
         }
     }
 
@@ -304,7 +344,8 @@ namespace Assistant.Controllers
         public DateTime Date { get; set; }
         public int TotalMinutes { get; set; }
         public double TotalPercent { get; set; }
-        // Khoảng ngày hiển thị dưới Label, ví dụ "1/7 - 7/7". Chỉ dùng cho thống kê tháng (gộp theo tuần).
+        public int EventCount { get; set; }
+        public int DoneCount { get; set; }
         public string? DateRangeLabel { get; set; }
     }
 

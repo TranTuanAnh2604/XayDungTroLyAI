@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import Sidebar from '../components/Sidebar'
 import { getWeeklyStats, getMonthlyStats } from '../services/statsService'
 
-const RING_COLORS = ['#8455ef', '#565e74', '#6b38d4', '#45464d']
 const AXIS_TICKS = 4 // số mốc chia trục tung (không tính mốc 0)
 
 export default function ProductivityStats() {
@@ -276,19 +275,24 @@ export default function ProductivityStats() {
                                                 ></div>
                                             ))}
 
-                                            {days.map((item) => {
-                                                const heightPercent = Math.min(100, (item.totalMinutes / maxMinutes) * 100)
-                                                return (
-                                                    <div key={item.label + item.date} className="relative z-[1] flex-1 h-full flex flex-col items-center justify-end group">
-                                                        <div
-                                                            className="w-8 rounded-t-sm chart-bar-transition hover:opacity-80"
-                                                            style={{ backgroundColor: primaryColor, height: `${heightPercent}%`, transition: 'height 1s ease-out' }}
-                                                            data-height={`${heightPercent}%`}
-                                                            title={formatMinutes(item.totalMinutes)}
-                                                        ></div>
-                                                    </div>
-                                                )
-                                            })}
+                                                    {days.map((item) => {
+                                                        const heightPercent = Math.min(100, (item.totalMinutes / maxMinutes) * 100)
+                                                        return (
+                                                            <div key={item.label + item.date} className="relative z-[1] flex-1 h-full flex flex-col items-center justify-end group">
+                                                                {item.eventCount > 0 && (
+                                                                    <span className="mb-[4px] text-[11px] font-semibold text-[#45464d] bg-white/80 px-[6px] py-[1px] rounded-full border border-[#e2e8f0] shrink-0">
+                                                                        {item.eventCount} việc
+                                                                    </span>
+                                                                )}
+                                                                <div
+                                                                    className="w-8 rounded-t-sm chart-bar-transition hover:opacity-80"
+                                                                    style={{ backgroundColor: primaryColor, height: `${heightPercent}%`, transition: 'height 1s ease-out' }}
+                                                                    data-height={`${heightPercent}%`}
+                                                                    title={`${formatMinutes(item.totalMinutes)} · ${item.eventCount ?? 0} việc`}
+                                                                ></div>
+                                                            </div>
+                                                        )
+                                                    })}
                                         </div>
                                         <div className="shrink-0 flex justify-between gap-4 px-[8px] pt-[6px]">
                                             {days.map((item) => (
@@ -309,22 +313,29 @@ export default function ProductivityStats() {
                             )}
                         </div>
 
-                        {/* Section 2: Personal Goal Achievement - 4/12 cột, full chiều cao */}
+                        {/* Section 2: Chi tiết theo ngày/tuần - 4/12 cột, full chiều cao */}
                         <div className="col-span-4 h-full min-h-0 bg-white/70 backdrop-blur-md border border-[#e2e8f0] p-[20px] rounded-xl shadow-sm flex flex-col">
-                            <h3 className="shrink-0 text-[18px] leading-[1.3] font-semibold mb-[16px]">Mục tiêu cá nhân</h3>
+                            <h3 className="shrink-0 text-[18px] leading-[1.3] font-semibold mb-[16px]">
+                                {period === 'week' ? 'Chi tiết theo ngày' : 'Chi tiết theo tuần'}
+                            </h3>
 
                             {loading ? (
                                 <p className="text-[13px] text-[#76777d]">Đang tải dữ liệu...</p>
-                            ) : goals.length === 0 ? (
-                                <p className="text-[13px] text-[#76777d]">Bạn chưa có mục tiêu nào đang hoạt động.</p>
+                            ) : days.length === 0 ? (
+                                <p className="text-[13px] text-[#76777d]">Chưa có dữ liệu cho {period === 'week' ? 'tuần' : 'tháng'} này.</p>
                             ) : (
-                                <div className="flex-1 min-h-0 overflow-y-auto space-y-[16px] pr-[4px]">
-                                    {goals.map((goal, idx) => {
-                                        const color = RING_COLORS[idx % RING_COLORS.length]
-                                        const dash = `${goal.percentComplete}, 100`
+                                <div className="flex-1 min-h-0 overflow-y-auto space-y-[10px] pr-[4px]">
+                                    {days.map((item) => {
+                                        const total = item.eventCount ?? 0
+                                        const done = item.doneCount ?? 0
+                                        const percent = total === 0 ? 0 : Math.round((done / total) * 100)
+                                        const dash = `${percent}, 100`
                                         return (
-                                            <div key={goal.id} className="flex items-center gap-[14px]">
-                                                <div className="relative w-14 h-14 shrink-0 flex items-center justify-center">
+                                            <div
+                                                key={item.label + item.date}
+                                                className="flex items-center gap-[12px] p-[10px] rounded-lg bg-white/60 border border-[#eef1f7]"
+                                            >
+                                                <div className="relative w-12 h-12 shrink-0 flex items-center justify-center">
                                                     <svg className="w-full h-full" viewBox="0 0 36 36">
                                                         <path
                                                             d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
@@ -337,7 +348,7 @@ export default function ProductivityStats() {
                                                             data-dasharray={dash}
                                                             d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                                                             fill="none"
-                                                            stroke={color}
+                                                            stroke="#6b38d4"
                                                             strokeDasharray={dash}
                                                             strokeWidth="3"
                                                             style={{
@@ -347,12 +358,15 @@ export default function ProductivityStats() {
                                                             }}
                                                         ></path>
                                                     </svg>
-                                                    <span className="absolute text-[12px] font-bold">{goal.percentComplete}%</span>
+                                                    <span className="absolute text-[11px] font-bold">{percent}%</span>
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-[13px] font-bold truncate">{goal.title}</p>
+                                                    <p className="text-[13px] font-bold truncate">{item.label}</p>
+                                                    {item.dateRangeLabel && (
+                                                        <p className="text-[11px] text-[#94a3b8] leading-tight">{item.dateRangeLabel}</p>
+                                                    )}
                                                     <p className="text-[12px] text-[#45464d]">
-                                                        {goal.currentValue}/{goal.targetValue} {goal.unit} hoàn thành
+                                                        {total === 0 ? 'Không có việc' : `${done}/${total} việc hoàn thành`}
                                                     </p>
                                                 </div>
                                             </div>
@@ -374,6 +388,11 @@ export default function ProductivityStats() {
                                         style={{ width: `${overallRate}%` }}
                                     ></div>
                                 </div>
+                                {goals.length > 0 && (
+                                    <p className="text-[11px] text-[#94a3b8] mt-[6px] text-right">
+                                        {goals[0].currentValue}/{goals[0].targetValue} {goals[0].unit} hoàn thành
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </div>

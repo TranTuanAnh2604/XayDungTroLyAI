@@ -47,22 +47,39 @@ function inputToISO(localStr) {
     return localStr;
 }
 
-function formatSuggestedTime(startISO, endISO) {
-    if (!startISO) return 'Chưa rõ thời gian'
-    const start = new Date(startISO)
-    const datePart = start.toLocaleDateString('vi-VN', { weekday: 'short', month: 'short', day: 'numeric' })
-    const startTime = start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-    if (!endISO) return `${datePart} • ${startTime}`
-    const end = new Date(endISO)
-    const endTime = end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-    return `${datePart} • ${startTime} - ${endTime}`
+// Khi bật "Cả ngày": chốt StartTime = 00:00 ngày đó, EndTime = 00:00 ngày kế tiếp (đúng 24h)
+function toAllDayRange(localStr) {
+    const [datePart] = (localStr || '').split('T')
+    if (!datePart) return { startTime: '', endTime: '' }
+
+    const [y, m, d] = datePart.split('-').map(Number)
+    const pad = n => String(n).padStart(2, '0')
+
+    const startTime = `${datePart}T00:00`
+
+    const endDate = new Date(y, m - 1, d)
+    endDate.setDate(endDate.getDate() + 1)
+    const endTime = `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())}T00:00`
+
+    return { startTime, endTime }
 }
 
-const SOURCE_ICON = {
-    email: { icon: 'mail', iconBg: 'bg-[#dae2fd]', iconColor: 'text-[#131b2e]' },
-    task: { icon: 'task_alt', iconBg: 'bg-[#d3e4fe]', iconColor: 'text-[#0b1c30]' },
-    voice: { icon: 'mic', iconBg: 'bg-[#e9ddff]', iconColor: 'text-[#5516be]' },
-    chat: { icon: 'chat', iconBg: 'bg-[#d3e4fe]', iconColor: 'text-[#0b1c30]' },
+function formatTimeUntil(startISO) {
+    if (!startISO) return null
+    const diffMs = new Date(startISO) - new Date()
+    if (diffMs <= 0) return null
+
+    const diffHours = diffMs / (1000 * 60 * 60)
+    if (diffHours < 1) return { label: `${Math.round(diffMs / 60000)} phút nữa`, urgent: true }
+    if (diffHours < 24) return { label: `${Math.round(diffHours)} giờ nữa`, urgent: diffHours < 6 }
+    return { label: `${Math.round(diffHours / 24)} ngày nữa`, urgent: false }
+}
+
+// Đồng bộ đúng màu với EVENT_STYLES trên lịch: 0=Urgent(đỏ), 1=Normal(vàng), 2=Low(xanh lá)
+const PRIORITY_COLORS = {
+    0: { card: 'bg-[#fff2f1]', border: 'border-l-[#ef4444]', iconBg: 'bg-[#ffd9d6]', icon: 'text-[#c62828]', badge: 'bg-[#ffd9d6] text-[#b71c1c]' },
+    1: { card: 'bg-[#fffaf0]', border: 'border-l-[#eab308]', iconBg: 'bg-[#fef1c7]', icon: 'text-[#a16207]', badge: 'bg-[#fef1c7] text-[#854d0e]' },
+    2: { card: 'bg-[#f2fbf7]', border: 'border-l-[#22c08a]', iconBg: 'bg-[#d3f3e6]', icon: 'text-[#0f9d6c]', badge: 'bg-[#d3f3e6] text-[#0f7a57]' },
 }
 
 const EVENT_STYLES = [
@@ -313,10 +330,17 @@ function EventModal({ mode, initialData, onClose, onSave, onDelete, saving }) {
     const validate = () => {
         const e = {}
         if (!form.title.trim()) e.title = 'Tiêu đề không được để trống'
-        if (!form.startTime) e.startTime = 'Chọn thời gian bắt đầu'
-        if (!form.endTime) e.endTime = 'Chọn thời gian kết thúc'
-        if (form.startTime && form.endTime && new Date(form.startTime) >= new Date(form.endTime))
-            e.endTime = 'Thời gian kết thúc phải sau bắt đầu'
+
+        if (!form.startTime) {
+            e.startTime = form.isAllDay ? 'Chọn ngày' : 'Chọn thời gian bắt đầu'
+        }
+
+        if (!form.isAllDay) {
+            if (!form.endTime) e.endTime = 'Chọn thời gian kết thúc'
+            if (form.startTime && form.endTime && new Date(form.startTime) >= new Date(form.endTime))
+                e.endTime = 'Thời gian kết thúc phải sau bắt đầu'
+        }
+
         setErrors(e)
         return Object.keys(e).length === 0
     }
@@ -410,7 +434,20 @@ function EventModal({ mode, initialData, onClose, onSave, onDelete, saving }) {
                         <span className="text-[13px] font-medium text-[#0b1c30]">Cả ngày</span>
                     </label>
 
-                    {!form.isAllDay && (
+                    {form.isAllDay ? (
+                        <div>
+                            <label className="block text-[13px] font-semibold text-[#0b1c30] mb-1">
+                                Ngày <span className="text-[#ba1a1a]">*</span>
+                            </label>
+                            <DateTimePicker
+                                value={form.startTime}
+                                onChange={(v) => set('startTime', v)}
+                                hasError={!!errors.startTime}
+                            />
+                            {errors.startTime && <p className="text-[11px] text-[#ba1a1a] mt-1">{errors.startTime}</p>}
+                            <p className="text-[11px] text-[#94a3b8] mt-1">Sự kiện sẽ kéo dài trọn 24 giờ của ngày này.</p>
+                        </div>
+                    ) : (
                         <div className="grid grid-cols-1 gap-3">
                             <div>
                                 <label className="block text-[13px] font-semibold text-[#0b1c30] mb-1">
@@ -1056,12 +1093,16 @@ export default function Calendar() {
     const handleSave = async (form) => {
         setSaving(true)
         try {
+            const { startTime, endTime } = form.isAllDay
+                ? toAllDayRange(form.startTime)
+                : { startTime: form.startTime, endTime: form.endTime }
+
             const payload = {
                 title: form.title.trim(),
                 description: form.description.trim() || null,
                 location: form.location.trim() || null,
-                startTime: inputToISO(form.startTime),
-                endTime: inputToISO(form.endTime),
+                startTime: inputToISO(startTime),
+                endTime: inputToISO(endTime),
                 isAllDay: form.isAllDay,
                 priority: form.styleIndex,
                 source: 'manual',
@@ -1116,12 +1157,16 @@ export default function Calendar() {
                 setTaskEditId(null)
             } else {
                 const { form, mode } = conflictTarget
+                const { startTime, endTime } = form.isAllDay
+                    ? toAllDayRange(form.startTime)
+                    : { startTime: form.startTime, endTime: form.endTime }
+
                 const payload = {
                     title: form.title.trim(),
                     description: form.description.trim() || null,
                     location: form.location.trim() || null,
-                    startTime: inputToISO(form.startTime),
-                    endTime: inputToISO(form.endTime),
+                    startTime: inputToISO(startTime),
+                    endTime: inputToISO(endTime),
                     isAllDay: form.isAllDay,
                     priority: form.styleIndex,
                     source: 'manual',
@@ -1328,57 +1373,55 @@ export default function Calendar() {
                                 )}
 
                                 {(Array.isArray(suggestions) ? suggestions : []).map((s) => {
-                                    const src = SOURCE_ICON[s.sourceType] || SOURCE_ICON.email
+                                    const until = formatTimeUntil(s.startTime)
+                                    const color = PRIORITY_COLORS[s.priority] ?? PRIORITY_COLORS[1] // mặc định Normal nếu thiếu dữ liệu
 
-                                    // Phân loại: lấy từ dữ liệu có sẵn hay AI tự đề xuất
-                                    const isFromData = ['task', 'calendar'].includes(s.sourceType)
-                                    const sourceLabel = {
-                                        task: 'Từ Task',
-                                        calendar: 'Từ Lịch',
-                                        email: 'Từ Email',
-                                        voice: 'Từ Ghi âm',
-                                        manual: 'AI gợi ý',
-                                    }[s.sourceType] || 'AI gợi ý'
+                                    const start = new Date(s.startTime)
+                                    const datePart = start.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' })
+                                    const timePart = s.endTime
+                                        ? `${start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - ${new Date(s.endTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`
+                                        : start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
 
                                     return (
-                                        <div key={s.id} className={`rounded-lg p-2 border relative group ${isFromData ? 'bg-[#f0fdf4] border-green-200' : 'bg-[#eff4ff] border-[#c6c6cd]/30'}`}>
-                                            {/* Badge nguồn gốc */}
-                                            <div className="flex items-center justify-between mb-2 pr-6">
-                                                <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${isFromData
-                                                    ? 'bg-green-100 text-green-700'
-                                                    : 'bg-[#8455ef]/10 text-[#6b38d4]'
-                                                    }`}>
-                                                    <span className="material-symbols-outlined text-[11px]">
-                                                        {isFromData ? 'link' : 'auto_awesome'}
-                                                    </span>
-                                                    {sourceLabel}
-                                                </span>
-                                            </div>
-
+                                        <div
+                                            key={s.id}
+                                            className={`rounded-xl p-3 border border-transparent border-l-[3px] ${color.border} ${color.card} hover:shadow-sm transition-all relative group`}
+                                        >
                                             <button
                                                 onClick={() => dismissSuggestion(s.id)}
-                                                className="absolute top-2 right-2 text-[#45464d]/50 hover:text-[#000000] cursor-pointer"
+                                                className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center rounded-full text-[#94a3b8] opacity-0 group-hover:opacity-100 hover:bg-white/70 hover:text-[#45464d] transition-all"
                                             >
-                                                <span className="material-symbols-outlined text-sm">close</span>
+                                                <span className="material-symbols-outlined text-[16px]">close</span>
                                             </button>
 
-                                            <div className="flex items-start gap-3 mb-2">
-                                                <div className={`w-8 h-8 rounded-full ${src.iconBg} flex items-center justify-center shrink-0`}>
-                                                    <span className={`material-symbols-outlined ${src.iconColor} text-[16px]`}>{src.icon}</span>
+                                            <div className="flex items-start gap-3">
+                                                <div className={`w-9 h-9 rounded-full ${color.iconBg} flex items-center justify-center shrink-0`}>
+                                                    <span className={`material-symbols-outlined ${color.icon} text-[18px]`}>event</span>
                                                 </div>
-                                                <div>
-                                                    <h4 className="text-sm font-semibold text-[#0b1c30]">{s.title}</h4>
+
+                                                <div className="flex-1 min-w-0 pr-5">
+                                                    <h4 className="text-[14px] font-semibold text-[#0b1c30] truncate">{s.title}</h4>
                                                     {s.description && (
-                                                        <p className="text-[12px] text-[#45464d]/80 line-clamp-2 mt-0.5">"{s.description}"</p>
+                                                        <p className="text-[12px] text-[#76777d] line-clamp-1 mt-0.5">{s.description}</p>
                                                     )}
+
+                                                    <div className="flex items-center gap-1.5 text-[12px] text-[#45464d] mt-2">
+                                                        <span className="material-symbols-outlined text-[14px] text-[#94a3b8] shrink-0">schedule</span>
+                                                        <span className="font-medium capitalize">{datePart}</span>
+                                                    </div>
+                                                    <div className="text-[12px] text-[#76777d] mt-0.5 pl-[20px]">
+                                                        {timePart}
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-2 mt-3 bg-white p-2 rounded border border-[#c6c6cd]/20">
-                                                <span className="material-symbols-outlined text-sm text-[#45464d]">schedule</span>
-                                                <span className="text-[12px] font-medium text-[#0b1c30]">
-                                                    {formatSuggestedTime(s.startTime, s.endTime)}
-                                                </span>
-                                            </div>
+
+                                            {until && (
+                                                <div className="mt-2 pl-[48px]">
+                                                    <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full ${color.badge}`}>
+                                                        {until.label}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
                                     )
                                 })}
