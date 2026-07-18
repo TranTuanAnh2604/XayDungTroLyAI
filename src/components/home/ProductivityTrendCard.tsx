@@ -6,23 +6,12 @@ import SkeletonBlock from './SkeletonBlock';
 import { useTheme } from '../../hooks/useTheme';
 import type { ProductivityTrendPoint } from '../../types/productivity';
 
-type ProductivityTrendCardProps = {
+type Props = {
   trend: ProductivityTrendPoint[];
   skeleton?: boolean;
 };
 
-function shortWeekLabel(raw: string): string {
-  const d = new Date(raw);
-  if (!Number.isNaN(d.getTime())) {
-    return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
-  }
-  return raw.length > 6 ? raw.slice(0, 6) : raw;
-}
-
-export default function ProductivityTrendCard({
-  trend,
-  skeleton = false,
-}: ProductivityTrendCardProps) {
+export default function ProductivityTrendCard({ trend, skeleton = false }: Props) {
   const { colors: COLORS } = useTheme();
   const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
   const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
@@ -41,23 +30,19 @@ export default function ProductivityTrendCard({
     );
   }
 
-  const maxScore = Math.max(...trend.map((p) => p.score), 1);
-
   return (
     <AppGlassCard variant="surface" padding={20} style={styles.card}>
       <Text style={styles.header}>Xu hướng hiệu suất</Text>
-      <Text style={styles.subheader}>Điểm năng suất {trend.length} tuần gần nhất</Text>
+      <Text style={styles.subheader}>Tỷ lệ hoàn thành Task {trend.length} tuần gần nhất</Text>
 
       <View style={styles.chartRow}>
         {trend.map((point, idx) => {
-          const barPct = (point.score / maxScore) * 100;
           const isLast = idx === trend.length - 1;
-
           return (
-            <View key={idx} style={styles.barCol}>
+            <View key={`${point.label}-${idx}`} style={styles.barCol}>
               {isLast ? (
                 <Text style={[styles.barTopLabel, { color: COLORS.primary }]}>
-                  {Math.round(point.score)}
+                  {Math.round(point.taskPercent)}%
                 </Text>
               ) : (
                 <View style={styles.barTopLabel} />
@@ -67,17 +52,13 @@ export default function ProductivityTrendCard({
                   style={[
                     styles.barFill,
                     {
-                      height: `${barPct}%`,
+                      height: `${Math.max(point.taskPercent, 3)}%`,
                       backgroundColor: isLast ? COLORS.primary : COLORS.primaryTint10,
-                      borderTopLeftRadius: 4,
-                      borderTopRightRadius: 4,
                     },
                   ]}
                 />
               </View>
-              <Text style={styles.weekLabel} numberOfLines={1}>
-                {shortWeekLabel(point.week)}
-              </Text>
+              <Text style={styles.weekLabel} numberOfLines={1}>{point.label}</Text>
             </View>
           );
         })}
@@ -85,79 +66,24 @@ export default function ProductivityTrendCard({
 
       <View style={styles.legend}>
         <View style={[styles.legendDot, { backgroundColor: COLORS.primary }]} />
-        <Text style={styles.legendText}>Điểm năng suất</Text>
+        <Text style={styles.legendText}>Tỷ lệ hoàn thành Task</Text>
       </View>
     </AppGlassCard>
   );
 }
 
 const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
-  card: {
-    flex: 1,
-  },
-  header: {
-    ...typography.headlineMd,
-    marginBottom: 4,
-  },
-  subheader: {
-    ...typography.bodyMd,
-    color: COLORS.onSurfaceVariant,
-    marginBottom: 20,
-  },
-  chartRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 6,
-    height: 80,
-  },
-  barCol: {
-    flex: 1,
-    alignItems: 'center',
-    height: '100%',
-    justifyContent: 'flex-end',
-  },
-  barTopLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    height: 14,
-    textAlign: 'center',
-  },
-  barTrack: {
-    width: '100%',
-    flex: 1,
-    backgroundColor: COLORS.surfaceContainer,
-    borderRadius: 4,
-    overflow: 'hidden',
-    justifyContent: 'flex-end',
-    marginVertical: 4,
-  },
-  barFill: {
-    width: '100%',
-  },
-  weekLabel: {
-    fontSize: 9,
-    color: COLORS.onSurfaceVariant,
-    textAlign: 'center',
-  },
-  skBars: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 6,
-    height: 100,
-  },
-  legend: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 12,
-  },
-  legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-  },
-  legendText: {
-    fontSize: 12,
-    color: COLORS.onSurfaceVariant,
-  },
+  card: { flex: 1 },
+  header: { ...typography.headlineMd, marginBottom: 4 },
+  subheader: { ...typography.bodyMd, color: COLORS.onSurfaceVariant, marginBottom: 20 },
+  chartRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: 80 },
+  barCol: { flex: 1, alignItems: 'center', height: '100%', justifyContent: 'flex-end' },
+  barTopLabel: { fontSize: 10, fontWeight: '700', height: 14, textAlign: 'center' },
+  barTrack: { width: '100%', flex: 1, backgroundColor: COLORS.surfaceContainer, borderRadius: 4, overflow: 'hidden', justifyContent: 'flex-end', marginVertical: 4 },
+  barFill: { width: '100%', borderTopLeftRadius: 4, borderTopRightRadius: 4 },
+  weekLabel: { fontSize: 9, color: COLORS.onSurfaceVariant, textAlign: 'center' },
+  skBars: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: 100 },
+  legend: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 },
+  legendDot: { width: 8, height: 8, borderRadius: 999 },
+  legendText: { fontSize: 12, color: COLORS.onSurfaceVariant },
 });

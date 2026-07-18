@@ -1,6 +1,10 @@
 import type { MaterialIconName } from './common';
 
-export type MailFilterId = 'all' | 'unread' | 'recent' | 'important' | 'archived';
+// Đổi từ (all/unread/recent/important/archived) sang tab kiểu Gmail điện
+// thoại, khớp với 4 nhóm mà backend trả về ở GET /api/Gmail/inbox
+// (Primary/Social/Promotions/Spam), cộng thêm tab archived riêng
+// (được lấy qua GET /api/Gmail/emails?includeArchived=true).
+export type MailFilterId = 'all' | 'primary' | 'social' | 'promotions' | 'spam' | 'archived';
 
 export type MailCategoryTone = 'emerald' | 'primary' | 'secondary';
 
@@ -13,6 +17,9 @@ export type MailItem = {
   icon: MaterialIconName;
   tone: MailCategoryTone;
   isPinned?: boolean;
+  // Optional — chỉ có ở mail Primary/Social, dùng để hiện badge độ khẩn cấp
+  // nếu UI muốn (component cũ có thể bỏ qua field này an toàn).
+  importance?: number | null;
 };
 
 export type MailCategory = {

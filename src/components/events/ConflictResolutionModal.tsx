@@ -68,7 +68,6 @@ export default function ConflictResolutionModal({
       }
     } catch (err) {
       console.warn('[conflict-modal] Failed to resolve conflict on dismiss:', err);
-      // Không chặn người dùng đóng modal dù resolve lỗi
     } finally {
       setDismissing(false);
       onDismiss?.();
@@ -84,8 +83,6 @@ export default function ConflictResolutionModal({
     setLoading(true);
     setError(null);
     try {
-      let debugServerConflicts: any = null;
-      let debugEid: string | null = null;
       let targetId = serverConflictId;
 
       if (!targetId) {
@@ -93,14 +90,18 @@ export default function ConflictResolutionModal({
         try {
           const { getCalendarConflicts } = require('../../services/sync');
           const serverConflicts = await getCalendarConflicts();
-          debugServerConflicts = serverConflicts;
           console.log('[conflict-modal] Available server conflicts:', JSON.stringify(serverConflicts));
 
+          // Kiểm tra nếu thực tế database đã sạch xung đột
+          if (!serverConflicts || serverConflicts.length === 0) {
+            setError('Lịch trình của bạn đã sạch! Không tìm thấy xung đột nào trên hệ thống.');
+            setLoading(false);
+            return;
+          }
+
           const eid = mainEvent.id ? String(mainEvent.id) : '';
-          debugEid = eid;
           const matchingConflict = serverConflicts.find((c: any) => {
             if (!c) return false;
-            // Match by IDs if available (convert to string to avoid int/string mismatch)
             if (eid && (
               String(c.eventId) === eid || String(c.EventId) === eid ||
               String(c.conflictingEventId) === eid || String(c.ConflictingEventId) === eid ||
@@ -119,7 +120,6 @@ export default function ConflictResolutionModal({
             )) {
               return true;
             }
-            // Match by title
             if (c.title === mainEvent.title || c.Title === mainEvent.title) return true;
             if (c.deviceEvent && c.deviceEvent.title === mainEvent.title) return true;
             if (c.serverEvent && c.serverEvent.title === mainEvent.title) return true;
@@ -140,23 +140,22 @@ export default function ConflictResolutionModal({
         }
       }
 
+      // SỬA ĐỔI PHÒNG VỆ: Thay vì quăng lỗi crash chữ đỏ, thông báo nhẹ cho người dùng biết lịch đã sạch
       if (!targetId) {
-        throw new Error(`Không tìm thấy ID: ${debugEid}. Data: ${JSON.stringify(debugServerConflicts)}`);
+        setError('Hệ thống Lịch đang đồng bộ, không phát hiện xung đột thực tế cho sự kiện này.');
+        setLoading(false);
+        return;
       }
 
       setMatchedConflictId(targetId);
-
       console.log(`Calling AI Suggest API with ConflictID: ${targetId}`);
 
       const response = await aiSuggestConflict(targetId);
       console.log(JSON.stringify(response, null, 2));
-      console.log('API response:', response);
-      console.log('Options:', response?.options);
 
       let suggestions: any[] = [];
       let introStr = null;
 
-      // Extract detailed explanations if the backend provides a combined explanation string
       let parsedExplanations: string[] = [];
       if (response && typeof response.explanation === 'string') {
         const explanationText = response.explanation;
@@ -195,8 +194,6 @@ export default function ConflictResolutionModal({
         suggestions = response;
       }
 
-      console.log('aiResult:', suggestions);
-
       setAiIntro(introStr);
       setAiResult(suggestions);
     } catch (err: any) {
@@ -216,11 +213,11 @@ export default function ConflictResolutionModal({
       if (idToResolve) {
         try {
           await resolveCalendarConflict(idToResolve, 'keep_device');
-          console.log(`[conflict-modal] Resolved conflict on server: ${idToResolve}`);
         } catch (resErr) {
           console.warn('[conflict-modal] Failed to resolve conflict on apply:', resErr);
         }
       }
+      onClose(); // Đóng modal ngay sau khi áp dụng gợi ý dời lịch thành công
     } finally {
       setApplying(false);
     }
@@ -269,8 +266,8 @@ export default function ConflictResolutionModal({
                 {aiResult.map((item, index) => {
                   const isSelected = selectedSuggestionIndex === index;
                   const explanation = item.explanation || item.message || item.reason || (typeof item === 'string' ? item : JSON.stringify(item));
-                  const newStart = item.suggestedStartTime || item.newStartTime;
-                  const newEnd = item.suggestedEndTime || item.newEndTime;
+                  const newStart = item.suggestedStartTime || item.newStartTime || item.newStart;
+                  const newEnd = item.suggestedEndTime || item.newEndTime || item.newEnd;
 
                   return (
                     <Pressable
@@ -301,7 +298,15 @@ export default function ConflictResolutionModal({
           </ScrollView>
 
           <View style={styles.actionContainer}>
-            {aiResult ? (
+            {/* Nếu có thông báo lỗi do DB đã sạch, đổi nút xử lý thành nút Đóng Modal nhanh */}
+            {error && !aiResult ? (
+              <Pressable
+                onPress={onClose}
+                style={[styles.button, styles.primaryButton]}
+              >
+                <Text style={styles.primaryButtonText}>Đóng thông báo</Text>
+              </Pressable>
+            ) : aiResult ? (
               <Pressable
                 onPress={handleApply}
                 style={[styles.button, styles.primaryButton, (applying || selectedSuggestionIndex === null) && styles.buttonDisabled]}
@@ -327,7 +332,7 @@ export default function ConflictResolutionModal({
               </Pressable>
             )}
 
-            {!applying && (
+            {!applying && (!error || aiResult) && (
               <Pressable
                 onPress={handleDismiss}
                 disabled={dismissing}
@@ -375,7 +380,7 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   },
   mainScroll: {
     width: '100%',
-    maxHeight: '100%', // Take up available space until actionContainer
+    maxHeight: '100%',
     marginBottom: 16,
   },
   mainScrollContent: {

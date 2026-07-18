@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Platform, TouchableOpacity } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { View, StyleSheet, Platform, TouchableOpacity, Alert } from 'react-native';
+import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../../hooks/useTheme';
 import { detectEventType } from '../../../utils/eventTypeDetection';
@@ -23,13 +23,17 @@ interface TaskFormFieldsProps {
   onChange?: (data: Partial<TaskFormData>) => void;
   isReadOnly?: boolean;
   onVoicePress?: () => void;
+  dateTimePickerProps?: any;
 }
+
+const MIN_LEAD_MINUTES = 1; // đệm nhỏ tránh race-condition ngay lúc chọn xong bấm submit
 
 export default function TaskFormFields({
   data,
   onChange,
   isReadOnly = false,
   onVoicePress,
+  dateTimePickerProps = {},
 }: TaskFormFieldsProps) {
   const { colors: COLORS } = useTheme();
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -56,6 +60,65 @@ export default function TaskFormFields({
       updates.title = data.title.trim() + ' (Khẩn cấp)';
     }
     update(updates);
+  };
+
+  const wantsDateTime = dateTimePickerProps.mode === 'datetime';
+  const minimumDate = dateTimePickerProps.minimumDate || new Date();
+  const is24Hour = dateTimePickerProps.is24Hour ?? true;
+
+  const isPast = (d: Date) => d.getTime() < Date.now() + MIN_LEAD_MINUTES * 60000;
+
+  const rejectPastAndWarn = () => {
+    Alert.alert(
+      'Thời gian không hợp lệ',
+      'Bạn không thể chọn thời gian đã ở trong quá khứ. Vui lòng chọn lại giờ khác.'
+    );
+  };
+
+  const openAndroidPicker = () => {
+    const base = data.dueDate || new Date();
+
+    DateTimePickerAndroid.open({
+      value: base,
+      mode: 'date',
+      minimumDate,
+      onChange: (event, selectedDate) => {
+        if (event.type === 'dismissed' || !selectedDate) return;
+
+        if (!wantsDateTime) {
+          update({ dueDate: selectedDate });
+          return;
+        }
+
+        DateTimePickerAndroid.open({
+          value: selectedDate,
+          mode: 'time',
+          is24Hour,
+          onChange: (timeEvent, selectedTime) => {
+            if (timeEvent.type === 'dismissed' || !selectedTime) return;
+
+            const combined = new Date(selectedDate);
+            combined.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
+
+            if (isPast(combined)) {
+              rejectPastAndWarn();
+              return; // không cập nhật state, giữ nguyên giá trị cũ
+            }
+
+            update({ dueDate: combined });
+          },
+        });
+      },
+    });
+  };
+
+  const handlePress = () => {
+    if (isReadOnly) return;
+    if (Platform.OS === 'android') {
+      openAndroidPicker();
+    } else {
+      setShowDatePicker(true);
+    }
   };
 
   return (
@@ -106,21 +169,29 @@ export default function TaskFormFields({
       )}
 
       <DatePickerCard
-        label="Ngày hết hạn"
+        label={data.type === 'todo' ? 'Ngày hết hạn (tùy chọn, mặc định hôm nay)' : 'Ngày hết hạn'}
         date={data.dueDate}
-        onPress={() => setShowDatePicker(true)}
+        onPress={handlePress}
         disabled={isReadOnly}
       />
 
-      {showDatePicker && !isReadOnly && (
+      {Platform.OS === 'ios' && showDatePicker && !isReadOnly && (
         <DateTimePicker
           value={data.dueDate || new Date()}
-          minimumDate={new Date()}
-          mode="date"
+          minimumDate={minimumDate}
+          mode={wantsDateTime ? 'datetime' : 'date'}
+          is24Hour={is24Hour}
           display="default"
           onChange={(event, selectedDate) => {
-            setShowDatePicker(Platform.OS === 'ios');
-            if (selectedDate) update({ dueDate: selectedDate });
+            setShowDatePicker(false);
+            if (!selectedDate) return;
+
+            if (isPast(selectedDate)) {
+              rejectPastAndWarn();
+              return;
+            }
+
+            update({ dueDate: selectedDate });
           }}
         />
       )}
@@ -141,7 +212,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   voiceBtn: {
-    marginTop: 27, 
+    marginTop: 27,
     width: 44,
     height: 44,
     borderRadius: 22,

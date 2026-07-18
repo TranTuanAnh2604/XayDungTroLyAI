@@ -30,7 +30,7 @@ export default function DatePickerCard({ label, date, valueText, onPress, disabl
             <MaterialCommunityIcons name={iconName} size={18} color={COLORS.primary} />
           </View>
           <Text style={s.dateText}>
-            {valueText ? valueText : (date ? date.toLocaleDateString('vi-VN') : 'Chọn ngày')}
+            {valueText ? valueText : (date ? `${date.toLocaleDateString('vi-VN')} ${date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}` : 'Chọn ngày')}
           </Text>
         </View>
         <MaterialCommunityIcons name="chevron-right" size={18} color={COLORS.textSecondary || "#999"} />

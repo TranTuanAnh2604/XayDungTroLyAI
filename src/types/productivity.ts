@@ -1,68 +1,63 @@
-/**
- * TypeScript models for the Productivity Report API.
- * Field names match the API spec; update here if the backend shape differs.
- */
+export type ReportMetrics = {
+  tasksCompleted: number;
+  tasksPending: number;
+  todosCompleted: number;
+  todosPending: number;
+  emailsThisWeek: number;
+  avgEmailImportance: number;
+  emailDeadlinesThisWeek: number;
+  unreadEmailsNow: number;
+  meetingsThisWeek: number;
+  meetingHoursThisWeek: number;
+  newConflictsThisWeek: number;
+  unresolvedConflictsNow: number;
+};
 
-/** Shape returned by GET /api/Productivity/reports (list item) */
+export type ChartDataPoint = { label: string; value: number };
+
+/** data của POST /api/Productivity/generate-weekly (đã unwrap qua apiPost) */
+export type ProductivityReport = {
+  reportId: string;
+  taskRate: string;   // "72.0%"
+  todoRate: string;
+  metrics: ReportMetrics;
+  chartData: ChartDataPoint[];
+  aiSkipped: boolean;
+  ai_Evaluation: string;
+};
+
+/** Item trong GET /api/Productivity/reports */
 export type ProductivityReportSummary = {
   id: string;
-  title: string;
   periodType: string;
   periodStart: string;
   periodEnd: string;
-  generatedAt: string;
-  productivityScore: number;
-};
-
-/** Shape returned by GET /api/Productivity/reports/{id} (full detail) */
-export type ProductivityReport = {
-  id: string;
-  title: string;
-  periodType: string;
-  periodStart: string;
-  periodEnd: string;
-  generatedAt: string;
-
-  productivityScore: number;
-  taskCompletionRate: number;
-  tasksCompleted: number;
-  eventsCompleted: number;
-  focusTimeHours: number;
-  breakTimeHours: number;
-  weeklyPerformance?: string;
-
-  aiSummary?: string;
-  overallEvaluation?: string;
-  strengths?: string[];
-  weaknesses?: string[];
-  suggestions?: string[];
-};
-
-/** One data point from GET /api/Productivity/reports/trend */
-export type ProductivityTrendPoint = {
-  week: string;
-  score: number;
   completionRate: number;
+  taskCompletionRate: number;
+  todoCompletionRate: number;
+  generatedAt: string;
 };
 
-/** Full response from GET /api/Productivity/reports/trend */
-export type ProductivityTrendResponse = {
-  data: ProductivityTrendPoint[];
-  weeks: number;
-  periodType: string;
-};
-
-/** Response from GET /api/Productivity/reports */
-export type ProductivityReportsListResponse = {
-  data: ProductivityReportSummary[];
+/** data của GET /api/Productivity/reports */
+export type ProductivityReportsListResult = {
   total: number;
   page: number;
   limit: number;
+  reports: ProductivityReportSummary[];
 };
 
-/** Response from POST /api/Productivity/generate-weekly */
-export type GenerateWeeklyReportResponse = {
-  success: boolean;
-  message?: string;
-  report?: ProductivityReportSummary;
+/** data của GET /api/Productivity/reports/{id} */
+export type ProductivityReportDetail = ProductivityReportSummary & {
+  ai_Evaluation: string;
+  metrics: ReportMetrics | null;
+  chartData: ChartDataPoint[];
+};
+
+/** Một điểm trong GET /api/Productivity/reports/trend — BE trả mảng thẳng */
+export type ProductivityTrendPoint = {
+  label: string;       // "14/07"
+  periodStart: string;
+  periodEnd: string;
+  taskPercent: number;
+  todoPercent: number;
 };
