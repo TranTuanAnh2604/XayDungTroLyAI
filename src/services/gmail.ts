@@ -28,6 +28,15 @@ export type GmailEmail = {
   content: string;
   receivedAt: string;
   isRead: boolean;
+  isPinned: boolean;
+  isArchived: boolean;
+  aiStatus?: string | number;
+  // Category do AI phân loại: Work | Personal | Finance | Promotion | Social |
+  // Education | Health | Travel | Security | Spam | Other
+  category: string | null;
+  // 1 (thấp) → 5 (khẩn cấp)
+  importance: number | null;
+  deadline: string | null;
   aiAnalysis: {
     summary: string;
     keyPoints: string;
@@ -43,6 +52,17 @@ export type GmailEmailsResponse = {
     page?: number;
     emails?: GmailEmail[];
   };
+};
+
+// ─────────────────────────────────────────────────────────────
+// Kiểu dữ liệu cho GET /api/Gmail/inbox — gom nhóm kiểu tab Gmail
+// điện thoại: Primary / Social / Promotions / Spam
+// ─────────────────────────────────────────────────────────────
+export type GmailInboxTab = 'Primary' | 'Social' | 'Promotions' | 'Spam';
+
+export type GmailInboxResult = {
+  tabs: Record<GmailInboxTab, GmailEmail[]>;
+  counts: Record<GmailInboxTab, number>;
 };
 
 function cleanSenderName(value: string): string {
@@ -118,10 +138,46 @@ function getReceivedAt(email: any): string {
 function normalizeGmailEmail(email: any): GmailEmail {
   const rawContent = getContent(email);
   const subject = typeof email.subject === 'string' ? email.subject : undefined;
-  const aiSummary =
-    typeof email.aiAnalysis?.summary === 'string'
-      ? email.aiAnalysis.summary
-      : subject ?? rawContent.slice(0, 120);
+
+  // `/inbox` trả field Summary phẳng (không lồng trong aiAnalysis) cho các
+  // mail Primary/Social, còn Promotions/Spam trả "" (xem GmailAiWorker BE).
+  // `/emails` (cũ) trả lồng trong AiAnalysis.Summary. Hỗ trợ cả hai.
+  const flatSummary = typeof email.summary === 'string' ? email.summary : undefined;
+  const nestedSummary =
+    typeof email.aiAnalysis?.summary === 'string' ? email.aiAnalysis.summary : undefined;
+  const nestedSummaryCapitalized =
+    typeof email.AiAnalysis?.Summary === 'string' ? email.AiAnalysis.Summary : undefined;
+
+  const aiSummary = flatSummary ?? nestedSummary ?? nestedSummaryCapitalized ?? '';
+
+  const flatActionItems = typeof email.actionItems === 'string' ? email.actionItems : undefined;
+  const nestedActionItems =
+    typeof email.aiAnalysis?.actionItems === 'string' ? email.aiAnalysis.actionItems : undefined;
+
+  const flatKeyPoints = typeof email.keyPoints === 'string' ? email.keyPoints : undefined;
+  const nestedKeyPoints =
+    typeof email.aiAnalysis?.keyPoints === 'string' ? email.aiAnalysis.keyPoints : undefined;
+
+  const category =
+    typeof email.category === 'string'
+      ? email.category
+      : typeof email.aiAnalysis?.category === 'string'
+      ? email.aiAnalysis.category
+      : null;
+
+  const importance =
+    typeof email.importance === 'number'
+      ? email.importance
+      : typeof email.aiAnalysis?.importance === 'number'
+      ? email.aiAnalysis.importance
+      : null;
+
+  const deadline =
+    typeof email.deadline === 'string'
+      ? email.deadline
+      : typeof email.aiAnalysis?.deadline === 'string'
+      ? email.aiAnalysis.deadline
+      : null;
 
   return {
     id: String(
@@ -134,10 +190,16 @@ function normalizeGmailEmail(email: any): GmailEmail {
     content: rawContent,
     receivedAt: getReceivedAt(email),
     isRead: Boolean(email.isRead ?? email.read ?? false),
+    isPinned: Boolean(email.isPinned ?? false),
+    isArchived: Boolean(email.isArchived ?? false),
+    aiStatus: email.aiStatus,
+    category,
+    importance,
+    deadline,
     aiAnalysis: {
-      summary: aiSummary,
-      keyPoints: typeof email.aiAnalysis?.keyPoints === 'string' ? email.aiAnalysis.keyPoints : '',
-      actionItems: typeof email.aiAnalysis?.actionItems === 'string' ? email.aiAnalysis.actionItems : '',
+      summary: aiSummary || subject || rawContent.slice(0, 120),
+      keyPoints: flatKeyPoints ?? nestedKeyPoints ?? '',
+      actionItems: flatActionItems ?? nestedActionItems ?? '',
     },
   };
 }
@@ -146,7 +208,7 @@ export async function connectGmail(
   serverAuthCode?: string,
 ): Promise<GmailConnectResponse> {
   const response = await apiPost<GmailConnectResponse>('/api/Gmail/connect', {
-  
+
     googleRefreshToken: serverAuthCode,
   });
 
@@ -190,7 +252,7 @@ export async function autoSyncGmail(): Promise<{
     };
   } catch (error: any) {
     const isNoNewMail = error?.message?.includes('Không có email mới');
-    
+
     if (isNoNewMail) {
       console.log('📧 autoSyncGmail:', error.message);
     } else {
@@ -242,6 +304,38 @@ export async function fetchGmailEmails(
       : [];
 
   return rawEmails.map(normalizeGmailEmail);
+}
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/Gmail/inbox — endpoint mới, gom nhóm sẵn theo tab
+// (Primary/Social/Promotions/Spam). Dùng cái này thay cho
+// fetchGmailEmails() ở màn hình hộp thư chính.
+// ─────────────────────────────────────────────────────────────
+export async function fetchGmailInbox(limit = 30): Promise<GmailInboxResult> {
+  const params = new URLSearchParams();
+  params.set('limit', String(limit));
+
+  const response = await apiGet<{ tabs?: Record<string, any[]>; counts?: Record<string, number> }>(
+    `/api/Gmail/inbox?${params.toString()}`,
+  );
+
+  const rawTabs = response?.tabs ?? {};
+  const rawCounts = response?.counts ?? {};
+
+  const tabKeys: GmailInboxTab[] = ['Primary', 'Social', 'Promotions', 'Spam'];
+
+  const tabs = tabKeys.reduce((acc, key) => {
+    const list = Array.isArray(rawTabs[key]) ? rawTabs[key] : [];
+    acc[key] = list.map(normalizeGmailEmail);
+    return acc;
+  }, {} as Record<GmailInboxTab, GmailEmail[]>);
+
+  const counts = tabKeys.reduce((acc, key) => {
+    acc[key] = Number(rawCounts[key] ?? tabs[key].length);
+    return acc;
+  }, {} as Record<GmailInboxTab, number>);
+
+  return { tabs, counts };
 }
 
 export async function markGmailEmailAsRead(

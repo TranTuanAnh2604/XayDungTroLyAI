@@ -2,12 +2,14 @@ import { getTypography } from '../../constants/typography';
 import React, { useState, useEffect } from 'react';
 import {
   Alert,
-  KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
+  Keyboard,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppLogo from '../../components/ui/AppLogo';
@@ -27,12 +29,13 @@ import { useTheme } from '../../hooks/useTheme';
 import { SPACING } from '../../constants/spacing';
 import type { AuthStackParamList } from '../../navigation/types';
 import { useAuth } from '../../context/AuthContext';
-import { GOOGLE_ANDROID_CLIENT_ID, GOOGLE_WEB_CLIENT_ID } from '../../constants/config';
+import { GOOGLE_WEB_CLIENT_ID } from '../../constants/config';
 import ForgotPasswordModal from '../../components/auth/ForgotPasswordModal';
 import { resetPassword, forgotPassword } from '../../services/auth';
 import { configureGoogleSignIn, getGoogleIdToken, statusCodes } from '../../services/googleAuth';
 import OTPVerificationModal from '../../components/auth/OTPVerificationModal';
 import ResetPasswordModal from '../../components/auth/ResetPasswordModal';
+
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
 export default function LoginScreen({ navigation }: Props) {
@@ -43,7 +46,6 @@ export default function LoginScreen({ navigation }: Props) {
   const topBarHeight = getTopAppBarHeight(insets);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { signIn, signInWithGoogle } = useAuth();
 
@@ -56,18 +58,17 @@ export default function LoginScreen({ navigation }: Props) {
   const [resetEmail, setResetEmail] = useState('');
   const [verifiedOtp, setVerifiedOtp] = useState('');
 
-
   useEffect(() => {
     configureGoogleSignIn(GOOGLE_WEB_CLIENT_ID);
   }, []);
 
   const handleLogin = async () => {
-
     if (!email.trim() || !password.trim()) {
       Alert.alert('Thông báo', 'Vui lòng nhập email và mật khẩu.');
       return;
     }
 
+    Keyboard.dismiss();
     setLoading(true);
 
     try {
@@ -86,11 +87,11 @@ export default function LoginScreen({ navigation }: Props) {
   };
 
   const handleGoogleLogin = async () => {
+    Keyboard.dismiss();
     setLoading(true);
-
+    
     try {
       const { idToken, serverAuthCode } = await getGoogleIdToken();
-      console.log('🔑 LoginScreen: received serverAuthCode length =', serverAuthCode?.length);
       await signInWithGoogle(idToken, serverAuthCode);
       const rootNavigation = navigation.getParent();
       rootNavigation?.reset({
@@ -99,10 +100,8 @@ export default function LoginScreen({ navigation }: Props) {
       });
     } catch (error) {
       let errorMessage = 'Đăng nhập bằng Google thất bại.';
-
       if (error instanceof Error) {
         const errorCode = (error as any).code;
-
         if (errorCode === statusCodes.SIGN_IN_CANCELLED) {
           errorMessage = 'Bạn đã hủy đăng nhập.';
         } else if (errorCode === statusCodes.IN_PROGRESS) {
@@ -113,7 +112,7 @@ export default function LoginScreen({ navigation }: Props) {
           errorMessage = error.message;
         }
       }
-      console.log('❌ Google Login Error:', errorMessage);
+      Alert.alert('Lỗi', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -122,15 +121,10 @@ export default function LoginScreen({ navigation }: Props) {
   const handleForgotPassword = async (email: string) => {
     try {
       await forgotPassword(email);
-
       setResetEmail(email);
-
       setActiveModal({ type: 'otp', email });
-
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Không thể gửi mã xác thực.';
-
+      const message = error instanceof Error ? error.message : 'Không thể gửi mã xác thực.';
       Alert.alert('Lỗi', message);
     }
   };
@@ -138,14 +132,9 @@ export default function LoginScreen({ navigation }: Props) {
   const handleVerifyOtp = async (otp: string) => {
     try {
       setVerifiedOtp(otp);
-
       setActiveModal({ type: 'reset', email: activeModal.email });
-
-
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'OTP không hợp lệ';
-
+      const message = error instanceof Error ? error.message : 'OTP không hợp lệ';
       Alert.alert('Lỗi', message);
     }
   };
@@ -162,37 +151,34 @@ export default function LoginScreen({ navigation }: Props) {
       setResetEmail('');
       setVerifiedOtp('');
 
-
-      Alert.alert(
-        'Thành công',
-        'Mật khẩu đã được cập nhật. Vui lòng đăng nhập lại.'
-      );
+      Alert.alert('Thành công', 'Mật khẩu đã được cập nhật. Vui lòng đăng nhập lại.');
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Không thể đặt lại mật khẩu';
-
+      const message = error instanceof Error ? error.message : 'Không thể đặt lại mật khẩu';
       Alert.alert('Lỗi', message);
     }
   };
 
   const closePasswordResetFlow = () => {
+    Keyboard.dismiss();
     setActiveModal({ type: 'none' });
     setResetEmail('');
     setVerifiedOtp('');
   };
 
   const openForgotPassword = () => {
+    Keyboard.dismiss();
     setActiveModal({ type: 'forgot' });
   };
+
   return (
     <View style={styles.root}>
       <MeshBackground />
       <TopAppBar />
+      
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'position'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : -40} 
       >
         <ScrollView
           contentContainerStyle={[
@@ -236,12 +222,9 @@ export default function LoginScreen({ navigation }: Props) {
                 autoComplete="password"
                 textContentType="password"
               />
-
+              
               <View style={styles.forgotContainer}>
-                <Text
-                  style={styles.forgotLink}
-                  onPress={openForgotPassword}
-                >
+                <Text style={styles.forgotLink} onPress={openForgotPassword}>
                   Quên mật khẩu?
                 </Text>
               </View>
@@ -267,7 +250,10 @@ export default function LoginScreen({ navigation }: Props) {
                 Chưa có tài khoản?{' '}
                 <Text
                   style={styles.footerLink}
-                  onPress={() => navigation.navigate('Register')}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    navigation.navigate('Register');
+                  }}
                 >
                   Đăng ký ngay
                 </Text>
@@ -276,6 +262,7 @@ export default function LoginScreen({ navigation }: Props) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
       <ForgotPasswordModal
         visible={activeModal.type === 'forgot'}
         onClose={closePasswordResetFlow}
@@ -284,7 +271,6 @@ export default function LoginScreen({ navigation }: Props) {
 
       <OTPVerificationModal
         visible={activeModal.type === 'otp'}
-
         email={resetEmail || activeModal.email || ''}
         onClose={closePasswordResetFlow}
         onVerify={handleVerifyOtp}

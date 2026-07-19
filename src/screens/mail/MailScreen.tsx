@@ -3,7 +3,7 @@ import { Alert, StyleSheet, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useComposeFabScroll } from '../../components/mail/ComposeFAB';
+import ComposeFAB, { useComposeFabScroll } from '../../components/mail/ComposeFAB';
 import GmailConnectBanner from '../../components/mail/GmailConnectBanner';
 import MailDetailModal from '../../components/mail/MailDetailModal';
 import MailCategorySection from '../../components/mail/MailCategorySection';
@@ -18,9 +18,6 @@ import {
   getTopAppBarHeight,
   SCROLL_BOTTOM_EXTRA,
 } from '../../constants/layout';
-import {
-  MAIL_FILTERS,
-} from '../../data/mailMock';
 import type { MailCategory, MailFilterId, MailItem } from '../../types/mail';
 import { useOpenSettings } from '../../hooks/useOpenSettings';
 import { useAuth } from '../../context/AuthContext';
@@ -29,15 +26,57 @@ import {
   archiveGmailEmail,
   autoSyncGmail,
   fetchGmailEmails,
+  fetchGmailInbox,
   GmailEmail,
+  GmailInboxResult,
+  GmailInboxTab,
   markGmailEmailAsRead,
   pinGmailEmail,
   connectGmailForCurrentUser,
 } from '../../services/gmail';
-import { mapGmailToMailItem } from '../../utils/mailUtils';
 
-const CACHE_KEY = '@app:mail:cached_emails';
+const CACHE_KEY = '@app:mail:cached_inbox';
 const LAST_SYNC_KEY = '@app:mail:last_sync';
+
+const EMPTY_INBOX: GmailInboxResult = {
+  tabs: { Primary: [], Social: [], Promotions: [], Spam: [] },
+  counts: { Primary: 0, Social: 0, Promotions: 0, Spam: 0 },
+};
+
+// Map filter đang chọn trên UI -> tab tương ứng trả về từ BE.
+// 'archived' không nằm trong /inbox nên xử lý riêng bên dưới.
+const FILTER_TO_TAB: Partial<Record<MailFilterId, GmailInboxTab>> = {
+  primary: 'Primary',
+  social: 'Social',
+  promotions: 'Promotions',
+  spam: 'Spam',
+};
+
+const FILTER_OPTIONS: { id: MailFilterId; label: string }[] = [
+  { id: 'all', label: 'Tất cả' },
+  { id: 'primary', label: 'Quan trọng' },
+  { id: 'social', label: 'Xã hội' },
+  { id: 'promotions', label: 'Quảng cáo' },
+  { id: 'spam', label: 'Rác' },
+  { id: 'archived', label: 'Đã lưu trữ' },
+];
+
+const CATEGORY_TITLES: Record<MailFilterId, string> = {
+  all: 'Tất cả email',
+  primary: 'Hộp thư chính',
+  social: 'Mạng xã hội',
+  promotions: 'Quảng cáo',
+  spam: 'Thư rác',
+  archived: 'Đã lưu trữ',
+};
+
+// Những category KHÔNG được tính là "quan trọng" — dùng để quyết định có
+// hiện box tóm tắt AI hay không, kể cả khi đang xem tab "Tất cả" (nơi mail
+// từ mọi category trộn chung với nhau).
+const NON_IMPORTANT_CATEGORIES = new Set(['Promotion', 'Social', 'Spam']);
+
+const isImportantEmail = (email: GmailEmail) =>
+  !email.category || !NON_IMPORTANT_CATEGORIES.has(email.category);
 
 export default function MailScreen() {
   const { colors: COLORS } = useTheme();
@@ -46,20 +85,17 @@ export default function MailScreen() {
   const openSettings = useOpenSettings();
   const { user } = useAuth();
   const { profile } = useProfile();
-  const [activeFilter, setActiveFilter] = useState<MailFilterId>('important');
+  const [activeFilter, setActiveFilter] = useState<MailFilterId>('all');
   const [viewMode, setViewMode] = useState<'inbox' | 'dashboard'>('inbox');
   const [isConnecting, setIsConnecting] = useState(false);
-  const [gmailEmails, setGmailEmails] = useState<GmailEmail[]>([]);
+  const [inboxResult, setInboxResult] = useState<GmailInboxResult>(EMPTY_INBOX);
+  const [archivedEmails, setArchivedEmails] = useState<GmailEmail[]>([]);
+  const [isArchivedLoaded, setIsArchivedLoaded] = useState(false);
   const [selectedEmail, setSelectedEmail] = useState<GmailEmail | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isActionBusy, setIsActionBusy] = useState(false);
-  const [pinnedEmailIds, setPinnedEmailIds] = useState<string[]>([]);
-  const [archivedEmailIds, setArchivedEmailIds] = useState<string[]>([]);
-  const hasLoadedPersistedIds = useRef(false);
-  const PINNED_KEY = '@app:mail:pinned_ids';
-  const ARCHIVED_KEY = '@app:mail:archived_ids';
   const isFocused = useIsFocused();
   const fabAnim = useComposeFabScroll();
   const bottomChrome = getBottomNavReservedHeight(insets);
@@ -75,109 +111,115 @@ export default function MailScreen() {
   // animated node leaks after navigation.
   useEffect(() => fabAnim.cleanup, []);
 
-  const isImportantEmail = React.useCallback((email: GmailEmail) => {
-    if (!email.isRead) {
-      return true;
+  const formatGmailTime = (receivedAt: string) => {
+    try {
+      const date = new Date(receivedAt);
+      if (Number.isNaN(date.getTime())) {
+        return receivedAt;
+      }
+      return date.toLocaleTimeString('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return receivedAt;
+    }
+  };
+
+  const mapGmailToMailItem = (email: GmailEmail): MailItem => {
+    const important = isImportantEmail(email);
+    // Chỉ tóm tắt (hiện box AI summary) cho mail quan trọng. Mail Social/
+    // Promotion/Spam — kể cả khi đang xem chung trong tab "Tất cả" — luôn
+    // hiện preview từ nội dung gốc, không hiện tóm tắt AI.
+    const preview = important && email.aiAnalysis.summary
+      ? email.aiAnalysis.summary
+      : email.content;
+
+    return {
+      id: email.id,
+      sender: email.sender,
+      time: formatGmailTime(email.receivedAt),
+      subject: email.subject || (important ? email.aiAnalysis.summary : '') || '(Không có tiêu đề)',
+      preview: preview.slice(0, 100),
+      icon: email.isRead ? 'drafts' : 'email',
+      tone: email.isRead ? 'secondary' : 'primary',
+      isPinned: email.isPinned,
+      importance: important ? email.importance : null,
+    };
+  };
+
+  // Danh sách email đang hiển thị theo tab đang chọn — pin luôn lên đầu.
+  const currentTabEmails = useMemo<GmailEmail[]>(() => {
+    let raw: GmailEmail[];
+    if (activeFilter === 'archived') {
+      raw = archivedEmails;
+    } else if (activeFilter === 'all') {
+      raw = [
+        ...inboxResult.tabs.Primary,
+        ...inboxResult.tabs.Social,
+        ...inboxResult.tabs.Promotions,
+        ...inboxResult.tabs.Spam,
+      ];
+    } else {
+      raw = inboxResult.tabs[FILTER_TO_TAB[activeFilter] as GmailInboxTab] ?? [];
     }
 
-    const importantKeywords = [
-      'cảnh báo',
-      'quan trọng',
-      'bảo mật',
-      'xác thực',
-      'yêu cầu',
-      'mời',
-      'họp',
-      'invoice',
-      'payment',
-      'urgent',
-      'alert',
-      'verify',
-      'thông báo',
-      'ếk',
-      'nộp',
-      'hạn',
-      'thanh toán',
-      'refund',
-    ];
-
-    const text = [
-      email.sender,
-      email.subject ?? '',
-      email.content,
-      email.aiAnalysis?.summary,
-      email.aiAnalysis?.keyPoints,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
-
-    return importantKeywords.some((keyword) => text.includes(keyword));
-  }, []);
-
-  const importantCount = useMemo(() => {
-    return gmailEmails.filter(isImportantEmail).length;
-  }, [gmailEmails, isImportantEmail]);
-
-  const dynamicFilters = useMemo(() => {
-    return MAIL_FILTERS.map((f) => {
-      if (f.id === 'important') {
-        return {
-          ...f,
-          count: importantCount,
-        };
-      }
-      return f;
-    });
-  }, [importantCount]);
-
-  const filteredGmailEmails = useMemo(() => {
-    if (gmailEmails.length === 0) return [];
-
-    const now = Date.now();
-    const recentThreshold = 1000 * 60 * 60 * 24 * 2; // 2 days
-
-    const filtered = gmailEmails.filter((email) => {
-      if (activeFilter === 'all') {
-        return true;
-      }
-      if (activeFilter === 'unread') {
-        return !email.isRead;
-      }
-      if (activeFilter === 'recent') {
-        const date = new Date(email.receivedAt).getTime();
-        return !Number.isNaN(date) && now - date <= recentThreshold;
-      }
-      if (activeFilter === 'important') {
-        return isImportantEmail(email);
-      }
-      if (activeFilter === 'archived') {
-        return archivedEmailIds.includes(email.id);
-      }
-      return true;
-    });
-
-    return filtered.sort((a, b) => {
-      const aPinned = pinnedEmailIds.includes(a.id);
-      const bPinned = pinnedEmailIds.includes(b.id);
-      if (aPinned && !bPinned) return -1;
-      if (!aPinned && bPinned) return 1;
+    return [...raw].sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
       return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
     });
-  }, [activeFilter, gmailEmails, archivedEmailIds, pinnedEmailIds]);
+  }, [activeFilter, inboxResult, archivedEmails]);
 
   const gmailCategory = useMemo<MailCategory | null>(() => {
-    if (filteredGmailEmails.length === 0) return null;
+    if (currentTabEmails.length === 0) return null;
     return {
-      id: 'gmail',
-      title: 'Gmail của bạn',
+      id: activeFilter,
+      title: CATEGORY_TITLES[activeFilter],
       tone: 'primary',
-      emails: filteredGmailEmails.map((email) => mapGmailToMailItem(email, pinnedEmailIds)),
+      emails: currentTabEmails.map(mapGmailToMailItem),
     };
-  }, [filteredGmailEmails, pinnedEmailIds]);
+  }, [currentTabEmails, activeFilter]);
+
+  const dynamicFilters = useMemo(() => {
+    return FILTER_OPTIONS.map((f) => {
+      if (f.id === 'archived') {
+        return { ...f, count: isArchivedLoaded ? archivedEmails.length : undefined };
+      }
+      if (f.id === 'all') {
+        const total = Object.values(inboxResult.counts).reduce((a, b) => a + b, 0);
+        return { ...f, count: total };
+      }
+      const tab = FILTER_TO_TAB[f.id] as GmailInboxTab;
+      return { ...f, count: inboxResult.counts[tab] };
+    });
+  }, [inboxResult, archivedEmails, isArchivedLoaded]);
+
+  // Tìm 1 email theo id, bất kể đang nằm ở tab nào (kể cả archived) — dùng
+  // cho các hành động (đọc/ghim/lưu trữ) không phụ thuộc filter đang chọn.
+  const findEmailById = (emailId: string): GmailEmail | undefined => {
+    for (const tab of Object.values(inboxResult.tabs)) {
+      const found = tab.find((e) => e.id === emailId);
+      if (found) return found;
+    }
+    return archivedEmails.find((e) => e.id === emailId);
+  };
+
+  // Cập nhật 1 field của email tại chỗ trong cả 2 nguồn state (inbox +
+  // archived), tránh phải refetch cho những thay đổi nhỏ như "đã đọc".
+  const patchEmailLocally = (emailId: string, patch: Partial<GmailEmail>) => {
+    setInboxResult((prev) => {
+      const next: GmailInboxResult = { ...prev, tabs: { ...prev.tabs } };
+      (Object.keys(next.tabs) as GmailInboxTab[]).forEach((tab) => {
+        next.tabs[tab] = next.tabs[tab].map((e) => (e.id === emailId ? { ...e, ...patch } : e));
+      });
+      return next;
+    });
+    setArchivedEmails((prev) => prev.map((e) => (e.id === emailId ? { ...e, ...patch } : e)));
+  };
 
   const handleEmailPress = async (emailId: string) => {
-    const email = gmailEmails.find((item) => item.id === emailId);
+    const email = findEmailById(emailId);
     if (!email) return;
 
     // Mở popup ngay lập tức để không bị lag/delay
@@ -186,42 +228,49 @@ export default function MailScreen() {
 
     if (email.isRead) return;
 
-    // Optimistic update state
-    setGmailEmails((prev) =>
-      prev.map((item) =>
-        item.id === emailId ? { ...item, isRead: true } : item,
-      ),
-    );
+    // Optimistic update
+    patchEmailLocally(emailId, { isRead: true });
 
-    // Call API in background
     markGmailEmailAsRead(emailId).catch((error: any) => {
       console.error('❌ MailScreen: Lỗi đánh dấu email là đã đọc', error);
     });
   };
 
-  // Load persisted pinned/archived IDs on mount
-  useEffect(() => {
-    (async () => {
-      try {
-        const pinnedRaw = await AsyncStorage.getItem(PINNED_KEY);
-        const archivedRaw = await AsyncStorage.getItem(ARCHIVED_KEY);
-        if (pinnedRaw) {
-          const parsed = JSON.parse(pinnedRaw);
-          if (Array.isArray(parsed)) setPinnedEmailIds(parsed);
-        }
-        if (archivedRaw) {
-          const parsed = JSON.parse(archivedRaw);
-          if (Array.isArray(parsed)) setArchivedEmailIds(parsed);
-        }
-      } catch (err) {
-        console.warn('MailScreen: Failed to load pinned/archived IDs', err);
-      } finally {
-        hasLoadedPersistedIds.current = true;
-      }
-    })();
-  }, []);
+  const loadInboxData = async () => {
+    try {
+      const result = await fetchGmailInbox(30);
+      setInboxResult(result);
+      await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(result));
+      await AsyncStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
+      const total = Object.values(result.counts).reduce((a, b) => a + b, 0);
+      setSyncMessage(total > 0 ? `Đã tải ${total} email Gmail.` : 'Chưa có email Gmail.');
+      if (total > 0) setIsConnected(true);
+    } catch (error: any) {
+      console.error('❌ MailScreen: Lỗi lấy hộp thư Gmail', error);
+      setSyncMessage(error?.message || 'Không thể tải email Gmail.');
+    }
+  };
 
-  // On mount: load cached emails and decide whether to sync
+  const loadArchivedEmails = async () => {
+    try {
+      const emails = await fetchGmailEmails(1, 50, { includeArchived: true });
+      const archived = emails.filter((e) => e.isArchived);
+      setArchivedEmails(archived);
+      setIsArchivedLoaded(true);
+    } catch (error: any) {
+      console.error('❌ MailScreen: Lỗi lấy email đã lưu trữ', error);
+    }
+  };
+
+  // Load tab "Đã lưu trữ" theo kiểu lười — chỉ gọi khi người dùng thực sự
+  // bấm vào tab đó lần đầu, đỡ tốn 1 lượt gọi API không cần thiết.
+  useEffect(() => {
+    if (activeFilter === 'archived' && !isArchivedLoaded) {
+      loadArchivedEmails();
+    }
+  }, [activeFilter, isArchivedLoaded]);
+
+  // On mount: load cache và quyết định có cần đồng bộ lại không
   useEffect(() => {
     let mounted = true;
 
@@ -231,13 +280,13 @@ export default function MailScreen() {
         const cachedRaw = await AsyncStorage.getItem(CACHE_KEY);
         if (cachedRaw) {
           try {
-            const cached = JSON.parse(cachedRaw) as GmailEmail[];
-            if (Array.isArray(cached) && mounted) {
-              setGmailEmails(cached);
+            const cached = JSON.parse(cachedRaw) as GmailInboxResult;
+            if (cached?.tabs && mounted) {
+              setInboxResult(cached);
               setSyncMessage('Hiển thị email từ cache.');
             }
           } catch (err) {
-            console.warn('Failed to parse cached gmail emails', err);
+            console.warn('Failed to parse cached gmail inbox', err);
           }
         }
 
@@ -246,12 +295,10 @@ export default function MailScreen() {
         const now = new Date();
         const fiveMinutes = 5 * 60 * 1000;
         if (last && now.getTime() - last.getTime() < fiveMinutes) {
-          // skip sync
           setSyncMessage('Đã đồng bộ gần đây, bỏ qua đồng bộ.');
           return;
         }
 
-        // perform auto-sync and fetch fresh emails
         setIsConnecting(true);
         setSyncMessage('Đang đồng bộ Gmail...');
 
@@ -274,23 +321,8 @@ export default function MailScreen() {
           }
         }
 
-        // Fetch with params from UI attachment (defaults)
-        try {
-          const emails = await fetchGmailEmails(1, 20, {
-            includeArchived: false,
-            minImportance: 1,
-            category: '',
-          });
-          if (mounted) {
-            setGmailEmails(emails);
-            await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(emails));
-            await AsyncStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
-            setSyncMessage(emails.length > 0 ? `Đã tải ${emails.length} email Gmail.` : 'Chưa có email Gmail.');
-            if (emails.length > 0) setIsConnected(true);
-          }
-        } catch (err: any) {
-          console.error('Failed to fetch gmail emails on startup', err);
-          if (mounted) setSyncMessage(err?.message || 'Không thể tải email Gmail.');
+        if (mounted) {
+          await loadInboxData();
         }
       } catch (err) {
         console.warn('loadCacheAndMaybeSync error', err);
@@ -306,30 +338,19 @@ export default function MailScreen() {
     };
   }, []);
 
-  // Persist pinned IDs
-  useEffect(() => {
-    if (!hasLoadedPersistedIds.current) return;
-    AsyncStorage.setItem(PINNED_KEY, JSON.stringify(pinnedEmailIds)).catch(() => { });
-  }, [pinnedEmailIds]);
-
-  // Persist archived IDs
-  useEffect(() => {
-    if (!hasLoadedPersistedIds.current) return;
-    AsyncStorage.setItem(ARCHIVED_KEY, JSON.stringify(archivedEmailIds)).catch(() => { });
-  }, [archivedEmailIds]);
-
   const handlePinEmail = async (emailId: string) => {
     if (!emailId || isActionBusy) return;
 
-    const isPinned = pinnedEmailIds.includes(emailId);
+    const email = findEmailById(emailId);
+    const wasPinned = email?.isPinned ?? false;
+
     setIsActionBusy(true);
     try {
-      // Call pin endpoint — backend toggles the boolean state when called multiple times
+      // Backend toggle theo mỗi lần gọi
       const result = await pinGmailEmail(emailId);
       if (result.success) {
-        // Toggle local state according to previous value
-        setPinnedEmailIds((prev) => (isPinned ? prev.filter((id) => id !== emailId) : prev.includes(emailId) ? prev : [...prev, emailId]));
-        setSyncMessage(isPinned ? 'Đã bỏ pin email này.' : 'Đã đánh dấu email này là pin.');
+        patchEmailLocally(emailId, { isPinned: !wasPinned });
+        setSyncMessage(wasPinned ? 'Đã bỏ pin email này.' : 'Đã đánh dấu email này là pin.');
       } else {
         Alert.alert('Thông báo', result.message || 'Không thể cập nhật trạng thái pin cho email này.');
       }
@@ -344,14 +365,23 @@ export default function MailScreen() {
   const handleArchiveEmail = async (emailId: string) => {
     if (!emailId || isActionBusy) return;
 
-    const isArchived = archivedEmailIds.includes(emailId);
+    const email = findEmailById(emailId);
+    const wasArchived = email?.isArchived ?? (activeFilter === 'archived');
+
     setIsActionBusy(true);
     try {
       const result = await archiveGmailEmail(emailId);
       if (result.success) {
-        setArchivedEmailIds((prev) => (isArchived ? prev.filter((id) => id !== emailId) : prev.includes(emailId) ? prev : [...prev, emailId]));
-        setSyncMessage(isArchived ? 'Đã bỏ lưu trữ email này.' : 'Đã lưu trữ email này.');
-        if (!isArchived) setIsDetailOpen(false);
+        setSyncMessage(wasArchived ? 'Đã bỏ lưu trữ email này.' : 'Đã lưu trữ email này.');
+        if (!wasArchived) setIsDetailOpen(false);
+
+        // Archive/unarchive đổi hẳn tab của email (biến mất khỏi /inbox hoặc
+        // biến mất khỏi archived) -> refetch để đồng bộ đúng với backend
+        // thay vì tự suy luận tab mới sẽ về đâu.
+        await Promise.all([
+          loadInboxData(),
+          isArchivedLoaded ? loadArchivedEmails() : Promise.resolve(),
+        ]);
       } else {
         Alert.alert('Thông báo', result.message || 'Không thể cập nhật trạng thái lưu trữ cho email này.');
       }
@@ -383,7 +413,8 @@ export default function MailScreen() {
           setSyncMessage(syncResult.message || 'Đã đồng bộ Gmail.');
           setIsConnected(true);
         }
-        await loadGmailEmails();
+        await loadInboxData();
+        if (isArchivedLoaded) await loadArchivedEmails();
       } catch (error: any) {
         console.error('❌ MailScreen: Lỗi auto-sync Gmail', error);
         setSyncMessage(error?.message || 'Không thể đồng bộ Gmail.');
@@ -396,22 +427,8 @@ export default function MailScreen() {
     };
 
     syncOnFocus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFocused]);
-
-  const loadGmailEmails = async (page = 1, limit = 20) => {
-    setSyncMessage('Đang tải email Gmail...');
-    try {
-      const emails = await fetchGmailEmails(page, limit);
-      setGmailEmails(emails);
-      if (emails.length > 0) {
-        setIsConnected(true);
-      }
-      setSyncMessage(emails.length > 0 ? `Đã tải ${emails.length} email Gmail.` : 'Chưa có email Gmail.');
-    } catch (error: any) {
-      console.error('❌ MailScreen: Lỗi lấy email Gmail', error);
-      setSyncMessage(error?.message || 'Không thể tải email Gmail.');
-    }
-  };
 
   const handleConnectGmail = async () => {
     if (isConnecting) return;
@@ -424,7 +441,7 @@ export default function MailScreen() {
         setIsConnected(true);
         setSyncMessage('Liên kết Gmail thành công! Đang tải dữ liệu...');
         await autoSyncGmail();
-        await loadGmailEmails();
+        await loadInboxData();
       } else {
         setSyncMessage(res.message || 'Liên kết Gmail thất bại.');
         Alert.alert('Lỗi', res.message || 'Liên kết Gmail thất bại.');
@@ -487,8 +504,6 @@ export default function MailScreen() {
               onChange={setActiveFilter}
             />
 
-            {/* <MailAiSummaryCard summary={MAIL_AI_SUMMARY} /> */}
-
             <View style={styles.gmailStatusContainer}>
               <Text style={styles.gmailStatusText}>{syncMessage || 'Đang chờ Gmail...'}</Text>
             </View>
@@ -499,8 +514,8 @@ export default function MailScreen() {
               onClose={() => setIsDetailOpen(false)}
               onPinPress={handlePinEmail}
               onArchivePress={handleArchiveEmail}
-              isPinned={selectedEmail ? pinnedEmailIds.includes(selectedEmail.id) : false}
-              isArchived={selectedEmail ? archivedEmailIds.includes(selectedEmail.id) : false}
+              isPinned={selectedEmail?.isPinned ?? false}
+              isArchived={selectedEmail?.isArchived ?? false}
               isBusy={isActionBusy}
             />
 
@@ -515,7 +530,7 @@ export default function MailScreen() {
                 <Text style={styles.emptyStateTitle}>Không có email để hiển thị</Text>
                 <Text style={styles.emptyStateSubtitle}>
                   {isConnected
-                    ? 'Gmail đã được kết nối nhưng hiện tại chưa có email nào để hiển thị.'
+                    ? `Không có email nào trong mục "${CATEGORY_TITLES[activeFilter]}".`
                     : 'Vui lòng kết nối Gmail hoặc thử lại sau khi đồng bộ xong.'}
                 </Text>
                 {!isConnected && (

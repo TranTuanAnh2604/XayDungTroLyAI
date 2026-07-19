@@ -132,6 +132,11 @@ export default function TaskDetailModal({
         data={formData}
         onChange={(updates) => setFormData((prev) => ({ ...prev, ...updates }))}
         isReadOnly={!isEditMode}
+        dateTimePickerProps={{
+          minimumDate: new Date(),
+          mode: 'datetime',
+          is24Hour: true
+        }}
       />
 
       {isEditMode ? (

@@ -52,6 +52,8 @@ export default function TaskListItem({
   isSwipableRef.current = isSwipable;
   const isDraggingRef = useRef(false);
 
+  const hasExpired = !!(task as any).isOverdue;
+
   useEffect(() => {
     Animated.spring(scaleAnim, {
       toValue: isSwipable ? 0.95 : 1,
@@ -82,7 +84,6 @@ export default function TaskListItem({
     ]).start();
   }, [fadeAnim, index, slideAnim]);
 
-  // Lưu trữ các callback và prop vào ref để PanResponder không bị reset giữa chừng
   const actionsRef = useRef({ onDelete, onToggle, task });
   useEffect(() => {
     actionsRef.current = { onDelete, onToggle, task };
@@ -92,19 +93,15 @@ export default function TaskListItem({
     PanResponder.create({
       onStartShouldSetPanResponderCapture: () => false,
       onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponderCapture: (_, gestureState) => {
-        return isSwipableRef.current; // Bắt lấy sự kiện ngay lập tức nếu đã bật chế độ vuốt
-      },
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return isSwipableRef.current;
-      },
+      onMoveShouldSetPanResponderCapture: () => isSwipableRef.current,
+      onMoveShouldSetPanResponder: () => isSwipableRef.current,
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: () => {
         isDraggingRef.current = true;
       },
       onPanResponderMove: (_, gestureState) => {
         let newDx = gestureState.dx;
-        const limit = SCREEN_WIDTH * 0.35; // Giảm xuống 0.35 để góc bo tròn của thẻ che kín phần nền phân cách
+        const limit = SCREEN_WIDTH * 0.35;
         if (newDx > limit) newDx = limit;
         if (newDx < -limit) newDx = -limit;
         pan.setValue(newDx);
@@ -118,26 +115,11 @@ export default function TaskListItem({
         const isSwipeRight = gestureState.dx > SCREEN_WIDTH * 0.25 || gestureState.vx > 0.5;
 
         if (isSwipeLeft) {
-          // Vuốt sang trái -> Xóa (Delete)
-          Animated.spring(pan, {
-            toValue: 0, // Quay lại vị trí cũ để chờ xác nhận từ hộp thoại xóa
-            useNativeDriver: false,
-            bounciness: 0,
-          }).start(() => del?.());
+          Animated.spring(pan, { toValue: 0, useNativeDriver: false, bounciness: 0 }).start(() => del?.());
         } else if (isSwipeRight) {
-          // Vuốt sang phải -> Hoàn thành (Complete)
-          Animated.spring(pan, {
-            toValue: 0, // Quay lại vị trí cũ để hiện gạch ngang
-            useNativeDriver: false,
-            bounciness: 0,
-          }).start(() => toggle?.(t.id, !t.completed));
+          Animated.spring(pan, { toValue: 0, useNativeDriver: false, bounciness: 0 }).start(() => toggle?.(t.id, t.completed));
         } else {
-          // Hủy thao tác
-          Animated.spring(pan, {
-            toValue: 0,
-            useNativeDriver: false,
-            bounciness: 0,
-          }).start();
+          Animated.spring(pan, { toValue: 0, useNativeDriver: false, bounciness: 0 }).start();
         }
       },
       onPanResponderTerminate: () => {
@@ -153,17 +135,8 @@ export default function TaskListItem({
       Animated.timing(scaleAnim, { toValue: 0.98, duration: 75, useNativeDriver: true }),
       Animated.timing(scaleAnim, { toValue: 1, duration: 75, useNativeDriver: true }),
     ]).start();
-    onToggle?.(task.id, !task.completed);
+    onToggle?.(task.id, task.completed);
   };
-
-  const isOverdue = useMemo(() => {
-    if (task.completed || !task.dueDate) return false;
-    const now = new Date();
-    now.setHours(0,0,0,0);
-    const due = new Date(task.dueDate);
-    due.setHours(0,0,0,0);
-    return due.getTime() < now.getTime();
-  }, [task.completed, task.dueDate]);
 
   return (
     <Animated.View
@@ -175,14 +148,14 @@ export default function TaskListItem({
         },
       ]}
     >
-      <Animated.View style={[styles.swipeBackground, { opacity: bgAnim }]}>
-        <View style={styles.swipeActionLeft}>
+      <View style={styles.swipeBackground}>
+        <Animated.View style={[styles.swipeActionLeft, { opacity: bgAnim }]}>
           <MaterialIcons name="check" size={28} color="#fff" />
-        </View>
-        <View style={styles.swipeActionRight}>
+        </Animated.View>
+        <Animated.View style={[styles.swipeActionRight, { opacity: bgAnim }]}>
           <MaterialIcons name="delete" size={28} color="#fff" />
-        </View>
-      </Animated.View>
+        </Animated.View>
+      </View>
 
       <Animated.View style={{ transform: [{ translateX: pan }] }} {...panResponder.panHandlers}>
         <Pressable
@@ -195,7 +168,6 @@ export default function TaskListItem({
           }}
           delayLongPress={200}
           onPressOut={() => {
-            // Đợi một chút để PanResponder có thời gian "cướp" sự kiện trước khi tự tắt
             setTimeout(() => {
               if (!isDraggingRef.current) {
                 setIsSwipable(false);
@@ -203,17 +175,21 @@ export default function TaskListItem({
             }, 100);
           }}
         >
-          <AppGlassCard variant="surface" padding={14} style={[styles.cardWrap, isOverdue && styles.cardWrapOverdue]}>
+          <AppGlassCard variant="surface" padding={14} style={[styles.cardWrap, hasExpired && styles.cardWrapOverdue]}>
             <View style={styles.row}>
               <View style={styles.left}>
                 <Pressable
                   onPress={handleToggle}
-                  style={[styles.checkbox, task.completed && styles.checkboxDone, isOverdue && !task.completed && styles.checkboxOverdue]}
+                  style={[
+                    styles.checkbox, 
+                    task.completed && styles.checkboxDone, 
+                    hasExpired && !task.completed && styles.checkboxOverdue
+                  ]}
                 >
                   {task.completed && <MaterialIcons name="check" size={18} color="#fff" />}
                 </Pressable>
                 <View style={styles.textCol}>
-                  <Text style={[styles.title, task.completed && styles.titleDone]} numberOfLines={2}>
+                  <Text style={[styles.title, task.completed && styles.titleDone, hasExpired && styles.textRedLere]} numberOfLines={2}>
                     {task.title}
                   </Text>
                   {!!task.description && task.description !== 'Không có mô tả' && (
@@ -222,8 +198,8 @@ export default function TaskListItem({
                     </Text>
                   )}
                   {!!task.dueDate && (
-                    <Text style={[styles.meta, task.completed ? styles.metaDone : (isOverdue ? styles.metaOverdue : undefined)]}>
-                      {isOverdue ? 'Quá hạn: ' : 'Hạn: '}{new Date(task.dueDate).toLocaleDateString('vi-VN')}
+                    <Text style={[styles.meta, task.completed ? styles.metaDone : (hasExpired ? styles.metaOverdue : undefined)]}>
+                      {hasExpired ? '⚠️ QUÁ HẠN: ' : 'Hạn: '}{task.meta.includes('• Hạn:') ? task.meta.split('• Hạn:')[1].trim() : new Date(task.dueDate).toLocaleDateString('vi-VN')}
                     </Text>
                   )}
                 </View>
@@ -332,7 +308,8 @@ const createStyles = (COLORS: any, typography: any) =>
     badgeTextHigh: { color: COLORS.error },
     badgeTextNormal: { color: COLORS.primary },
     badgeTextMuted: { color: COLORS.outline },
-    cardWrapOverdue: { borderWidth: 1, borderColor: COLORS.error + '40' },
-    metaOverdue: { color: COLORS.error },
-    checkboxOverdue: { borderColor: COLORS.error },
+    textRedLere: { color: COLORS.error || '#EF4444', fontWeight: 'bold' },
+    cardWrapOverdue: { borderWidth: 1.5, borderColor: COLORS.error || '#EF4444' },
+    metaOverdue: { color: COLORS.error || '#EF4444', fontWeight: '700' },
+    checkboxOverdue: { borderColor: COLORS.error || '#EF4444' },
   });

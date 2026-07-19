@@ -1,52 +1,40 @@
 import { apiGet, apiPost } from './api';
 import type {
-  GenerateWeeklyReportResponse,
   ProductivityReport,
-  ProductivityReportsListResponse,
-  ProductivityTrendResponse,
+  ProductivityReportDetail,
+  ProductivityReportsListResult,
+  ProductivityTrendPoint,
 } from '../types/productivity';
 
 const BASE = '/api/Productivity';
 
-/**
- * POST /api/Productivity/generate-weekly
- * Call only when no report exists or the user explicitly requests regeneration.
- */
-export async function generateWeeklyReport(): Promise<GenerateWeeklyReportResponse> {
-  return apiPost<GenerateWeeklyReportResponse>(`${BASE}/generate-weekly`, {});
+/** POST /api/Productivity/generate-weekly — BE tự cache theo metrics, gọi lại không tốn AI token nếu số liệu không đổi */
+export async function generateWeeklyReport(): Promise<ProductivityReport> {
+  return apiPost<ProductivityReport>(`${BASE}/generate-weekly`, {});
 }
 
-/**
- * GET /api/Productivity/reports
- * Returns paginated list. The newest report is item [0].
- */
+/** GET /api/Productivity/reports */
 export async function getReportsList(
   page = 1,
   limit = 10,
   periodType = 'weekly',
-): Promise<ProductivityReportsListResponse> {
-  return apiGet<ProductivityReportsListResponse>(
+): Promise<ProductivityReportsListResult> {
+  return apiGet<ProductivityReportsListResult>(
     `${BASE}/reports?page=${page}&limit=${limit}&periodType=${periodType}`,
   );
 }
 
-/**
- * GET /api/Productivity/reports/{id}
- * Full report detail. Only call when the user opens a detail view.
- */
-export async function getReportDetail(id: string): Promise<ProductivityReport> {
-  return apiGet<ProductivityReport>(`${BASE}/reports/${id}`);
+/** GET /api/Productivity/reports/{id} */
+export async function getReportDetail(id: string): Promise<ProductivityReportDetail> {
+  return apiGet<ProductivityReportDetail>(`${BASE}/reports/${id}`);
 }
 
-/**
- * GET /api/Productivity/reports/trend
- * Historical productivity trend data for the chart.
- */
+/** GET /api/Productivity/reports/trend */
 export async function getProductivityTrend(
   weeks = 8,
   periodType = 'weekly',
-): Promise<ProductivityTrendResponse> {
-  return apiGet<ProductivityTrendResponse>(
+): Promise<ProductivityTrendPoint[]> {
+  return apiGet<ProductivityTrendPoint[]>(
     `${BASE}/reports/trend?weeks=${weeks}&periodType=${periodType}`,
   );
 }

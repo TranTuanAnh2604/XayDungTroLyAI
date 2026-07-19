@@ -2,12 +2,13 @@ import { getTypography } from '../../constants/typography';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   View,
+  Keyboard,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -60,20 +61,15 @@ export default function RegisterScreen({ navigation }: Props) {
       return;
     }
 
+    Keyboard.dismiss();
     setIsRegistering(true);
 
     try {
-      console.log('📝 Đang đăng ký...', { fullName, email });
       await signUp(fullName.trim(), email.trim(), password);
-      console.log('✅ Đăng ký thành công, hiển thị OTP modal...');
-      
-
       setShowOTPModal(true);
       setIsRegistering(false);
-      
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Đăng ký thất bại.';
-      console.log('❌ Lỗi đăng ký:', message);
       Alert.alert('Lỗi đăng ký', message);
       setIsRegistering(false);
     }
@@ -81,33 +77,27 @@ export default function RegisterScreen({ navigation }: Props) {
   
   const handleVerifyOTP = async (otp: string) => {
     try {
-      console.log('EMAIL:', email.trim());
-    console.log('PASSWORD length:', password.length);
+      const authData = await completeRegistrationWithOtp(
+        email.trim(),
+        password,
+        otp,
+      );
+      await setAuthDataFromOTP(authData);
+      setShowOTPModal(false);
 
-    const authData = await completeRegistrationWithOtp(
-      email.trim(),
-      password,
-      otp,
-    );
-      console.log('AUTH:', authData);
-
-    await setAuthDataFromOTP(authData);
-
-    setShowOTPModal(false);
-
-    navigation.getParent()?.reset({
-      index: 0,
-      routes: [{ name: 'Main' }],
-    });
+      navigation.getParent()?.reset({
+        index: 0,
+        routes: [{ name: 'Main' }],
+      });
     } catch (error) {
-     console.log('OTP ERROR:', error);
-    throw error;
+      console.log('OTP ERROR:', error);
+      throw error;
     }
   };
 
   const handleCloseOTPModal = () => {
+    Keyboard.dismiss();
     setShowOTPModal(false);
-    // Reset registration state
     setFullName('');
     setEmail('');
     setPassword('');
@@ -115,11 +105,11 @@ export default function RegisterScreen({ navigation }: Props) {
   };
 
   const handleGoogleSignUp = async () => {
+    Keyboard.dismiss();
     setIsRegistering(true);
 
     try {
       const { idToken, serverAuthCode } = await getGoogleIdToken();
-      console.log('🔑 RegisterScreen: received serverAuthCode length =', serverAuthCode?.length);
       await signInWithGoogle(idToken, serverAuthCode);
       navigation.getParent()?.reset({
         index: 0,
@@ -139,7 +129,6 @@ export default function RegisterScreen({ navigation }: Props) {
           errorMessage = error.message;
         }
       }
-      console.log('❌ Google Register Error:', errorMessage);
       Alert.alert('Lỗi đăng ký Google', errorMessage);
     } finally {
       setIsRegistering(false);
@@ -150,9 +139,11 @@ export default function RegisterScreen({ navigation }: Props) {
     <View style={styles.root}>
       <MeshBackground variant="register" />
 
+      {/* Sử dụng behavior="position" đẩy mượt form đăng ký */}
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'position'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : -60}
       >
         <ScrollView
           contentContainerStyle={[
@@ -242,7 +233,10 @@ export default function RegisterScreen({ navigation }: Props) {
                   Bạn đã có tài khoản?{' '}
                   <Text
                     style={styles.loginLink}
-                    onPress={() => navigation.navigate('Login')}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      navigation.navigate('Login');
+                    }}
                   >
                     Đăng nhập
                   </Text>
@@ -250,12 +244,10 @@ export default function RegisterScreen({ navigation }: Props) {
               </View>
             </AppGlassCard>
 
-            <Text style={styles.copyright}>{APP_COPYRIGHT}</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* OTP Verification Modal */}
       <OTPVerificationModal
         visible={showOTPModal}
         email={email}

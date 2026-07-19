@@ -5,6 +5,7 @@ import ModalHeader from './ui/ModalHeader';
 import ModalFooter from './ui/ModalFooter';
 import TaskFormFields, { TaskFormData } from './ui/TaskFormFields';
 import { tasksApi } from '../../services/task';
+import { Alert } from 'react-native';
 
 interface CreateTaskModalProps {
   visible: boolean;
@@ -39,9 +40,15 @@ export default function CreateTaskModal({ visible, onClose, onSaved, onOptimisti
     onClose();
   };
 
+  // Task bắt buộc có hạn; Todo thì không bắt buộc (BE tự mặc định hôm nay)
+  const isTaskMissingDueDate = formData.type === 'task' && !formData.dueDate;
+
   const handleCreate = async () => {
-    if (!formData.title.trim() || !formData.dueDate) return;
+    if (!formData.title.trim() || isTaskMissingDueDate) return;
     setIsSubmitting(true);
+
+    // Todo không chọn ngày -> mặc định hôm nay ngay từ lúc optimistic update, để UI hiển thị nhất quán
+    const effectiveDueDate = formData.dueDate || new Date();
 
     const optimisticId = `opt-${Date.now()}`;
     const optimisticTask = {
@@ -49,7 +56,7 @@ export default function CreateTaskModal({ visible, onClose, onSaved, onOptimisti
       title: formData.title.trim(),
       description: formData.description.trim(),
       priority: formData.priority,
-      dueDate: formData.dueDate.toISOString(),
+      dueDate: effectiveDueDate.toISOString(),
       createdAt: new Date().toISOString(),
       completed: false,
       itemType: formData.type,
@@ -69,19 +76,20 @@ export default function CreateTaskModal({ visible, onClose, onSaved, onOptimisti
           formData.title.trim(),
           formData.description.trim(),
           formData.priority,
-          formData.dueDate.toISOString()
+          formData.dueDate!.toISOString()
         );
       } else {
-        const targetDate = formData.dueDate.toISOString();
+        // Không truyền dueDate nếu user không chọn -> để BE tự set new Date().toISOString()
         await tasksApi.createTodo(
           formData.title.trim(),
           formData.description.trim(),
-          targetDate
+          formData.dueDate ? formData.dueDate.toISOString() : undefined
         );
       }
       onSaved();
     } catch (error) {
       console.error('Lỗi không thể tạo mới:', error);
+      Alert.alert('Không thể tạo công việc', 'Thời gian đến hạn có thể đã ở quá khứ. Vui lòng thử lại.');
       onSaved();
     } finally {
       setIsSubmitting(false);
@@ -95,7 +103,7 @@ export default function CreateTaskModal({ visible, onClose, onSaved, onOptimisti
         subtitle="Quản lý công việc nhanh chóng và hiệu quả"
         onClose={handleClose}
       />
-      
+
       <TaskFormFields
         data={formData}
         onChange={(updates) => setFormData((prev) => ({ ...prev, ...updates }))}
@@ -103,14 +111,19 @@ export default function CreateTaskModal({ visible, onClose, onSaved, onOptimisti
           onClose();
           onVoicePress();
         }}
+        dateTimePickerProps={{
+          minimumDate: new Date(),
+          mode: 'datetime',
+          is24Hour: true
+        }}
       />
-      
+
       <ModalFooter
         primaryLabel="Tạo công việc"
         onPrimaryPress={handleCreate}
         secondaryLabel="Hủy"
         onSecondaryPress={handleClose}
-        isPrimaryDisabled={!formData.title.trim() || !formData.dueDate}
+        isPrimaryDisabled={!formData.title.trim() || isTaskMissingDueDate}
         isSubmitting={isSubmitting}
         secondaryType="cancel"
       />

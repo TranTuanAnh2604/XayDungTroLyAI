@@ -23,11 +23,11 @@ export type TodoDto = {
   createdAt?: string;
 };
 
-
 // --- XUẤT API ---
 export const tasksApi = {
-  async getTasks(): Promise<TaskDto[]> {
-    return apiGet<TaskDto[]>('/api/Tasks');
+  // CẬP NHẬT: Nhận tham số tab lọc động từ màn hình để gửi lên C# TasksController
+  async getTasks(tab: 'all' | 'today' | 'priority' | 'overdue' = 'all'): Promise<TaskDto[]> {
+    return apiGet<TaskDto[]>(`/api/Tasks?tab=${tab}`);
   },
 
   async toggleTaskComplete(id: string): Promise<boolean> {
@@ -128,8 +128,9 @@ export const tasksApi = {
   },
 
   // TODOS
-  async getTodos(status: 'all' | 'pending' | 'completed' = 'all', search?: string): Promise<TodoDto[]> {
-    let path = `/api/Todos?status=${status}`;
+  // CẬP NHẬT: Đổi tên tham số 'status' thành 'tab' cho đồng bộ tuyệt đối với TodosController
+  async getTodos(tab: 'all' | 'today' | 'priority' | 'overdue' = 'all', search?: string): Promise<TodoDto[]> {
+    let path = `/api/Todos?tab=${tab}`;
     if (search?.trim()) path += `&search=${encodeURIComponent(search.trim())}`;
     return apiGet<TodoDto[]>(path);
   },
