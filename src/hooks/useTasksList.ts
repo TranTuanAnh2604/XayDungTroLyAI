@@ -4,6 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { tasksApi } from '../services/task';
 import type { TaskFilterId, ExtendedTaskItem } from '../types/tasks';
 import { LayoutAnimation, UIManager, Platform } from 'react-native';
+import { detectEventType } from '../utils/eventTypeDetection';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -70,7 +71,13 @@ export function useTasksList() {
         const timeNow = new Date();
 
         const mappedTasks: ExtendedTaskItem[] = rawTasks.map((t: any) => {
-          const rawPriority = t.Priority ?? t.priority ?? t.item?.Priority ?? t.item?.priority;
+          let rawPriority = t.Priority ?? t.priority ?? t.item?.Priority ?? t.item?.priority;
+          
+          // Nếu task được sinh ra từ event (hoặc có title chứa keyword urgent) thì set mức ưu tiên cao
+          if (detectEventType(t.title || t.Title) === 'urgent') {
+            rawPriority = 'high';
+          }
+
           const isHigh = rawPriority === 'high' || rawPriority === 3 || rawPriority === 4;
 
           const taskDueDate = t.dueDate || t.DueDate ? new Date(t.dueDate || t.DueDate) : null;
@@ -109,12 +116,17 @@ export function useTasksList() {
             timeMeta += ` • Hạn: ${todoDueDate.toLocaleDateString('vi-VN')}`;
           }
 
+          let rawPriority = t.priority;
+          if (detectEventType(t.title || t.Title) === 'urgent') {
+            rawPriority = 'high';
+          }
+
           return {
             id: t.id || t.Id,
             title: t.title || t.Title,
             meta: timeMeta,
             description: t.description || t.Description || '',
-            priority: t.priority === 'high' ? 'high' : 'normal',
+            priority: rawPriority === 'high' ? 'high' : 'normal',
             completed: t.completed || t.Completed || t.status === 'done' || false,
             itemType: 'todo',
             createdAt: t.createdAt || t.CreatedAt,
