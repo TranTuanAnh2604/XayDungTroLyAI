@@ -33,16 +33,17 @@ export default function ProductivityTrendCard({ trend, skeleton = false }: Props
   return (
     <AppGlassCard variant="surface" padding={20} style={styles.card}>
       <Text style={styles.header}>Xu hướng hiệu suất</Text>
-      <Text style={styles.subheader}>Tỷ lệ hoàn thành Task {trend.length} tuần gần nhất</Text>
+      <Text style={styles.subheader}>Tỷ lệ hoàn thành tổng hợp {trend.length} tuần gần nhất</Text>
 
       <View style={styles.chartRow}>
         {trend.map((point, idx) => {
           const isLast = idx === trend.length - 1;
+          const combinedPercent = (point.taskPercent + point.todoPercent) / 2;
           return (
             <View key={`${point.label}-${idx}`} style={styles.barCol}>
               {isLast ? (
                 <Text style={[styles.barTopLabel, { color: COLORS.primary }]}>
-                  {Math.round(point.taskPercent)}%
+                  {Math.round(combinedPercent)}%
                 </Text>
               ) : (
                 <View style={styles.barTopLabel} />
@@ -52,7 +53,7 @@ export default function ProductivityTrendCard({ trend, skeleton = false }: Props
                   style={[
                     styles.barFill,
                     {
-                      height: `${Math.max(point.taskPercent, 3)}%`,
+                      height: `${Math.max(combinedPercent, 3)}%`,
                       backgroundColor: isLast ? COLORS.primary : COLORS.primaryTint10,
                     },
                   ]}
@@ -66,7 +67,7 @@ export default function ProductivityTrendCard({ trend, skeleton = false }: Props
 
       <View style={styles.legend}>
         <View style={[styles.legendDot, { backgroundColor: COLORS.primary }]} />
-        <Text style={styles.legendText}>Tỷ lệ hoàn thành Task</Text>
+        <Text style={styles.legendText}>Tỷ lệ hoàn thành (Tasks + Todos)</Text>
       </View>
     </AppGlassCard>
   );

@@ -32,9 +32,7 @@ export default function CreateEventModal({
   const [endDate, setEndDate] = useState<Date>(() => captureNow());
   const [isAllDay, setIsAllDay] = useState(false);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,9 +49,7 @@ export default function CreateEventModal({
     
     setIsAllDay(false);
     setShowStartDatePicker(false);
-    setShowStartTimePicker(false);
     setShowEndDatePicker(false);
-    setShowEndTimePicker(false);
     setError(null);
   }, [visible]);
 
@@ -120,9 +116,7 @@ export default function CreateEventModal({
         endDate={endDate} setEndDate={setEndDate}
         isAllDay={isAllDay} setIsAllDay={setIsAllDay}
         showStartDatePicker={showStartDatePicker} setShowStartDatePicker={setShowStartDatePicker}
-        showStartTimePicker={showStartTimePicker} setShowStartTimePicker={setShowStartTimePicker}
         showEndDatePicker={showEndDatePicker} setShowEndDatePicker={setShowEndDatePicker}
-        showEndTimePicker={showEndTimePicker} setShowEndTimePicker={setShowEndTimePicker}
         error={error}
       />
       

@@ -98,7 +98,11 @@ export function useTasksList() {
 
         const mappedTodos: ExtendedTaskItem[] = rawTodos.map((t: any) => {
           const todoDueDate = t.dueDate || t.DueDate ? new Date(t.dueDate || t.DueDate) : null;
-          const isOverdueRealtime = (!t.completed && t.status !== 'done') && todoDueDate !== null && todoDueDate < timeNow;
+          let isOverdueRealtime = false;
+          if (!t.completed && t.status !== 'done' && todoDueDate !== null) {
+            const endOfDueDate = new Date(todoDueDate.getFullYear(), todoDueDate.getMonth(), todoDueDate.getDate(), 23, 59, 59, 999);
+            isOverdueRealtime = timeNow > endOfDueDate;
+          }
 
           let timeMeta = `Tạo: ${new Date(t.createdAt || t.CreatedAt || Date.now()).toLocaleDateString('vi-VN')}`;
           if (todoDueDate) {
@@ -175,19 +179,53 @@ export function useTasksList() {
     return itemDate >= startOfToday && itemDate <= endOfToday;
   };
 
+  const sortTasks = useCallback((list: ExtendedTaskItem[]) => {
+    return [...list].sort((a, b) => {
+      const getScore = (item: any) => {
+        const isHigh = item.priority === 'high';
+        const isOverdue = !!item.isOverdue;
+        const hasDueDate = !!item.dueDate;
+        
+        if (isOverdue && isHigh) return 6;
+        if (!isOverdue && hasDueDate && isHigh) return 5;
+        if (isOverdue && !isHigh) return 4;
+        if (!isOverdue && hasDueDate && !isHigh) return 3;
+        if (!hasDueDate && isHigh) return 2;
+        return 1;
+      };
+
+      const scoreA = getScore(a);
+      const scoreB = getScore(b);
+
+      if (scoreA !== scoreB) return scoreB - scoreA;
+
+      if (a.dueDate && b.dueDate) {
+         return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+      }
+      
+      const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return createdB - createdA;
+    });
+  }, []);
+
   const filteredTasks = useMemo(() => {
-    if (activeFilter === 'today') return allTasks.filter(isTodayItem);
-    if (activeFilter === 'priority') return allTasks.filter(t => t.priority === 'high');
-    if (activeFilter === 'overdue') return allTasks.filter(t => (t as any).isOverdue);
-    return allTasks;
-  }, [allTasks, activeFilter]);
+    let result = allTasks;
+    if (activeFilter === 'today') result = allTasks.filter(isTodayItem);
+    else if (activeFilter === 'priority') result = allTasks.filter(t => t.priority === 'high');
+    else if (activeFilter === 'overdue') result = allTasks.filter(t => (t as any).isOverdue);
+    
+    return sortTasks(result);
+  }, [allTasks, activeFilter, sortTasks]);
 
   const filteredTodos = useMemo(() => {
-    if (activeFilter === 'today') return allTodos.filter(isTodayItem);
-    if (activeFilter === 'priority') return allTodos.filter(t => t.priority === 'high');
-    if (activeFilter === 'overdue') return allTodos.filter(t => (t as any).isOverdue);
-    return allTodos;
-  }, [allTodos, activeFilter]);
+    let result = allTodos;
+    if (activeFilter === 'today') result = allTodos.filter(isTodayItem);
+    else if (activeFilter === 'priority') result = allTodos.filter(t => t.priority === 'high');
+    else if (activeFilter === 'overdue') result = allTodos.filter(t => (t as any).isOverdue);
+    
+    return sortTasks(result);
+  }, [allTodos, activeFilter, sortTasks]);
 
   const handleToggleTask = useCallback((id: string, currentCompleted: boolean, itemType: 'task' | 'todo') => {
     const newCompleted = !currentCompleted;

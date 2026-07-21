@@ -34,7 +34,7 @@ export default function TasksScreen() {
   const [isVoiceModalVisible, setIsVoiceModalVisible] = useState(false);
 
   const {
-    tasks, 
+    tasks,
     todos,
     allTasks, // Mảng tổng nguyên vẹn gồm cả việc hôm nay, ngày mai, quá hạn...
     allTodos, // Mảng tổng nguyên vẹn việc cần làm
@@ -70,8 +70,8 @@ export default function TasksScreen() {
     const pendingItems = totalItems - completedItems;
 
     // Tính toán số lượng công việc bị QUÁ HẠN tồn đọng thực tế trên toàn app
-    const totalOverdue = allTasks.filter(t => !t.completed && (t as any).isOverdue).length + 
-                         allTodos.filter(t => !t.completed && (t as any).isOverdue).length;
+    const totalOverdue = allTasks.filter(t => !t.completed && (t as any).isOverdue).length +
+      allTodos.filter(t => !t.completed && (t as any).isOverdue).length;
 
     // Tính phần trăm tiến độ hoàn thành thực tế toàn bộ hệ thống
     let productivityText = 'Chưa bắt đầu';
@@ -109,7 +109,7 @@ export default function TasksScreen() {
         refreshControl: (
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => fetchData(true, true, true)} 
+            onRefresh={() => fetchData(true, true, true)}
             tintColor={COLORS.primary}
             colors={[COLORS.primary]}
           />
@@ -132,13 +132,13 @@ export default function TasksScreen() {
           <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 32 }} />
         ) : (
           <View style={styles.container}>
-            
+
             {/* DANH SÁCH LỌC CHẠY ĐỘNG THEO TỪNG TAB BÊN DƯỚI */}
             {tasks.length > 0 && (
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
                   <Text style={styles.sectionLabel}>
-                    {activeFilter === 'overdue' ? 'Lịch hẹn quá hạn' : 'Công việc & Lịch hẹn'}
+                    {activeFilter === 'overdue' ? 'Lịch hẹn quá hạn' : 'Công việc & Lịch hẹn (Tasks)'}
                   </Text>
                 </View>
                 {tasks.map((task, index) => (
@@ -158,7 +158,7 @@ export default function TasksScreen() {
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
                   <Text style={styles.sectionLabel}>
-                    {activeFilter === 'overdue' ? 'Danh sách việc quá hạn' : 'Việc cần làm'}
+                    {activeFilter === 'overdue' ? 'Danh sách việc quá hạn' : 'Việc cần làm (Todos)'}
                   </Text>
                 </View>
                 {todos.map((todo, index) => (
@@ -187,7 +187,7 @@ export default function TasksScreen() {
       <CreateTaskModal
         visible={isModalVisible}
         onClose={() => setIsModalVisible(false)}
-        onSaved={() => fetchData(true, true, true)} 
+        onSaved={() => fetchData(true, true, true)}
         onOptimisticCreate={handleOptimisticCreate}
         onVoicePress={() => setIsVoiceModalVisible(true)}
       />
@@ -196,7 +196,7 @@ export default function TasksScreen() {
         visible={!!selectedItem}
         item={selectedItem}
         onClose={() => setSelectedItem(null)}
-        onSaved={() => fetchData(true, true, true)} 
+        onSaved={() => fetchData(true, true, true)}
         onOptimisticUpdate={handleOptimisticUpdate}
         onDelete={(item) => handleDeleteItem(item)}
         onToggleCompletion={(item) => handleToggleTask(item.id, item.completed, item.itemType)}
@@ -205,7 +205,7 @@ export default function TasksScreen() {
       <VoiceTaskModal
         visible={isVoiceModalVisible}
         onClose={() => setIsVoiceModalVisible(false)}
-        onSaved={() => fetchData(true, true, true)} 
+        onSaved={() => fetchData(true, true, true)}
       />
     </TabScreenLayout>
   );

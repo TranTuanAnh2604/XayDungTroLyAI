@@ -54,6 +54,7 @@ const FILTER_TO_TAB: Partial<Record<MailFilterId, GmailInboxTab>> = {
 
 const FILTER_OPTIONS: { id: MailFilterId; label: string }[] = [
   { id: 'all', label: 'Tất cả' },
+  { id: 'this_week', label: 'Tuần này' },
   { id: 'primary', label: 'Quan trọng' },
   { id: 'social', label: 'Xã hội' },
   { id: 'promotions', label: 'Quảng cáo' },
@@ -63,6 +64,7 @@ const FILTER_OPTIONS: { id: MailFilterId; label: string }[] = [
 
 const CATEGORY_TITLES: Record<MailFilterId, string> = {
   all: 'Tất cả email',
+  this_week: 'Email tuần này',
   primary: 'Hộp thư chính',
   social: 'Mạng xã hội',
   promotions: 'Quảng cáo',
@@ -117,10 +119,25 @@ export default function MailScreen() {
       if (Number.isNaN(date.getTime())) {
         return receivedAt;
       }
-      return date.toLocaleTimeString('vi-VN', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      
+      const now = new Date();
+      const isToday =
+        date.getDate() === now.getDate() &&
+        date.getMonth() === now.getMonth() &&
+        date.getFullYear() === now.getFullYear();
+
+      if (isToday) {
+        return date.toLocaleTimeString('vi-VN', {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+      } else {
+        return date.toLocaleDateString('vi-VN', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        });
+      }
     } catch {
       return receivedAt;
     }
@@ -153,13 +170,19 @@ export default function MailScreen() {
     let raw: GmailEmail[];
     if (activeFilter === 'archived') {
       raw = archivedEmails;
-    } else if (activeFilter === 'all') {
+    } else if (activeFilter === 'all' || activeFilter === 'this_week') {
       raw = [
         ...inboxResult.tabs.Primary,
         ...inboxResult.tabs.Social,
         ...inboxResult.tabs.Promotions,
         ...inboxResult.tabs.Spam,
       ];
+      if (activeFilter === 'this_week') {
+        const now = new Date();
+        const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
+        startOfWeek.setHours(0, 0, 0, 0);
+        raw = raw.filter(e => new Date(e.receivedAt) >= startOfWeek);
+      }
     } else {
       raw = inboxResult.tabs[FILTER_TO_TAB[activeFilter] as GmailInboxTab] ?? [];
     }
@@ -189,6 +212,19 @@ export default function MailScreen() {
       if (f.id === 'all') {
         const total = Object.values(inboxResult.counts).reduce((a, b) => a + b, 0);
         return { ...f, count: total };
+      }
+      if (f.id === 'this_week') {
+        const raw = [
+          ...inboxResult.tabs.Primary,
+          ...inboxResult.tabs.Social,
+          ...inboxResult.tabs.Promotions,
+          ...inboxResult.tabs.Spam,
+        ];
+        const now = new Date();
+        const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
+        startOfWeek.setHours(0, 0, 0, 0);
+        const count = raw.filter(e => new Date(e.receivedAt) >= startOfWeek).length;
+        return { ...f, count };
       }
       const tab = FILTER_TO_TAB[f.id] as GmailInboxTab;
       return { ...f, count: inboxResult.counts[tab] };
@@ -350,6 +386,7 @@ export default function MailScreen() {
       const result = await pinGmailEmail(emailId);
       if (result.success) {
         patchEmailLocally(emailId, { isPinned: !wasPinned });
+        setSelectedEmail(prev => prev && prev.id === emailId ? { ...prev, isPinned: !wasPinned } : prev);
         setSyncMessage(wasPinned ? 'Đã bỏ pin email này.' : 'Đã đánh dấu email này là pin.');
       } else {
         Alert.alert('Thông báo', result.message || 'Không thể cập nhật trạng thái pin cho email này.');
@@ -373,7 +410,22 @@ export default function MailScreen() {
       const result = await archiveGmailEmail(emailId);
       if (result.success) {
         setSyncMessage(wasArchived ? 'Đã bỏ lưu trữ email này.' : 'Đã lưu trữ email này.');
-        if (!wasArchived) setIsDetailOpen(false);
+        setSelectedEmail(prev => prev && prev.id === emailId ? { ...prev, isArchived: !wasArchived } : prev);
+        
+        // Optimistic UI: Xóa ngay khỏi list hiện tại để UI phản hồi mượt mà
+        if (wasArchived) {
+          setArchivedEmails(prev => prev.filter(e => e.id !== emailId));
+        } else {
+          setInboxResult(prev => {
+            const next: GmailInboxResult = { ...prev, tabs: { ...prev.tabs } };
+            (Object.keys(next.tabs) as GmailInboxTab[]).forEach(tab => {
+              next.tabs[tab] = next.tabs[tab].filter(e => e.id !== emailId);
+            });
+            return next;
+          });
+        }
+        
+        setIsDetailOpen(false);
 
         // Archive/unarchive đổi hẳn tab của email (biến mất khỏi /inbox hoặc
         // biến mất khỏi archived) -> refetch để đồng bộ đúng với backend

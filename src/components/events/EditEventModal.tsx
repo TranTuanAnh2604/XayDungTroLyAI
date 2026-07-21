@@ -31,9 +31,7 @@ export default function EditEventModal({
   const [endDate, setEndDate] = useState<Date>(new Date());
   const [isAllDay, setIsAllDay] = useState(false);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,9 +51,7 @@ export default function EditEventModal({
     setEndDate(endDateTime ?? new Date(startValue.getTime() + 60 * 60 * 1000));
     setIsAllDay(event.isAllDay || false);
     setShowStartDatePicker(false);
-    setShowStartTimePicker(false);
     setShowEndDatePicker(false);
-    setShowEndTimePicker(false);
     setError(null);
   }, [visible, event]);
 
@@ -69,9 +65,7 @@ export default function EditEventModal({
     setEndDate(new Date(resetTo.getTime() + 60 * 60 * 1000));
     setIsAllDay(false);
     setShowStartDatePicker(false);
-    setShowStartTimePicker(false);
     setShowEndDatePicker(false);
-    setShowEndTimePicker(false);
     setSubmitting(false);
     setError(null);
   }, [visible]);
@@ -181,9 +175,7 @@ export default function EditEventModal({
         endDate={endDate} setEndDate={setEndDate}
         isAllDay={isAllDay} setIsAllDay={setIsAllDay}
         showStartDatePicker={showStartDatePicker} setShowStartDatePicker={setShowStartDatePicker}
-        showStartTimePicker={showStartTimePicker} setShowStartTimePicker={setShowStartTimePicker}
         showEndDatePicker={showEndDatePicker} setShowEndDatePicker={setShowEndDatePicker}
-        showEndTimePicker={showEndTimePicker} setShowEndTimePicker={setShowEndTimePicker}
         error={error}
       />
       

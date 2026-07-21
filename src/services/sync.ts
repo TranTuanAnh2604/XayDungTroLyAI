@@ -176,7 +176,7 @@ export async function fetchCalendarEvents(
     }
   }
 
-  return events.map(normalizeCalendarEvent);
+  return events.map(normalizeCalendarEvent).filter(e => e.source !== 'todo');
 }
 
 export async function createCalendarEvent(

@@ -198,9 +198,19 @@ export default function TaskListItem({
                     </Text>
                   )}
                   {!!task.dueDate && (
-                    <Text style={[styles.meta, task.completed ? styles.metaDone : (hasExpired ? styles.metaOverdue : undefined)]}>
-                      {hasExpired ? '⚠️ QUÁ HẠN: ' : 'Hạn: '}{task.meta.includes('• Hạn:') ? task.meta.split('• Hạn:')[1].trim() : new Date(task.dueDate).toLocaleDateString('vi-VN')}
-                    </Text>
+                    <View style={styles.metaRow}>
+                      {hasExpired && (
+                        <MaterialIcons 
+                          name="error" 
+                          size={14} 
+                          color={task.completed ? COLORS.outline : (COLORS.error || '#EF4444')} 
+                          style={{ marginRight: 4 }} 
+                        />
+                      )}
+                      <Text style={[styles.meta, task.completed ? styles.metaDone : (hasExpired ? styles.metaOverdue : undefined)]}>
+                        {hasExpired ? 'QUÁ HẠN: ' : 'Hạn: '}{task.meta.includes('• Hạn:') ? task.meta.split('• Hạn:')[1].trim() : new Date(task.dueDate).toLocaleDateString('vi-VN')}
+                      </Text>
+                    </View>
                   )}
                 </View>
               </View>
@@ -290,12 +300,16 @@ const createStyles = (COLORS: any, typography: any) =>
       color: COLORS.onSurfaceVariant || COLORS.textSecondary || '#666',
       marginTop: 2,
     },
+    metaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 4,
+    },
     meta: {
       fontSize: 12,
       lineHeight: 16,
       fontWeight: '600',
       color: COLORS.primary,
-      marginTop: 4,
       letterSpacing: 0.1,
     },
     metaDone: { color: COLORS.outline },

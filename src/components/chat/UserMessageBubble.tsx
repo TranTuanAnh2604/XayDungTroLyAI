@@ -25,7 +25,7 @@ export default function UserMessageBubble({ content }: UserMessageBubbleProps) {
           end={{ x: 1, y: 1 }}
           style={styles.bubble}
         >
-          <Text style={styles.text}>{content}</Text>
+          <Text style={styles.text} numberOfLines={0}>{content}</Text>
         </LinearGradient>
       </Pressable>
     </View>

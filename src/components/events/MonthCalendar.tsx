@@ -6,7 +6,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { getTypography } from '../../constants/typography';
 import { useCalendarCollapseGesture, ROW_HEIGHT, MONTH_VIEW_HEIGHT, WEEK_VIEW_HEIGHT } from '../../hooks/useCalendarCollapseGesture';
 
-const WEEKDAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+const WEEKDAYS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 
 const MONTH_NAMES = [
   'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
@@ -61,7 +61,7 @@ export default function MonthCalendar({ selectedDateId, importantDates, onSelect
     const lastDayOfMonth = new Date(year, month + 1, 0);
 
     const days = [];
-    const firstDayOfWeek = firstDayOfMonth.getDay(); // 0 = Sunday
+    const firstDayOfWeek = (firstDayOfMonth.getDay() + 6) % 7; // 0 = Monday, 6 = Sunday
 
     // Padding for previous month
     const prevMonthDays = firstDayOfWeek;

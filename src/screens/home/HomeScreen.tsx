@@ -127,6 +127,18 @@ export default function HomeScreen() {
     await refresh();
   }, [refresh, fetchData]);
 
+  const modifiedReport = React.useMemo(() => {
+    if (!latestReport) return null;
+    return {
+      ...latestReport,
+      metrics: {
+        ...latestReport.metrics,
+        todosCompleted: todos.filter(t => t.completed).length,
+        todosPending: todos.filter(t => !t.completed).length,
+      }
+    };
+  }, [latestReport, todos]);
+
   return (
     <TabScreenLayout
       topBar={<TopAppBar onSettingsPress={openSettings} />}
@@ -162,32 +174,36 @@ export default function HomeScreen() {
                 </Pressable>
               </View>
               {(() => {
-                const pendingItems = [...todos.filter(t => !t.completed), ...tasks.filter(t => !t.completed)].sort((a, b) => {
-                  const hasDueA = !!a.dueDate;
-                  const hasDueB = !!b.dueDate;
-                  if (!hasDueA && !hasDueB) return 0;
-                  if (!hasDueA) return 1;
-                  if (!hasDueB) return -1;
+                const pendingItems = [...tasks.filter(t => !t.completed), ...todos.filter(t => !t.completed)].sort((a, b) => {
+                  const getScore = (item: any) => {
+                    const isHigh = item.priority === 'high';
+                    const isOverdue = !!item.isOverdue;
+                    const hasDueDate = !!item.dueDate;
 
-                  const dueA = new Date(a.dueDate!).getTime();
-                  const dueB = new Date(b.dueDate!).getTime();
-                  if (isNaN(dueA) && isNaN(dueB)) return 0;
-                  if (isNaN(dueA)) return 1;
-                  if (isNaN(dueB)) return -1;
-
-                  const todayMidnight = new Date();
-                  todayMidnight.setHours(0, 0, 0, 0);
-                  const todayTime = todayMidnight.getTime();
-                  const getMidnight = (time: number) => {
-                    const d = new Date(time);
-                    d.setHours(0, 0, 0, 0);
-                    return d.getTime();
+                    if (isOverdue && isHigh) return 6;
+                    if (!isOverdue && hasDueDate && isHigh) return 5;
+                    if (isOverdue && !isHigh) return 4;
+                    if (!isOverdue && hasDueDate && !isHigh) return 3;
+                    if (!hasDueDate && isHigh) return 2;
+                    return 1;
                   };
-                  const isOverdueA = getMidnight(dueA) < todayTime;
-                  const isOverdueB = getMidnight(dueB) < todayTime;
-                  if (!isOverdueA && isOverdueB) return -1;
-                  if (isOverdueA && !isOverdueB) return 1;
-                  return dueA - dueB;
+
+                  const scoreA = getScore(a);
+                  const scoreB = getScore(b);
+
+                  if (scoreA !== scoreB) return scoreB - scoreA;
+
+                  if (a.itemType !== b.itemType) {
+                    return a.itemType === 'task' ? -1 : 1;
+                  }
+
+                  if (a.dueDate && b.dueDate) {
+                    return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+                  }
+
+                  const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                  const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                  return createdB - createdA;
                 });
 
                 const displayItems = pendingItems.slice(0, 3);
@@ -236,7 +252,7 @@ export default function HomeScreen() {
 
       {latestReport || isLoading ? (
         <View style={styles.dashboardGroup}>
-          <ProductivityScoreCard report={latestReport} skeleton={isLoading && !latestReport} />
+          <ProductivityScoreCard report={modifiedReport} skeleton={isLoading && !modifiedReport} />
 
           <View style={{ position: 'relative' }}>
             <ScrollView
@@ -257,8 +273,8 @@ export default function HomeScreen() {
             >
               <View style={{ width: cardWidth, height: 260, position: 'relative' }}>
                 <ProductivityMetricsCard
-                  metrics={latestReport?.metrics ?? null}
-                  skeleton={isLoading && !latestReport}
+                  metrics={modifiedReport?.metrics ?? null}
+                  skeleton={isLoading && !modifiedReport}
                 />
                 <Pressable
                   style={[styles.arrowBtnInScrollView, { right: -24 }]}

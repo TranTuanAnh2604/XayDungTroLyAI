@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Switch, Platform } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import InputField from '../tasks/ui/InputField';
 import DatePickerCard from '../tasks/ui/DatePickerCard';
 import { useTheme } from '../../hooks/useTheme';
@@ -22,12 +22,8 @@ export type EventFormProps = {
   setIsAllDay: (val: boolean) => void;
   showStartDatePicker: boolean;
   setShowStartDatePicker: (val: boolean) => void;
-  showStartTimePicker: boolean;
-  setShowStartTimePicker: (val: boolean) => void;
   showEndDatePicker: boolean;
   setShowEndDatePicker: (val: boolean) => void;
-  showEndTimePicker: boolean;
-  setShowEndTimePicker: (val: boolean) => void;
   error: string | null;
   // source is optional, used in create form
   source?: string;
@@ -42,15 +38,65 @@ export default function EventFormFields({
   endDate, setEndDate,
   isAllDay, setIsAllDay,
   showStartDatePicker, setShowStartDatePicker,
-  showStartTimePicker, setShowStartTimePicker,
   showEndDatePicker, setShowEndDatePicker,
-  showEndTimePicker, setShowEndTimePicker,
   error,
   source, setSource
 }: EventFormProps) {
   const { colors: COLORS } = useTheme();
   const typography = useMemo(() => getTypography(COLORS), [COLORS]);
   const styles = useMemo(() => createStyles(COLORS, typography), [COLORS, typography]);
+
+  const openAndroidPicker = (
+    currentDate: Date,
+    setDate: (date: Date) => void
+  ) => {
+    DateTimePickerAndroid.open({
+      value: currentDate,
+      mode: 'date',
+      minimumDate: new Date(),
+      onChange: (event, selectedDate) => {
+        if (event.type === 'dismissed' || !selectedDate) return;
+
+        if (isAllDay) {
+          const normalizedDate = normalizeDateValue(selectedDate);
+          if (normalizedDate) {
+            setDate(mergeDateAndTime(normalizedDate, currentDate));
+          }
+          return;
+        }
+
+        DateTimePickerAndroid.open({
+          value: selectedDate,
+          mode: 'time',
+          is24Hour: true,
+          onChange: (timeEvent, selectedTime) => {
+            if (timeEvent.type === 'dismissed' || !selectedTime) return;
+
+            const combined = new Date(selectedDate);
+            combined.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
+
+            setDate(combined);
+          },
+        });
+      },
+    });
+  };
+
+  const handleStartPress = () => {
+    if (Platform.OS === 'android') {
+      openAndroidPicker(startDate, setStartDate);
+    } else {
+      setShowStartDatePicker(true);
+    }
+  };
+
+  const handleEndPress = () => {
+    if (Platform.OS === 'android') {
+      openAndroidPicker(endDate, setEndDate);
+    } else {
+      setShowEndDatePicker(true);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -86,89 +132,51 @@ export default function EventFormFields({
       <DatePickerCard
         label="Bắt đầu"
         valueText={formatDisplayDateValue(startDate)}
-        onPress={() => setShowStartDatePicker(true)}
+        onPress={handleStartPress}
         iconName="clock-outline"
       />
       
       <DatePickerCard
         label="Kết thúc"
         valueText={formatDisplayDateValue(endDate)}
-        onPress={() => setShowEndDatePicker(true)}
+        onPress={handleEndPress}
         iconName="clock-check-outline"
       />
 
-      {showStartDatePicker ? (
+      {Platform.OS === 'ios' && showStartDatePicker ? (
         <DateTimePicker
           value={startDate}
           minimumDate={new Date()}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
+          mode={isAllDay ? 'date' : 'datetime'}
+          display="default"
           onChange={(event, selectedDate) => {
             setShowStartDatePicker(false);
-            const normalizedDate = normalizeDateValue(selectedDate ?? undefined);
-            if (!event || event.type === 'dismissed' || !normalizedDate) {
-              return;
-            }
-            const nextDate = mergeDateAndTime(normalizedDate, startDate);
-            setStartDate(nextDate);
-            if (Platform.OS === 'android') {
-              setShowStartTimePicker(true);
+            if (!selectedDate) return;
+            if (isAllDay) {
+              const normalizedDate = normalizeDateValue(selectedDate);
+              if (normalizedDate) setStartDate(mergeDateAndTime(normalizedDate, startDate));
+            } else {
+              setStartDate(selectedDate);
             }
           }}
         />
       ) : null}
       
-      {showStartTimePicker ? (
-        <DateTimePicker
-          value={startDate}
-          mode="time"
-          display="spinner"
-          onChange={(event, selectedTime) => {
-            setShowStartTimePicker(false);
-            const normalizedTime = normalizeDateValue(selectedTime ?? undefined);
-            if (!event || event.type === 'dismissed' || !normalizedTime) {
-              return;
-            }
-            const nextDate = mergeDateAndTime(startDate, normalizedTime);
-            setStartDate(nextDate);
-          }}
-        />
-      ) : null}
-      
-      {showEndDatePicker ? (
+      {Platform.OS === 'ios' && showEndDatePicker ? (
         <DateTimePicker
           value={endDate}
           minimumDate={new Date()}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
+          mode={isAllDay ? 'date' : 'datetime'}
+          display="default"
           onChange={(event, selectedDate) => {
             setShowEndDatePicker(false);
-            const normalizedDate = normalizeDateValue(selectedDate ?? undefined);
-            if (!event || event.type === 'dismissed' || !normalizedDate) {
-              return;
+            if (!selectedDate) return;
+            if (isAllDay) {
+              const normalizedDate = normalizeDateValue(selectedDate);
+              if (normalizedDate) setEndDate(mergeDateAndTime(normalizedDate, endDate));
+            } else {
+              setEndDate(selectedDate);
             }
-            const nextDate = mergeDateAndTime(normalizedDate, endDate);
-            setEndDate(nextDate);
-            if (Platform.OS === 'android') {
-              setShowEndTimePicker(true);
-            }
-          }}
-        />
-      ) : null}
-      
-      {showEndTimePicker ? (
-        <DateTimePicker
-          value={endDate}
-          mode="time"
-          display="spinner"
-          onChange={(event, selectedTime) => {
-            setShowEndTimePicker(false);
-            const normalizedTime = normalizeDateValue(selectedTime ?? undefined);
-            if (!event || event.type === 'dismissed' || !normalizedTime) {
-              return;
-            }
-            const nextDate = mergeDateAndTime(endDate, normalizedTime);
-            setEndDate(nextDate);
           }}
         />
       ) : null}

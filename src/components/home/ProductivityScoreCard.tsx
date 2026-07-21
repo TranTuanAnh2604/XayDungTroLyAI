@@ -29,7 +29,7 @@ export default function ProductivityScoreCard({ report, skeleton = false }: Prod
   const typography = React.useMemo(() => getTypography(COLORS), [COLORS]);
   const styles = React.useMemo(() => createStyles(COLORS, typography), [COLORS]);
 
-  if (skeleton || !report) {
+  if (skeleton) {
     return (
       <AppGlassCard variant="surface" padding={20} style={styles.card}>
         <SkeletonBlock height={12} width={120} borderRadius={6} style={styles.skRow} />
@@ -40,9 +40,30 @@ export default function ProductivityScoreCard({ report, skeleton = false }: Prod
     );
   }
 
-  const taskPct = parsePercent(report.taskRate);
-  const todoPct = parsePercent(report.todoRate);
-  const color = scoreColor(taskPct, COLORS);
+  if (!report) {
+    return (
+      <AppGlassCard variant="surface" padding={20} style={styles.card}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Hiệu suất tuần</Text>
+        </View>
+        <Text style={{ ...typography.bodyMd, color: COLORS.textSecondary, fontStyle: 'italic', marginTop: 12 }}>
+          Chưa có dữ liệu báo cáo năng suất cho tuần này.
+        </Text>
+      </AppGlassCard>
+    );
+  }
+
+  const taskCompleted = report.metrics?.tasksCompleted || 0;
+  const taskPending = report.metrics?.tasksPending || 0;
+  const todoCompleted = report.metrics?.todosCompleted || 0;
+  const todoPending = report.metrics?.todosPending || 0;
+  const totalTasks = taskCompleted + taskPending;
+  const totalTodos = todoCompleted + todoPending;
+  const totalCompleted = taskCompleted + todoCompleted;
+  const totalItems = totalTasks + totalTodos;
+  const overallPct = totalItems > 0 ? (totalCompleted / totalItems) * 100 : 0;
+  
+  const color = scoreColor(overallPct, COLORS);
 
   return (
     <AppGlassCard variant="surface" padding={20} style={styles.card}>
@@ -50,35 +71,35 @@ export default function ProductivityScoreCard({ report, skeleton = false }: Prod
         <Text style={styles.title}>Hiệu suất tuần</Text>
         <View style={[styles.badge, { backgroundColor: `${color}1A` }]}>
           <Text style={[styles.badgeText, { color }]}>
-            {taskPct >= 80 ? 'Rất tốt' : taskPct >= 50 ? 'Khá' : 'Cần cải thiện'}
+            {overallPct >= 80 ? 'Rất tốt' : overallPct >= 50 ? 'Khá' : 'Cần cải thiện'}
           </Text>
         </View>
       </View>
 
       <View style={styles.scoreRow}>
-        <Text style={[styles.scoreValue, { color }]}>{Math.round(taskPct)}</Text>
+        <Text style={[styles.scoreValue, { color }]}>{Math.round(overallPct)}</Text>
         <Text style={styles.scoreMax}>%</Text>
       </View>
 
-      <Text style={styles.barLabel}>Hoàn thành nhiệm vụ — {report.taskRate}</Text>
+      <Text style={styles.barLabel}>Tỷ lệ hoàn thành (Tasks + Todos)</Text>
       <View style={styles.barBg}>
-        <View style={[styles.barFill, { width: `${taskPct}%`, backgroundColor: color }]} />
+        <View style={[styles.barFill, { width: `${overallPct}%`, backgroundColor: color }]} />
       </View>
 
       <View style={styles.statsRow}>
         <View style={styles.stat}>
-          <Text style={styles.statValue}>{report.metrics.tasksCompleted}</Text>
-          <Text style={styles.statLabel}>Task xong</Text>
+          <Text style={styles.statValue}>{taskCompleted}</Text>
+          <Text style={styles.statLabel}>Tasks đã xong</Text>
         </View>
         <View style={styles.divider} />
         <View style={styles.stat}>
-          <Text style={styles.statValue}>{report.metrics.todosCompleted}</Text>
-          <Text style={styles.statLabel}>Todo xong</Text>
+          <Text style={styles.statValue}>{todoCompleted}</Text>
+          <Text style={styles.statLabel}>Todos đã xong</Text>
         </View>
         <View style={styles.divider} />
         <View style={styles.stat}>
-          <Text style={styles.statValue}>{todoPct.toFixed(0)}%</Text>
-          <Text style={styles.statLabel}>Tỷ lệ Todo</Text>
+          <Text style={styles.statValue}>{totalTodos}</Text>
+          <Text style={styles.statLabel}>Tổng Todos</Text>
         </View>
       </View>
     </AppGlassCard>

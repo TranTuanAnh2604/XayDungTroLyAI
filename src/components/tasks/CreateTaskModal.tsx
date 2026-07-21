@@ -71,25 +71,36 @@ export default function CreateTaskModal({ visible, onClose, onSaved, onOptimisti
     onClose();
 
     try {
-      if (formData.type === 'task') {
+      const isTaskMode = formData.type === 'task';
+      if (isTaskMode) {
+        if (!formData.dueDate) {
+          throw new Error('Nhiệm vụ (Task) bắt buộc phải có ngày giờ.');
+        }
         await tasksApi.createTask(
           formData.title.trim(),
           formData.description.trim(),
           formData.priority,
-          formData.dueDate!.toISOString()
+          formData.dueDate.toISOString()
         );
       } else {
-        // Không truyền dueDate nếu user không chọn -> để BE tự set new Date().toISOString()
+        let dateToSubmit = formData.dueDate?.toISOString();
+        if (!dateToSubmit) {
+          const now = new Date();
+          // Adjust for timezone offset so 'today' is correct locally (e.g., GMT+7 won't fall back to yesterday UTC)
+          const localIso = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString();
+          dateToSubmit = localIso;
+        }
+          
         await tasksApi.createTodo(
           formData.title.trim(),
           formData.description.trim(),
-          formData.dueDate ? formData.dueDate.toISOString() : undefined
+          dateToSubmit
         );
       }
       onSaved();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Lỗi không thể tạo mới:', error);
-      Alert.alert('Không thể tạo công việc', 'Thời gian đến hạn có thể đã ở quá khứ. Vui lòng thử lại.');
+      Alert.alert('Không thể tạo công việc', error?.message || 'Có lỗi xảy ra. Vui lòng thử lại.');
       onSaved();
     } finally {
       setIsSubmitting(false);
@@ -99,7 +110,8 @@ export default function CreateTaskModal({ visible, onClose, onSaved, onOptimisti
   return (
     <TaskModalContainer visible={visible} onClose={handleClose}>
       <ModalHeader
-        title="🔥 Công việc mới"
+        title="Công việc mới"
+        icon="plus-circle-outline"
         subtitle="Quản lý công việc nhanh chóng và hiệu quả"
         onClose={handleClose}
       />

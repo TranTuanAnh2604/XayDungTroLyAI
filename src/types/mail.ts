@@ -4,7 +4,7 @@ import type { MaterialIconName } from './common';
 // thoại, khớp với 4 nhóm mà backend trả về ở GET /api/Gmail/inbox
 // (Primary/Social/Promotions/Spam), cộng thêm tab archived riêng
 // (được lấy qua GET /api/Gmail/emails?includeArchived=true).
-export type MailFilterId = 'all' | 'primary' | 'social' | 'promotions' | 'spam' | 'archived';
+export type MailFilterId = 'all' | 'this_week' | 'primary' | 'social' | 'promotions' | 'spam' | 'archived';
 
 export type MailCategoryTone = 'emerald' | 'primary' | 'secondary';
 

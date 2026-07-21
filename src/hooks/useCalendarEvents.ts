@@ -446,6 +446,8 @@ export function useCalendarEvents() {
       await refreshEvents({ force: true, silent: true });
       setConflictEvent(null);
       setConflictingEvents([]);
+      DeviceEventEmitter.emit('events_changed');
+      DeviceEventEmitter.emit('tasks_changed');
     } catch (err) {
       Alert.alert('Lỗi', 'Không thể áp dụng gợi ý. Vui lòng thử lại.');
     }
@@ -540,8 +542,7 @@ export function useCalendarEvents() {
   };
 
   const handleEditEvent = async (eventId: string, updatedEvent: CalendarSyncRequest) => {
-    try {
-      const oldEvent = rawCalendarEvents.find((item) => item.id === eventId);
+    const oldEvent = rawCalendarEvents.find((item) => item.id === eventId);
       const candidateStart = parseCalendarDate(updatedEvent.startTime)?.getTime();
       const candidateEnd = parseCalendarDate(updatedEvent.endTime)?.getTime();
       if (candidateStart && candidateEnd) {
@@ -566,7 +567,27 @@ export function useCalendarEvents() {
       setEditingEventId(null);
 
       try {
-        const editedEvent = await updateCalendarEvent(eventId, updatedEvent);
+        let editedEvent: any;
+        if (oldEvent?.source === 'task' || oldEvent?.source === 'todo') {
+          const { tasksApi } = require('../services/task');
+          if (oldEvent.source === 'task') {
+            await tasksApi.updateTask(eventId, {
+              title: updatedEvent.title,
+              description: updatedEvent.description,
+              dueDate: updatedEvent.startTime,
+            }, true);
+          } else {
+            await tasksApi.updateTodo(eventId, {
+              title: updatedEvent.title,
+              description: updatedEvent.description,
+              dueDate: updatedEvent.startTime,
+            }, true);
+          }
+          editedEvent = updatedEvent;
+        } else {
+          editedEvent = await updateCalendarEvent(eventId, updatedEvent);
+        }
+        
         const existingEvent = rawCalendarEvents.find((item) => item.id === eventId);
         let reminderNotificationId: string | null = null;
         try {
@@ -607,9 +628,6 @@ export function useCalendarEvents() {
         }
         setError(editError?.message || 'Không thể cập nhật sự kiện.');
       }
-    } catch (e: any) {
-      setError(e?.message || 'Đã xảy ra lỗi.');
-    }
   };
 
   const handleDeleteEvent = async (eventId: string) => {

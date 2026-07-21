@@ -30,7 +30,6 @@ export default function TaskDetailModal({
   const { colors: COLORS } = useTheme();
   const s = useMemo(() => createStyles(COLORS), [COLORS]);
 
-  const [isEditMode, setIsEditMode] = useState(false);
   const [formData, setFormData] = useState<TaskFormData>({
     type: 'task',
     title: '',
@@ -49,12 +48,10 @@ export default function TaskDetailModal({
         priority: item.priority === 'high' ? 'high' : 'normal',
         dueDate: item.dueDate ? new Date(item.dueDate) : null,
       });
-      setIsEditMode(false);
     }
   }, [item, visible]);
 
   const handleClose = () => {
-    setIsEditMode(false);
     onClose();
   };
 
@@ -67,8 +64,6 @@ export default function TaskDetailModal({
 
     setIsSubmitting(true);
     try {
-      setIsEditMode(false);
-
       if (onOptimisticUpdate) {
         onOptimisticUpdate({
           id: item.id,
@@ -96,6 +91,7 @@ export default function TaskDetailModal({
         });
       }
       onSaved();
+      onClose();
     } catch (error) {
       console.error('Lỗi khi cập nhật:', error);
       Alert.alert('Lỗi', 'Không thể cập nhật, vui lòng thử lại.');
@@ -122,16 +118,16 @@ export default function TaskDetailModal({
   return (
     <TaskModalContainer visible={visible} onClose={handleClose}>
       <ModalHeader
-        title="✏️ Chi tiết"
+        title={item.itemType === 'task' ? 'Chi tiết Task' : 'Chi tiết Todo'}
         subtitle="Chỉnh sửa hoặc cập nhật trạng thái"
         rightElement={headerRight}
         onClose={handleClose}
       />
-      
+
       <TaskFormFields
         data={formData}
         onChange={(updates) => setFormData((prev) => ({ ...prev, ...updates }))}
-        isReadOnly={!isEditMode}
+        hideTypeSelector={true}
         dateTimePickerProps={{
           minimumDate: new Date(),
           mode: 'datetime',
@@ -139,24 +135,15 @@ export default function TaskDetailModal({
         }}
       />
 
-      {isEditMode ? (
-        <ModalFooter
-          primaryLabel="Lưu thay đổi"
-          onPrimaryPress={handleUpdate}
-          secondaryLabel="Hủy"
-          onSecondaryPress={() => setIsEditMode(false)}
-          isPrimaryDisabled={!formData.title.trim()}
-          isSubmitting={isSubmitting}
-        />
-      ) : (
-        <ModalFooter
-          primaryLabel="Chỉnh sửa"
-          onPrimaryPress={() => setIsEditMode(true)}
-          secondaryLabel="Xóa"
-          onSecondaryPress={() => onDelete(item)}
-          secondaryType="danger"
-        />
-      )}
+      <ModalFooter
+        primaryLabel={isSubmitting ? 'Đang cập nhật...' : 'Cập nhật'}
+        onPrimaryPress={handleUpdate}
+        secondaryLabel="Xóa"
+        onSecondaryPress={() => onDelete(item)}
+        isPrimaryDisabled={!formData.title.trim()}
+        isSubmitting={isSubmitting}
+        secondaryType="danger"
+      />
     </TaskModalContainer>
   );
 }

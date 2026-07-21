@@ -24,6 +24,7 @@ interface TaskFormFieldsProps {
   isReadOnly?: boolean;
   onVoicePress?: () => void;
   dateTimePickerProps?: any;
+  hideTypeSelector?: boolean;
 }
 
 const MIN_LEAD_MINUTES = 1; // đệm nhỏ tránh race-condition ngay lúc chọn xong bấm submit
@@ -34,6 +35,7 @@ export default function TaskFormFields({
   isReadOnly = false,
   onVoicePress,
   dateTimePickerProps = {},
+  hideTypeSelector = false,
 }: TaskFormFieldsProps) {
   const { colors: COLORS } = useTheme();
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -62,7 +64,7 @@ export default function TaskFormFields({
     update(updates);
   };
 
-  const wantsDateTime = dateTimePickerProps.mode === 'datetime';
+  const wantsDateTime = dateTimePickerProps.mode === 'datetime' && data.type !== 'todo';
   const minimumDate = dateTimePickerProps.minimumDate || new Date();
   const is24Hour = dateTimePickerProps.is24Hour ?? true;
 
@@ -123,15 +125,17 @@ export default function TaskFormFields({
 
   return (
     <View style={styles.container}>
-      <SegmentedControl
-        options={[
-          { label: 'Tasks', value: 'task' },
-          { label: 'Todos', value: 'todo' },
-        ]}
-        selectedValue={data.type}
-        onValueChange={(val) => update({ type: val as 'task' | 'todo' })}
-        disabled={isReadOnly}
-      />
+      {!hideTypeSelector && (
+        <SegmentedControl
+          options={[
+            { label: 'Tasks', value: 'task' },
+            { label: 'Todos', value: 'todo' },
+          ]}
+          selectedValue={data.type}
+          onValueChange={(val) => update({ type: val as 'task' | 'todo' })}
+          disabled={isReadOnly}
+        />
+      )}
 
       <View style={styles.titleRow}>
         <View style={styles.titleInputWrapper}>
@@ -171,6 +175,13 @@ export default function TaskFormFields({
       <DatePickerCard
         label={data.type === 'todo' ? 'Ngày hết hạn (tùy chọn, mặc định hôm nay)' : 'Ngày hết hạn'}
         date={data.dueDate}
+        valueText={
+          data.dueDate
+            ? wantsDateTime
+              ? `${data.dueDate.toLocaleDateString('vi-VN')} ${data.dueDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`
+              : data.dueDate.toLocaleDateString('vi-VN')
+            : undefined
+        }
         onPress={handlePress}
         disabled={isReadOnly}
       />
@@ -186,7 +197,7 @@ export default function TaskFormFields({
             setShowDatePicker(false);
             if (!selectedDate) return;
 
-            if (isPast(selectedDate)) {
+            if (wantsDateTime && isPast(selectedDate)) {
               rejectPastAndWarn();
               return;
             }

@@ -7,11 +7,12 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 interface ModalHeaderProps {
   title: string;
   subtitle?: string;
+  icon?: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
   rightElement?: React.ReactNode;
   onClose?: () => void;
 }
 
-export default function ModalHeader({ title, subtitle, rightElement, onClose }: ModalHeaderProps) {
+export default function ModalHeader({ title, subtitle, icon, rightElement, onClose }: ModalHeaderProps) {
   const { colors: COLORS } = useTheme();
   const typography = useMemo(() => getTypography(COLORS), [COLORS]);
   const s = useMemo(() => createStyles(COLORS, typography), [COLORS, typography]);
@@ -19,7 +20,17 @@ export default function ModalHeader({ title, subtitle, rightElement, onClose }: 
   return (
     <View style={s.container}>
       <View style={s.headerRow}>
-        <Text style={s.title} numberOfLines={1}>{title}</Text>
+        <View style={s.titleContainer}>
+          {icon && (
+            <MaterialCommunityIcons 
+              name={icon} 
+              size={26} 
+              color={COLORS.primary} 
+              style={{ marginRight: 8 }} 
+            />
+          )}
+          <Text style={s.title} numberOfLines={1}>{title}</Text>
+        </View>
         <View style={s.rightContainer}>
           {rightElement}
           {onClose && (
@@ -54,6 +65,12 @@ const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 2,
+  },
+  titleContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 12,
   },
   title: {
     flex: 1,

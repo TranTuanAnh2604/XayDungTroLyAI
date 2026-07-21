@@ -12,12 +12,17 @@ type Props = {
   skeleton?: boolean;
 };
 
-const ITEMS = (m: ReportMetrics) => [
-  { icon: 'check-circle', color: '#7C4DFF', label: 'Nhiệm vụ', value: `${m.tasksCompleted}`, hint: `${m.tasksPending} trễ hạn` },
-  { icon: 'task-alt', color: '#00BFA6', label: 'Việc cần làm', value: `${m.todosCompleted}`, hint: `${m.todosPending} trễ hạn` },
-  { icon: 'event', color: '#FFB300', label: 'Lịch họp', value: `${m.meetingsThisWeek}`, hint: `~${m.meetingHoursThisWeek}h` },
-  { icon: 'mail', color: '#EF5350', label: 'Email', value: `${m.emailsThisWeek}`, hint: `${m.unreadEmailsNow} chưa đọc` },
-] as const;
+const ITEMS = (m: ReportMetrics) => {
+  const importantEmails = (m as any).importantEmailsThisWeek ?? (m as any).ImportantEmailsThisWeek ?? m.importantEmailsThisWeek ?? m.emailsThisWeek;
+  const unreadThisWeek = (m as any).unreadEmailsThisWeek ?? (m as any).UnreadEmailsThisWeek ?? m.unreadEmailsThisWeek ?? m.unreadEmailsNow;
+
+  return [
+    { icon: 'check-circle', color: '#7C4DFF', label: 'Nhiệm vụ', value: `${m.tasksCompleted + m.tasksPending}`, hint: `${m.tasksPending} chưa hoàn thành` },
+    { icon: 'task-alt', color: '#00BFA6', label: 'Việc cần làm', value: `${m.todosCompleted + m.todosPending}`, hint: `${m.todosPending} chưa hoàn thành` },
+    { icon: 'event', color: '#FFB300', label: 'Sự kiện', value: `${m.meetingsThisWeek}`, hint: `~${m.meetingHoursThisWeek}h` },
+    { icon: 'mail', color: '#EF5350', label: 'Email', value: `${importantEmails}`, hint: `${unreadThisWeek} chưa đọc` },
+  ];
+};
 
 export default function ProductivityMetricsCard({ metrics, skeleton = false }: Props) {
   const { colors: COLORS } = useTheme();
@@ -58,10 +63,10 @@ export default function ProductivityMetricsCard({ metrics, skeleton = false }: P
 
 const createStyles = (COLORS: any, typography: any) => StyleSheet.create({
   card: { flex: 1 },
-  header: { ...typography.headlineMd, marginBottom: 16 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  item: { width: '47%', gap: 4 },
-  iconWrap: { width: 30, height: 30, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
+  header: { ...typography.headlineMd, marginBottom: 8 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  item: { width: '47%', gap: 2 },
+  iconWrap: { width: 30, height: 30, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 0 },
   value: { ...typography.headlineSm, fontWeight: '700', color: COLORS.onBackground },
   label: { ...typography.bodyMd, fontWeight: '600', color: COLORS.textPrimary, fontSize: 12 },
   hint: { fontSize: 10, color: COLORS.textSecondary },

@@ -1,4 +1,5 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, useEffect } from 'react';
+import { DeviceEventEmitter } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { generateWeeklyReport, getProductivityTrend } from '../services/productivity';
 import type { ProductivityReport, ProductivityTrendPoint } from '../types/productivity';
@@ -13,11 +14,10 @@ export function useProductivityDashboard() {
   const [isLoading, setIsLoading] = useState(cachedReport === null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isMounted = useRef(true);
 
   const load = useCallback(async (force = false) => {
-    if (isMounted.current && (!cachedReport || force)) setIsLoading(true);
-    if (isMounted.current) setError(null);
+    if (!cachedReport || force) setIsLoading(true);
+    setError(null);
 
     try {
       const [report, trendData] = await Promise.all([
@@ -28,27 +28,36 @@ export function useProductivityDashboard() {
       cachedReport = report;
       cachedTrend = trendData;
 
-      if (isMounted.current) {
-        setLatestReport(report);
-        setTrend(trendData);
-      }
+      setLatestReport(report);
+      setTrend(trendData);
     } catch (err: any) {
       console.error('useProductivityDashboard: load error', err);
-      if (isMounted.current && !cachedReport) {
+      if (!cachedReport) {
         setError('Không thể tải báo cáo năng suất.');
       }
     } finally {
-      if (isMounted.current) setIsLoading(false);
+      setIsLoading(false);
     }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      isMounted.current = true;
+  useEffect(() => {
+    if (!cachedReport) {
       load();
-      return () => { isMounted.current = false; };
-    }, [load])
-  );
+    }
+  }, [load]);
+
+  useEffect(() => {
+    const taskSub = DeviceEventEmitter.addListener('tasks_changed', () => {
+      load(true);
+    });
+    const eventSub = DeviceEventEmitter.addListener('events_changed', () => {
+      load(true);
+    });
+    return () => {
+      taskSub.remove();
+      eventSub.remove();
+    };
+  }, [load]);
 
   const refresh = useCallback(() => load(true), [load]);
 

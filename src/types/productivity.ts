@@ -11,6 +11,8 @@ export type ReportMetrics = {
   meetingHoursThisWeek: number;
   newConflictsThisWeek: number;
   unresolvedConflictsNow: number;
+  importantEmailsThisWeek?: number;
+  unreadEmailsThisWeek?: number;
 };
 
 export type ChartDataPoint = { label: string; value: number };
@@ -23,7 +25,7 @@ export type ProductivityReport = {
   metrics: ReportMetrics;
   chartData: ChartDataPoint[];
   aiSkipped: boolean;
-  ai_Evaluation: string;
+  Ai_Evaluation: string;
 };
 
 /** Item trong GET /api/Productivity/reports */
@@ -48,7 +50,7 @@ export type ProductivityReportsListResult = {
 
 /** data của GET /api/Productivity/reports/{id} */
 export type ProductivityReportDetail = ProductivityReportSummary & {
-  ai_Evaluation: string;
+  Ai_Evaluation: string;
   metrics: ReportMetrics | null;
   chartData: ChartDataPoint[];
 };
