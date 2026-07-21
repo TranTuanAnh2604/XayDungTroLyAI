@@ -74,7 +74,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Source).HasMaxLength(50).HasDefaultValue("manual").HasColumnName("source");
             entity.Property(e => e.StartTime).HasColumnName("start_time");
             entity.Property(e => e.Title).HasMaxLength(500).HasColumnName("title");
-            entity.Property(e => e.Priority).HasDefaultValue(2).HasColumnName("priority");
+            entity.Property(e => e.Priority).HasDefaultValue(2).HasColumnName("priority").ValueGeneratedNever();
             entity.Property(e => e.UserId).HasColumnName("user_id");
 
             entity.HasOne(d => d.User).WithMany(p => p.CalendarEvents)
@@ -326,7 +326,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.DueDate).HasColumnName("due_date");
             entity.Property(e => e.EstimatedMinutes).HasColumnName("estimated_minutes");
             entity.Property(e => e.InputMethod).HasMaxLength(10).HasDefaultValue("text").HasColumnName("input_method");
-            entity.Property(e => e.Priority).HasDefaultValue((byte)2).HasColumnName("priority");
+            entity.Property(e => e.Priority).HasDefaultValue((byte)2).HasColumnName("priority").ValueGeneratedNever();
             entity.Property(e => e.Status).HasMaxLength(20).HasDefaultValue("pending").HasColumnName("status");
             entity.Property(e => e.Title).HasMaxLength(500).HasColumnName("title");
             entity.Property(e => e.UserId).HasColumnName("user_id");

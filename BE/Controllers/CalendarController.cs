@@ -213,15 +213,35 @@ namespace Assistant.Controllers
             ev.IsAllDay = req.IsAllDay;
             ev.Priority = req.Priority;
 
-            // Đồng bộ task liên kết (nếu còn tồn tại và chưa hoàn thành)
             var linkedTask = await _db.Tasks
                 .FirstOrDefaultAsync(t => t.CalendarEventId == ev.Id && t.UserId == userId);
+
             if (linkedTask != null && linkedTask.Status != "done")
             {
+                // Đã có task -> đồng bộ lại
                 linkedTask.Title = ev.Title;
                 linkedTask.Description = ev.Description;
                 linkedTask.DueDate = ev.StartTime;
                 linkedTask.Priority = MapCalendarPriorityToTaskPriority(ev.Priority);
+            }
+            else if (linkedTask == null)
+            {
+                // Chưa từng có task liên kết (event cũ tạo trước khi sửa bug) -> tạo bù lại
+                var vnNow = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Utc);
+                var autoTask = new Assistant.Models.Task
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    Title = ev.Title,
+                    Description = ev.Description,
+                    Priority = MapCalendarPriorityToTaskPriority(ev.Priority),
+                    Status = "pending",
+                    DueDate = ev.StartTime,
+                    InputMethod = "calendar",
+                    CalendarEventId = ev.Id,
+                    CreatedAt = vnNow,
+                };
+                _db.Tasks.Add(autoTask);
             }
 
             await _db.SaveChangesAsync();

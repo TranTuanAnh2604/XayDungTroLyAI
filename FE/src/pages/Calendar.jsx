@@ -992,11 +992,15 @@ export default function Calendar() {
         if (!taskDeleteTarget) return
         setTaskSaving(true)
         try {
-            const res = await fetch(`${TASKS_BASE_URL}/${taskDeleteTarget.id}`, {
-                method: 'DELETE',
-                headers: taskAuthHeaders(),
-            })
-            if (!res.ok) throw new Error('Xóa công việc thất bại')
+            if (taskDeleteTarget.calendarEventId) {
+                await deleteCalendarEvent(taskDeleteTarget.calendarEventId)
+            } else {
+                const res = await fetch(`${TASKS_BASE_URL}/${taskDeleteTarget.id}`, {
+                    method: 'DELETE',
+                    headers: taskAuthHeaders(),
+                })
+                if (!res.ok) throw new Error('Xóa công việc thất bại')
+            }
 
             setTaskDeleteTarget(null)
             setTaskEditId(null)
@@ -1482,7 +1486,11 @@ export default function Calendar() {
                     state={taskEditState}
                     onClose={() => setTaskEditId(null)}
                     onSave={handleSaveTask}
-                    onDelete={() => setTaskDeleteTarget({ id: taskEditId, title: taskEditState.data?.title || '' })}
+                    onDelete={() => setTaskDeleteTarget({
+                        id: taskEditId,
+                        title: taskEditState.data?.title || '',
+                        calendarEventId: taskEditState.data?.calendarEventId || null
+                    })}
                     saving={taskSaving}
                 />
             )}

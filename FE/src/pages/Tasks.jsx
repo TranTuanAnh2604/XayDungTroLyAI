@@ -333,32 +333,31 @@ function TaskModal({ task, onClose, onSaved, existingTasks }) {
         if (!form.title.trim()) { setError("Tiêu đề không được để trống"); return }
         if (dateError) { setError("Vui lòng sửa deadline trước khi lưu"); return }
         setLoading(true)
+        setError("")
         try {
-            const basePayload = {
+            const payload = {
                 title: form.title,
                 description: form.description || null,
                 priority: Number(form.priority),
                 dueDate: form.due_date ? form.due_date + ":00+07:00" : null,
                 status: form.status,
+                ignoreConflict: conflicts.length > 0, // đã cảnh báo trước rồi -> bỏ qua check ở backend luôn
             }
 
             if (isEdit) {
-                await updateTask(task.id, basePayload)
+                await updateTask(task.id, payload)
             } else {
-                await createTask(basePayload)
+                await createTask(payload)
             }
 
-            // AI tự động tạo reminder sau khi tạo/sửa task
             if (!isEdit) {
                 setAiReminderLoading(true)
                 try {
-                    const taskForAI = { ...basePayload, title: form.title, description: form.description }
-                    const suggestion = await suggestReminderTime(taskForAI)
+                    const suggestion = await suggestReminderTime({ ...payload, title: form.title, description: form.description })
                     await createNotification({
                         title: `Nhắc nhở: ${form.title}`,
                         body: suggestion.reason,
-                        scheduledAt: suggestion.scheduledAt, 
-
+                        scheduledAt: suggestion.scheduledAt,
                     })
                 } catch (e) {
                     console.warn("Không tạo được reminder tự động:", e.message)
@@ -370,7 +369,13 @@ function TaskModal({ task, onClose, onSaved, existingTasks }) {
             onSaved()
             onClose()
         } catch (e) {
-            setError(`${isEdit ? "Sửa" : "Tạo"} task thất bại: ${e.message}`)
+            if (e.response?.status === 409) {
+                const conflictList = e.response.data?.conflicts || []
+                setConflicts(conflictList)
+                setError(e.response.data?.message || "Trùng lịch với task/sự kiện khác. Bấm Lưu lại để xác nhận tạo.")
+            } else {
+                setError(`${isEdit ? "Sửa" : "Tạo"} task thất bại: ${e.message}`)
+            }
         } finally {
             setLoading(false)
         }
