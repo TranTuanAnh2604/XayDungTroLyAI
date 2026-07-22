@@ -18,11 +18,15 @@ namespace Assistant.Controllers
     {
         private readonly GroqService _groqService;
         private readonly AppDbContext _db;
+        private readonly WebSearchService _webSearchService;
+        private readonly ScheduleConflictService _conflict;
 
-        public VoiceController(GroqService groqService, AppDbContext db)
+        public VoiceController(GroqService groqService, AppDbContext db, WebSearchService webSearchService, ScheduleConflictService conflict)
         {
             _groqService = groqService;
             _db = db;
+            _webSearchService = webSearchService;
+            _conflict = conflict;
         }
 
         [HttpPost("process")]
@@ -35,109 +39,106 @@ namespace Assistant.Controllers
             if (!Guid.TryParse(userIdStr, out var userId))
                 return Unauthorized();
 
-            // Giờ VN hiện tại, dùng chung cho mọi CreatedAt trong action này
             var vnNow = DateTime.UtcNow.AddHours(7);
 
             try
             {
-                // ── MỚI: Nạp context dữ liệu user (task, lịch, ghi nhớ) giống ChatController ──
                 var userDataContext = await BuildUserDataContextAsync(userId, vnNow);
+                var (systemPrompt, userPrompt) = BuildVoicePromptParts(request.Text, userDataContext, vnNow);
 
-                var (reply, taskJson, calendarJson) = await _groqService.ChatWithIntentAsync(request.Text, userDataContext);
+                string rawAiResponse;
+                try
+                {
+                    rawAiResponse = await _groqService.ChatWithToolsAsync(systemPrompt, userPrompt, _webSearchService);
+                }
+                catch (Exception ex)
+                {
+                    return StatusCode(500, new ApiResponse<string>($"Lỗi gọi AI: {ex.Message}"));
+                }
+
+                var (aiReply, actions) = ParseAiActionResponse(rawAiResponse);
 
                 Guid? createdTaskId = null;
                 Guid? createdEventId = null;
+                var localRanges = new List<(DateTime Start, DateTime End, string Title)>();
 
-                // ── Tạo Task nếu có ──────────────────────────────────────────
-                if (!string.IsNullOrEmpty(taskJson) && taskJson != "null")
+                bool OverlapsLocal(DateTime s, DateTime e, out string withTitle)
+                {
+                    foreach (var r in localRanges)
+                        if (s < r.End && e > r.Start) { withTitle = r.Title; return true; }
+                    withTitle = "";
+                    return false;
+                }
+
+                // Xử lý "event" trước — luôn tạo kèm Task liên kết (giống ChatController)
+                var eventActionTitles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var action in actions.Where(a => string.Equals(a.Type, "event", StringComparison.OrdinalIgnoreCase)))
                 {
                     try
                     {
-                        var node = JsonNode.Parse(taskJson);
-                        var title = node?["title"]?.ToString();
+                        var evt = BuildEventFromAction(action, userId, vnNow);
+                        if (evt == null) continue;
 
-                        Console.WriteLine($"[VOICE] taskJson = {taskJson}");
-                        Console.WriteLine($"[VOICE] title = {title}");
+                        var dbConflicts = await _conflict.FindConflictsAsync(userId, evt.StartTime, evt.EndTime);
+                        var hasLocalConflict = OverlapsLocal(evt.StartTime, evt.EndTime, out _);
+                        // Voice chỉ nói 1 câu -> không cần hỏi lại user, cứ tạo và log cảnh báo vào reply nếu muốn
+                        // (có thể bỏ qua bước cảnh báo nếu muốn đơn giản)
 
-                        if (!string.IsNullOrWhiteSpace(title))
+                        var linkedTask = new Assistant.Models.Task
                         {
-                            var dueDateStr = node?["dueDate"]?.ToString();
-                            var priorityStr = node?["priority"]?.ToString();
-                            byte priority = byte.TryParse(priorityStr, out var p) ? p : (byte)2;
+                            Id = Guid.NewGuid(),
+                            UserId = userId,
+                            Title = evt.Title,
+                            Description = evt.Description,
+                            DueDate = evt.StartTime,
+                            Priority = MapTaskPriority(action.Priority),
+                            Status = "pending",
+                            InputMethod = "voice",
+                            CreatedAt = vnNow,
+                            CalendarEventId = evt.Id
+                        };
 
-                            // AI trả về giờ VN (wall-clock) -> chỉ gắn nhãn Utc, KHÔNG convert
-                            DateTime? dueDate = null;
-                            if (!string.IsNullOrEmpty(dueDateStr) && DateTime.TryParse(dueDateStr, out var pd))
-                            {
-                                dueDate = DateTime.SpecifyKind(pd, DateTimeKind.Utc);
-                            }
+                        _db.CalendarEvents.Add(evt);
+                        _db.Tasks.Add(linkedTask);
+                        localRanges.Add((evt.StartTime, evt.EndTime, evt.Title));
+                        eventActionTitles.Add(action.Title.Trim());
 
-                            var task = new Assistant.Models.Task
-                            {
-                                Id = Guid.NewGuid(),
-                                UserId = userId,
-                                Title = title,
-                                Description = node?["description"]?.ToString(),
-                                DueDate = dueDate,
-                                Priority = priority,
-                                Status = "pending",
-                                InputMethod = "voice",
-                                CreatedAt = vnNow
-                            };
-                            _db.Tasks.Add(task);
-                            await _db.SaveChangesAsync();
-                            createdTaskId = task.Id;
-                        }
+                        createdEventId = evt.Id;
+                        createdTaskId = linkedTask.Id;
                     }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[VOICE] Task error: {ex.Message}");
-                    }
+                    catch { /* bỏ qua action lỗi */ }
                 }
 
-                // ── Tạo Calendar Event nếu có ─────────────────────────────────
-                if (!string.IsNullOrEmpty(calendarJson) && calendarJson != "null")
+                // Xử lý "task" — bỏ qua nếu trùng title với event vừa xử lý
+                foreach (var action in actions.Where(a => string.Equals(a.Type, "task", StringComparison.OrdinalIgnoreCase)))
                 {
-                    Console.WriteLine($"[VOICE] calendarJson = {calendarJson}");
                     try
                     {
-                        var node = JsonNode.Parse(calendarJson);
-                        var title = node?["title"]?.ToString();
-                        var startStr = node?["startTime"]?.ToString();
+                        if (eventActionTitles.Contains(action.Title?.Trim() ?? "")) continue;
 
-                        if (!string.IsNullOrWhiteSpace(title) && !string.IsNullOrWhiteSpace(startStr)
-                            && DateTime.TryParse(startStr, out var startTime))
+                        var task = BuildTaskFromAction(action, userId, vnNow);
+                        if (task == null) continue;
+
+                        if (task.DueDate.HasValue)
                         {
-                            var endStr = node?["endTime"]?.ToString();
-                            DateTime endTime = DateTime.TryParse(endStr, out var et)
-                                ? et
-                                : startTime.AddHours(1); // mặc định +1h
-
-                            var calEvent = new CalendarEvent
-                            {
-                                Id = Guid.NewGuid(),
-                                UserId = userId,
-                                Title = title,
-                                Description = node?["description"]?.ToString(),
-                                Location = node?["location"]?.ToString(),
-                                // AI trả về giờ VN (wall-clock) -> chỉ gắn nhãn Utc, KHÔNG convert
-                                StartTime = DateTime.SpecifyKind(startTime, DateTimeKind.Utc),
-                                EndTime = DateTime.SpecifyKind(endTime, DateTimeKind.Utc),
-                                IsAllDay = node?["isAllDay"]?.GetValue<bool>() ?? false,
-                                Source = "voice",
-                                CreatedAt = vnNow
-                            };
-                            _db.CalendarEvents.Add(calEvent);
-                            await _db.SaveChangesAsync();
-                            createdEventId = calEvent.Id;
+                            var start = task.DueDate.Value;
+                            var end = start.AddMinutes(30);
+                            await _conflict.FindConflictsAsync(userId, start, end); // check, không chặn (voice không hỏi lại được)
+                            localRanges.Add((start, end, task.Title));
                         }
+
+                        _db.Tasks.Add(task);
+                        createdTaskId = task.Id;
                     }
-                    catch { }
+                    catch { /* bỏ qua action lỗi */ }
                 }
+
+                await _db.SaveChangesAsync();
 
                 return Ok(new ApiResponse<VoiceProcessResult>(new VoiceProcessResult
                 {
-                    Reply = reply,
+                    Reply = aiReply,
                     TaskCreated = createdTaskId.HasValue,
                     TaskId = createdTaskId,
                     CalendarEventCreated = createdEventId.HasValue,
@@ -273,6 +274,143 @@ namespace Assistant.Controllers
             DayOfWeek.Sunday => "Chủ Nhật",
             _ => ""
         };
+
+        private (string systemPrompt, string userPrompt) BuildVoicePromptParts(string spokenText, string? userDataContext, DateTime vnNow)
+        {
+            var sys = new StringBuilder();
+            sys.AppendLine("Bạn là trợ lý AI cá nhân, xử lý lệnh giọng nói bằng tiếng Việt.");
+            sys.AppendLine("Ngoài trả lời bình thường, bạn có thể NHẬN DIỆN khi người dùng muốn:");
+            sys.AppendLine("- Thêm một CÔNG VIỆC cần làm (task), HOẶC");
+            sys.AppendLine("- Thêm một SỰ KIỆN vào lịch (event), HOẶC cả hai.");
+            sys.AppendLine("Nếu câu hỏi cần thông tin real-time (thời tiết, tin tức, giá cả...), hãy dùng tool trước khi trả lời.");
+            sys.AppendLine("CHÚ Ý QUAN TRỌNG: Tool DUY NHẤT bạn được phép gọi là 'web_search'. Việc tạo CÔNG VIỆC hay SỰ KIỆN KHÔNG phải là tool call — đó chỉ là dữ liệu bạn điền vào trường \"actions\" trong JSON trả lời cuối cùng.");
+            sys.AppendLine("QUAN TRỌNG: câu trả lời CUỐI CÙNG phải là JSON DUY NHẤT, không markdown, đúng cấu trúc:");
+            sys.AppendLine(@"{
+  ""reply"": ""câu trả lời tự nhiên, ngắn gọn (vì đây là trợ lý giọng nói)"",
+  ""actions"": [ { ""type"": ""task hoặc event"", ""title"": ""..."", ""date"": ""yyyy-MM-dd"", ""time"": ""HH:mm hoặc null"", ""endTime"": ""HH:mm hoặc null"", ""isAllDay"": false, ""priority"": ""urgent|normal|low"", ""location"": ""... hoặc null"" } ]
+}");
+            sys.AppendLine("Nếu không có ý định thêm task/lịch, trả \"actions\": [].");
+            sys.AppendLine($"Hôm nay là {vnNow:dd/MM/yyyy} ({GetVietnameseDayOfWeek(vnNow.DayOfWeek)}), giờ hiện tại {vnNow:HH:mm}.");
+
+            if (!string.IsNullOrEmpty(userDataContext))
+                sys.AppendLine(userDataContext);
+
+            var usr = new StringBuilder();
+            usr.AppendLine($"Người dùng (giọng nói): {spokenText}");
+
+            return (sys.ToString(), usr.ToString());
+        }
+
+        private (string reply, List<AiAction> actions) ParseAiActionResponse(string raw)
+        {
+            var cleaned = raw.Trim();
+            if (cleaned.StartsWith("```"))
+            {
+                var firstNewline = cleaned.IndexOf('\n');
+                if (firstNewline >= 0) cleaned = cleaned[(firstNewline + 1)..];
+                var lastFence = cleaned.LastIndexOf("```");
+                if (lastFence >= 0) cleaned = cleaned[..lastFence];
+                cleaned = cleaned.Trim();
+            }
+
+            var parsed = TryParseAction(cleaned);
+            if (parsed != null) return (parsed.Reply, parsed.Actions ?? new List<AiAction>());
+
+            var firstBrace = cleaned.IndexOf('{');
+            var lastBrace = cleaned.LastIndexOf('}');
+            if (firstBrace >= 0 && lastBrace > firstBrace)
+            {
+                var jsonSlice = cleaned[firstBrace..(lastBrace + 1)];
+                parsed = TryParseAction(jsonSlice);
+                if (parsed != null) return (parsed.Reply, parsed.Actions ?? new List<AiAction>());
+            }
+
+            return (raw, new List<AiAction>());
+        }
+
+        private AiActionResponse? TryParseAction(string text)
+        {
+            try
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var parsed = JsonSerializer.Deserialize<AiActionResponse>(text, options);
+                if (parsed != null && !string.IsNullOrWhiteSpace(parsed.Reply)) return parsed;
+            }
+            catch { }
+            return null;
+        }
+
+        private static DateTime? ParseDateTimeVn(string? date, string? time, bool isAllDay)
+        {
+            if (string.IsNullOrWhiteSpace(date)) return null;
+            if (!DateTime.TryParseExact(date, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out var d))
+                return null;
+            if (isAllDay || string.IsNullOrWhiteSpace(time)) return d.Date;
+            if (TimeSpan.TryParse(time, out var t)) return d.Date.Add(t);
+            return d.Date;
+        }
+
+        private static byte MapTaskPriority(string? priority) => priority?.Trim().ToLowerInvariant() switch
+        {
+            "urgent" => 3,
+            "low" => 1,
+            _ => 2
+        };
+
+        private static int MapEventPriority(string? priority) => priority?.Trim().ToLowerInvariant() switch
+        {
+            "urgent" => 0,
+            "low" => 2,
+            _ => 1
+        };
+
+        private Assistant.Models.Task? BuildTaskFromAction(AiAction action, Guid userId, DateTime vnNow)
+        {
+            if (string.IsNullOrWhiteSpace(action.Title)) return null;
+            var due = ParseDateTimeVn(action.Date, action.Time, action.IsAllDay);
+
+            return new Assistant.Models.Task
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                Title = action.Title.Trim(),
+                Description = null,
+                DueDate = due,
+                Priority = MapTaskPriority(action.Priority),
+                Status = "pending",
+                InputMethod = "voice",
+                CreatedAt = vnNow
+            };
+        }
+
+        private CalendarEvent? BuildEventFromAction(AiAction action, Guid userId, DateTime vnNow)
+        {
+            if (string.IsNullOrWhiteSpace(action.Title)) return null;
+            var start = ParseDateTimeVn(action.Date, action.Time, action.IsAllDay);
+            if (start == null) return null;
+
+            DateTime end;
+            if (action.IsAllDay) end = start.Value.Date;
+            else if (!string.IsNullOrWhiteSpace(action.EndTime)) end = ParseDateTimeVn(action.Date, action.EndTime, false) ?? start.Value.AddHours(1);
+            else end = start.Value.AddHours(1);
+
+            if (end <= start.Value) end = start.Value.AddHours(1);
+
+            return new CalendarEvent
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                Title = action.Title.Trim(),
+                Description = null,
+                StartTime = start.Value,
+                EndTime = end,
+                Location = action.Location,
+                Source = "voice",
+                IsAllDay = action.IsAllDay,
+                Priority = MapEventPriority(action.Priority),
+                CreatedAt = vnNow
+            };
+        }
     }
 
     public class VoiceRequestDto { public string Text { get; set; } = null!; }
